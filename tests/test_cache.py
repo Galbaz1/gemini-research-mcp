@@ -1,0 +1,59 @@
+"""Tests for the generic file-based cache."""
+
+from __future__ import annotations
+
+
+import pytest
+
+import gemini_research_mcp.config as cfg_mod
+from gemini_research_mcp import cache
+
+
+@pytest.fixture(autouse=True)
+def _tmp_cache(tmp_path, monkeypatch):
+    """Point cache at a temp directory."""
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    cfg_mod._config = None
+    monkeypatch.setenv("GEMINI_CACHE_DIR", str(tmp_path / "cache"))
+    cfg_mod._config = None
+    yield
+    cfg_mod._config = None
+
+
+class TestCache:
+    def test_save_and_load(self):
+        data = {"title": "Test Video", "summary": "A summary"}
+        assert cache.save("vid123", "analyze", "gemini-pro", data) is True
+
+        loaded = cache.load("vid123", "analyze", "gemini-pro")
+        assert loaded is not None
+        assert loaded["title"] == "Test Video"
+
+    def test_cache_miss(self):
+        assert cache.load("nonexistent", "analyze", "gemini-pro") is None
+
+    def test_clear_specific(self):
+        cache.save("vid1", "analyze", "model", {"a": 1})
+        cache.save("vid2", "analyze", "model", {"b": 2})
+        removed = cache.clear("vid1")
+        assert removed >= 1
+        assert cache.load("vid1", "analyze", "model") is None
+        assert cache.load("vid2", "analyze", "model") is not None
+
+    def test_clear_all(self):
+        cache.save("vid1", "analyze", "model", {"a": 1})
+        cache.save("vid2", "analyze", "model", {"b": 2})
+        removed = cache.clear()
+        assert removed >= 2
+
+    def test_stats(self):
+        cache.save("vid1", "t", "m", {"x": 1})
+        s = cache.stats()
+        assert s["total_files"] >= 1
+        assert "total_size_mb" in s
+
+    def test_list_entries(self):
+        cache.save("vid1", "t", "m", {"x": 1})
+        entries = cache.list_entries()
+        assert len(entries) >= 1
+        assert entries[0]["content_id"] == "vid1"
