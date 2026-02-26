@@ -14,15 +14,15 @@ app = FastMCP(
     "gemini-research",
     instructions=(
         "Unified Gemini research partner — video analysis, deep research, "
-        "content extraction. Powered by Gemini 2.5 Pro with thinking support."
+        "content extraction. Powered by Gemini 3.1 Pro with thinking support."
     ),
 )
 
-app.mount("video", video_server)
-app.mount("research", research_server)
-app.mount("content", content_server)
-app.mount("web", web_server)
-app.mount("infra", infra_server)
+app.mount(video_server)
+app.mount(research_server)
+app.mount(content_server)
+app.mount(web_server)
+app.mount(infra_server)
 
 
 def main() -> None:

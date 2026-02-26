@@ -272,7 +272,7 @@ async def video_compare(
         *(video_analyze_youtube(u, mode=mode, thinking_level=thinking_level) for u in urls),
         return_exceptions=True,
     )
-    valid = [a for a in analyses if isinstance(a, dict) and "error" not in a]
+    valid = [a for a in analyses if isinstance(a, dict) and not a.get("error")]
     if not valid:
         return {"error": "No videos could be analysed", "category": "UNKNOWN", "hint": ""}
 

@@ -11,8 +11,8 @@ class ServerConfig(BaseModel):
     """Runtime configuration resolved from environment."""
 
     gemini_api_key: str = Field(default="")
-    default_model: str = Field(default="gemini-2.5-pro-preview-06-05")
-    flash_model: str = Field(default="gemini-2.5-flash-preview-05-20")
+    default_model: str = Field(default="gemini-3.1-pro-preview")
+    flash_model: str = Field(default="gemini-3-flash-preview")
     default_thinking_level: str = Field(default="high")
     default_temperature: float = Field(default=1.0)
     cache_dir: str = Field(default="")
@@ -28,8 +28,8 @@ class ServerConfig(BaseModel):
         cache_default = str(Path.home() / ".cache" / "gemini-research-mcp")
         return cls(
             gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
-            default_model=os.getenv("GEMINI_MODEL", "gemini-2.5-pro-preview-06-05"),
-            flash_model=os.getenv("GEMINI_FLASH_MODEL", "gemini-2.5-flash-preview-05-20"),
+            default_model=os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview"),
+            flash_model=os.getenv("GEMINI_FLASH_MODEL", "gemini-3-flash-preview"),
             default_thinking_level=os.getenv("GEMINI_THINKING_LEVEL", "high"),
             default_temperature=float(os.getenv("GEMINI_TEMPERATURE", "1.0")),
             cache_dir=os.getenv("GEMINI_CACHE_DIR", cache_default),

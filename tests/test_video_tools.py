@@ -59,10 +59,16 @@ class TestParsers:
         assert _parse_labeled_line("nothing here", "TITLE") == ""
 
     def test_parse_list_comma(self):
-        text = "THEMES: AI, machine learning, deep learning"
+        text = "THEMES: artificial intelligence, machine learning, deep learning"
         result = _parse_list_from_label(text, "THEMES")
         assert len(result) == 3
-        assert "AI" in result[0]
+        assert "artificial intelligence" in result[0]
+
+    def test_parse_list_filters_short_items(self):
+        """Items ≤2 chars are filtered (noise reduction from original youtube_agent)."""
+        text = "THEMES: AI, machine learning"
+        result = _parse_list_from_label(text, "THEMES")
+        assert len(result) == 1  # "AI" is only 2 chars, filtered
 
     def test_parse_list_pipe(self):
         text = "COMMANDS: npm install | pip install | cargo build"
