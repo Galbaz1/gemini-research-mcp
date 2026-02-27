@@ -8,6 +8,24 @@ from pydantic import BaseModel, Field, field_validator
 
 VALID_THINKING_LEVELS = {"minimal", "low", "medium", "high"}
 
+MODEL_PRESETS: dict[str, dict[str, str]] = {
+    "best": {
+        "default_model": "gemini-3.1-pro-preview",
+        "flash_model": "gemini-3-flash-preview",
+        "label": "Max quality — 3.1 Pro + 3 Flash (preview, lowest rate limits)",
+    },
+    "stable": {
+        "default_model": "gemini-3-pro-preview",
+        "flash_model": "gemini-3-flash-preview",
+        "label": "Fallback — 3 Pro + 3 Flash (higher rate limits, 3 Pro EOL 2026-03-09)",
+    },
+    "budget": {
+        "default_model": "gemini-3-flash-preview",
+        "flash_model": "gemini-3-flash-preview",
+        "label": "Cost-optimized — 3 Flash for everything (highest rate limits)",
+    },
+}
+
 
 class ServerConfig(BaseModel):
     """Runtime configuration resolved from environment."""

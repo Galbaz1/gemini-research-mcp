@@ -33,6 +33,35 @@ class TestInfraTools:
         assert out["retryable"] is False
 
     @pytest.mark.asyncio
+    async def test_preset_sets_both_models(self):
+        out = await infra_configure(preset="stable")
+        cfg = out["current_config"]
+        assert cfg["default_model"] == "gemini-3-pro-preview"
+        assert cfg["flash_model"] == "gemini-3-flash-preview"
+        assert out["active_preset"] == "stable"
+
+    @pytest.mark.asyncio
+    async def test_preset_with_model_override(self):
+        out = await infra_configure(preset="stable", model="gemini-3-pro-exp-override")
+        cfg = out["current_config"]
+        assert cfg["default_model"] == "gemini-3-pro-exp-override"
+        assert cfg["flash_model"] == "gemini-3-flash-preview"
+        assert out["active_preset"] is None  # no exact preset match
+
+    @pytest.mark.asyncio
+    async def test_invalid_preset_returns_error(self):
+        out = await infra_configure(preset="turbo")
+        assert out["category"] == "UNKNOWN"
+        assert "Unknown preset" in out["error"]
+
+    @pytest.mark.asyncio
+    async def test_response_includes_presets(self):
+        out = await infra_configure()
+        assert "available_presets" in out
+        assert set(out["available_presets"]) == {"best", "stable", "budget"}
+        assert out["active_preset"] == "best"  # default models match "best"
+
+    @pytest.mark.asyncio
     async def test_infra_cache_unknown_action(self):
         out = await infra_cache(action="wat")
         assert "Unknown action" in out["error"]

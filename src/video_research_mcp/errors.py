@@ -53,7 +53,7 @@ def categorize_error(error: Exception) -> tuple[ErrorCategory, str]:
     if "429" in s or "quota" in s or "resource_exhausted" in s:
         return (
             ErrorCategory.API_QUOTA_EXCEEDED,
-            "API quota exceeded — wait a minute or upgrade plan",
+            "Rate limit hit — wait and retry, or switch models with infra_configure(preset='stable')",
         )
     if "400" in s and "mime" in s:
         return (

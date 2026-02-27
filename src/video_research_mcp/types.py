@@ -11,6 +11,7 @@ from pydantic import Field
 ThinkingLevel = Literal["minimal", "low", "medium", "high"]
 Scope = Literal["quick", "moderate", "deep", "comprehensive"]
 CacheAction = Literal["stats", "list", "clear"]
+ModelPreset = Literal["best", "stable", "budget"]
 
 # ── Annotated aliases ────────────────────────────────────────────────────────
 
