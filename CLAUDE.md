@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-An MCP server (stdio transport, FastMCP 3.0.2) exposing Gemini 3.1 Pro as 11 instruction-driven tools for video analysis, deep research, content extraction, and web search. Built with `google-genai` SDK, Pydantic v2, hatchling build backend. Requires Python >= 3.11.
+An MCP server (stdio transport, FastMCP 3.0.2) exposing 13 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3 (`google-api-python-client`). Built with Pydantic v2, hatchling build backend. Requires Python >= 3.11.
 
 ## Commands
 
@@ -31,13 +31,15 @@ GEMINI_API_KEY=... uv run video-research-mcp
 
 ## Architecture
 
-**Composite FastMCP server** — `server.py` creates a root `FastMCP("video-research")` and mounts 5 sub-servers:
+**Composite FastMCP server** — `server.py` creates a root `FastMCP("video-research")` and mounts 6 sub-servers:
 
 ```
 server.py (root, lifespan hook for cleanup)
 ├── types.py                → shared Literal types + Annotated aliases
-├── tools/video.py          → video_server    (3 tools)
+├── youtube.py              → YouTubeClient singleton (Data API v3, async wrapper)
+├── tools/video.py          → video_server    (4 tools)
 ├── tools/video_url.py      → URL validation helpers
+├── tools/youtube.py        → youtube_server  (2 tools: metadata + playlist)
 ├── tools/research.py       → research_server (3 tools)
 ├── tools/content.py        → content_server  (2 tools)
 ├── tools/search.py         → search_server   (1 tool)
@@ -66,13 +68,16 @@ server.py (root, lifespan hook for cleanup)
 
 **Pydantic models** live in `models/` — one file per domain. These serve as both output schemas for Gemini structured output and response types for tool returns.
 
-## Tool Surface (11 tools)
+## Tool Surface (13 tools)
 
 | Tool | Server | Input | Output Schema |
 |------|--------|-------|---------------|
 | `video_analyze` | video | url + instruction + optional schema | `VideoResult` or custom |
 | `video_create_session` | video | url + description | `SessionInfo` |
 | `video_continue_session` | video | session_id + prompt | `SessionResponse` |
+| `video_batch_analyze` | video | directory + instruction | `BatchVideoResult` |
+| `video_metadata` | youtube | url | `VideoMetadata` |
+| `video_playlist` | youtube | url + max_items | `PlaylistInfo` |
 | `research_deep` | research | topic + scope | `ResearchReport` |
 | `research_plan` | research | topic + scope + agents | `ResearchPlan` |
 | `research_assess_evidence` | research | claim + sources | `EvidenceAssessment` |

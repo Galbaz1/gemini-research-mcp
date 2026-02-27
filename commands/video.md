@@ -1,7 +1,7 @@
 ---
 description: Analyze a video (YouTube URL, local file, or directory)
 argument-hint: <youtube-url-or-file-path>
-allowed-tools: mcp__video-research__video_analyze, mcp__video-research__video_batch_analyze, mcp__video-research__video_create_session, mcp__video-research__video_continue_session, mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_wait_for, Write, Glob, Read, Bash
+allowed-tools: mcp__video-research__video_analyze, mcp__video-research__video_batch_analyze, mcp__video-research__video_create_session, mcp__video-research__video_continue_session, mcp__video-research__video_metadata, mcp__video-research__video_playlist, Write, Glob, Read, Bash
 model: sonnet
 ---
 
@@ -80,6 +80,14 @@ concepts: []
 ```
 
    d. Tell the user: **Saved initial analysis to `gr/video/<slug>/`**
+
+   e. **YouTube URLs only**: Now spawn the `comment-analyst` agent in the background:
+      ```
+      video_url: <the YouTube URL>
+      video_title: <extracted video title>
+      analysis_path: <memory-dir>/gr/video/<slug>/analysis.md
+      ```
+      The comment-analyst runs alongside Phases 2.5-4. Results append to analysis.md when done. Skip for local files.
 
 ## Phase 2.5: Extract Video Frames (local files only)
 
@@ -162,89 +170,25 @@ concepts:
 
 4. Update the `updated` timestamp in frontmatter.
 
-## Phase 4: Generate Visualization
+## Phase 4: Background Visualization (optional)
 
-1. Read the visualization skill: `skills/gemini-visualize/SKILL.md`
-2. Read the video template: `skills/gemini-visualize/templates/video-concept-map.md`
-3. Generate a **single self-contained HTML file** (`concept-map.html`) following the template:
-   - Map extracted concepts to nodes with categories and colors
-   - Map relationships to edges with labels
-   - Include knowledge state cycling (Know/Fuzzy/Unknown)
-   - Include prompt generation button
-   - Dark theme, canvas rendering, drag-and-drop, zoom/pan
-4. Use `Write` to save at `<memory-dir>/gr/video/<slug>/concept-map.html`
+Ask the user with `AskUserQuestion`:
+- Question: "Generate interactive concept map visualization? (runs in background)"
+- Option 1: "Yes (Recommended)" — description: "HTML visualization + screenshot + workspace copy, runs asynchronously"
+- Option 2: "Skip" — description: "Finish now with analysis only"
 
-**User override**: If the user said "skip visualization" or "no viz", skip Phases 4 and 5 entirely.
-
-## Phase 5: Screenshot Capture
-
-1. Start a background HTTP server:
-   ```
-   Bash: lsof -ti:18923 | xargs kill -9 2>/dev/null; python3 -m http.server 18923 --directory <memory-dir>/gr/video/<slug>/ &
-   ```
-   Capture the PID from output.
-
-2. Navigate Playwright to the visualization:
-   ```
-   mcp__playwright__browser_navigate → http://localhost:18923/concept-map.html
-   ```
-
-3. Wait for rendering:
-   ```
-   mcp__playwright__browser_wait_for → selector: "canvas" or wait 2 seconds
-   ```
-
-4. Take screenshot:
-   ```
-   mcp__playwright__browser_take_screenshot
-   ```
-   Save the screenshot data to `<memory-dir>/gr/video/<slug>/screenshot.png`
-
-5. Cleanup:
-   ```
-   Bash: kill <PID>
-   mcp__playwright__browser_close
-   ```
-
-6. If any Playwright step fails, log the error but continue — the HTML is the primary artifact.
-
-## Phase 6: Finalize & Link
-
-1. Update `analysis.md` to add the Visualization section at the end:
-
-```markdown
-## Visualization  <!-- <YYYY-MM-DD HH:MM> -->
-
-![Concept Map](screenshot.png)
-Interactive: [Open concept map](concept-map.html)
+**If yes**: Spawn the `visualizer` agent in the background with this prompt:
+```
+analysis_path: <memory-dir>/gr/video/<slug>/analysis.md
+template_name: video-concept-map
+slug: <slug>
+content_type: video
 ```
 
-2. Update the `updated` timestamp in YAML frontmatter.
+**Do NOT wait** for the visualizer. Continue immediately to Deeper Exploration below. The user will be notified when visualization is done.
 
-3. Confirm: **Analysis complete — saved to `gr/video/<slug>/`**
-   - `analysis.md` — timestamped analysis with relationship map
-   - `concept-map.html` — interactive concept map
-   - `screenshot.png` — static capture
-
-## Phase 7: Workspace Output
-
-Copy all artifacts to the user's workspace so they can browse results without navigating into `.claude/` memory paths. Use Python `shutil` (bash `cp` may be sandboxed):
-
-```
-Bash: python3 -c "
-import shutil, os
-src = '<memory-dir>/gr/video/<slug>'
-dst = os.path.join(os.getcwd(), 'output', '<slug>')
-if os.path.exists(dst):
-    shutil.rmtree(dst)
-shutil.copytree(src, dst)
-print(f'Copied to output/<slug>/')
-"
-```
-
-Tell the user: **Output also saved to `output/<slug>/`** in your workspace.
-
-If the workspace copy fails, it's non-critical — the memory copy is authoritative. Log the error and continue.
+**If skip**: Confirm: **Analysis complete — saved to `gr/video/<slug>/`**
+- `analysis.md` — timestamped analysis with relationship map
 
 ## Deeper Exploration
 

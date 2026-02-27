@@ -1,11 +1,11 @@
 ---
 name: video-research
-description: Teaches Claude how to effectively use the 11 Gemini research tools. Activates when working with video analysis, deep research, content extraction, or web search via the video-research MCP server.
+description: Teaches Claude how to effectively use the 13 Gemini research tools. Activates when working with video analysis, deep research, content extraction, or web search via the video-research MCP server.
 ---
 
 # Video Research MCP — Tool Usage Guide
 
-You have access to the `video-research-mcp` MCP server, which exposes 11 tools powered by Gemini 3.1 Pro. These tools are **instruction-driven** — you write the instruction, Gemini returns structured JSON.
+You have access to the `video-research-mcp` MCP server, which exposes 13 tools powered by Gemini 3.1 Pro and the YouTube Data API. These tools are **instruction-driven** — you write the instruction, Gemini returns structured JSON. Two tools (`video_metadata`, `video_playlist`) use the YouTube Data API directly for fast metadata retrieval without Gemini inference.
 
 ## Core Principle
 
@@ -15,6 +15,8 @@ Tools accept an `instruction` parameter instead of fixed modes. Write specific, 
 
 | I want to... | Use this tool |
 |---|---|
+| Get video title, stats, duration, tags | `video_metadata` |
+| List videos in a YouTube playlist | `video_playlist` |
 | Analyze a YouTube video | `video_analyze` |
 | Have a multi-turn conversation about a video | `video_create_session` + `video_continue_session` |
 | Research a topic in depth | `research_deep` |
@@ -28,7 +30,23 @@ Tools accept an `instruction` parameter instead of fixed modes. Write specific, 
 
 ## Tool Reference
 
-### Video Tools (3)
+### Video Tools (3) + YouTube Tools (2)
+
+#### `video_metadata` — Get YouTube video metadata (no Gemini cost)
+```
+video_metadata(url: str)  # YouTube URL
+```
+Returns `{video_id, title, description, channel_title, published_at, tags[], view_count, like_count, comment_count, duration_seconds, duration_display, category, definition, has_captions, default_language}`.
+
+Costs 1 YouTube API unit, 0 Gemini units. Use this for quick metadata lookups before deciding whether to run a full `video_analyze`.
+
+#### `video_playlist` — List videos in a playlist
+```
+video_playlist(url: str, max_items: int = 20)  # Playlist URL with list= param
+```
+Returns `{playlist_id, items[{video_id, title, position, published_at}], total_items}`.
+
+Use to enumerate playlist contents, then pass individual video IDs to `video_analyze` for analysis.
 
 #### `video_analyze` — Analyze any YouTube video
 ```
@@ -168,9 +186,22 @@ infra_configure(model=None, thinking_level=None, temperature=None)
 
 ### Research a topic end-to-end
 1. `research_plan(topic)` > orchestration blueprint
-2. `web_search(query)` > gather current sources
-3. `research_deep(topic, scope="deep")` > full analysis with evidence tiers
-4. `research_assess_evidence(claim, sources)` > verify specific claims
+2. Run IN PARALLEL (independent calls, different models):
+   - `web_search(query)` > gather current sources (Gemini Flash)
+   - `research_deep(topic, scope="deep")` > full analysis with evidence tiers (Gemini Pro)
+3. `research_assess_evidence(claim, sources)` > verify specific claims — call multiple claims IN PARALLEL
+
+### Analyze a YouTube video with community context
+1. `video_metadata(url)` > quick metadata (title, view count, comment count)
+2. `video_analyze(url, instruction="...")` > primary analysis
+3. Background: `comment-analyst` agent fetches and analyzes YouTube comments
+4. Background: `visualizer` agent generates interactive concept map
+5. Results from all merge into `analysis.md` asynchronously
+
+### Analyze a YouTube playlist
+1. `video_playlist(url)` > list all videos in the playlist
+2. For each video, call `video_analyze(url)` or `video_metadata(url)` as needed
+3. Synthesize results across videos
 
 ### Analyze a video for a specific use case
 1. `video_analyze(url, instruction="Provide a comprehensive analysis")` > overview
