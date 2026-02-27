@@ -8,10 +8,19 @@ from typing import Any
 
 from google import genai
 from google.genai import types
+from pydantic import BaseModel
 
-from .config import get_config
+from .config import VALID_THINKING_LEVELS, get_config
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_thinking_level(value: str) -> str:
+    level = value.strip().lower()
+    if level not in VALID_THINKING_LEVELS:
+        allowed = ", ".join(sorted(VALID_THINKING_LEVELS))
+        raise ValueError(f"Invalid thinking level '{value}'. Allowed: {allowed}")
+    return level
 
 
 class GeminiClient:
@@ -40,6 +49,7 @@ class GeminiClient:
         response_schema: dict | None = None,
         temperature: float | None = None,
         system_instruction: str | None = None,
+        tools: list[types.Tool] | None = None,
         **kwargs: Any,
     ) -> str:
         """Unified async generate with thinking + optional structured output.
@@ -48,7 +58,7 @@ class GeminiClient:
         """
         cfg = get_config()
         resolved_model = model or cfg.default_model
-        resolved_thinking = thinking_level or cfg.default_thinking_level
+        resolved_thinking = _resolve_thinking_level(thinking_level or cfg.default_thinking_level)
 
         config = types.GenerateContentConfig(
             thinking_config=types.ThinkingConfig(thinking_level=resolved_thinking),
@@ -59,6 +69,8 @@ class GeminiClient:
         if response_schema:
             config.response_mime_type = "application/json"
             config.response_json_schema = response_schema
+        if tools:
+            config.tools = tools
 
         client = cls.get()
         response = await client.aio.models.generate_content(
@@ -72,6 +84,46 @@ class GeminiClient:
         parts = response.candidates[0].content.parts if response.candidates else []
         text_parts = [p.text for p in parts if p.text and not getattr(p, "thought", False)]
         return "\n".join(text_parts) if text_parts else (response.text or "")
+
+    @classmethod
+    async def generate_structured(
+        cls,
+        contents: Any,
+        *,
+        schema: type[BaseModel],
+        model: str | None = None,
+        thinking_level: str | None = None,
+        system_instruction: str | None = None,
+        tools: list[types.Tool] | None = None,
+        **kwargs: Any,
+    ) -> BaseModel:
+        """Generate and validate into a Pydantic model via response_json_schema.
+
+        Delegates to ``generate()`` with the model's JSON schema, then
+        deserialises the response text into a validated Pydantic instance.
+
+        Args:
+            contents: Prompt contents (text, multimodal, or history).
+            schema: Pydantic model class defining the expected output shape.
+            model: Override model ID.
+            thinking_level: Override thinking level.
+            system_instruction: System-level instruction for the model.
+            tools: Gemini tool wiring (e.g. GoogleSearch, UrlContext).
+            **kwargs: Forwarded to ``generate()``.
+
+        Returns:
+            Validated Pydantic model instance.
+        """
+        raw = await cls.generate(
+            contents,
+            model=model,
+            thinking_level=thinking_level,
+            system_instruction=system_instruction,
+            tools=tools,
+            response_schema=schema.model_json_schema(),
+            **kwargs,
+        )
+        return schema.model_validate_json(raw)
 
     @classmethod
     async def close_all(cls) -> int:

@@ -62,6 +62,11 @@ def categorize_error(error: Exception) -> tuple[ErrorCategory, str]:
             ErrorCategory.API_INVALID_ARGUMENT,
             "Bad request — check input format",
         )
+    if "invalid mode" in s or "invalid thinking level" in s:
+        return (
+            ErrorCategory.API_INVALID_ARGUMENT,
+            "Invalid input parameter — check mode and thinking level values",
+        )
     if "404" in s:
         return (
             ErrorCategory.VIDEO_UNAVAILABLE,

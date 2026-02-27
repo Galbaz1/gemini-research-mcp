@@ -19,20 +19,29 @@ def _cache_dir() -> Path:
     return d
 
 
-def cache_key(content_id: str, tool_name: str, model: str) -> str:
-    """Generate ``{content_id}_{tool}_{model_hash}``."""
+def cache_key(content_id: str, tool_name: str, model: str, instruction: str = "") -> str:
+    """Generate ``{content_id}_{tool}_{instr_hash}_{model_hash}``.
+
+    The *instruction* hash differentiates results for the same content
+    analysed with different instructions (e.g. "summarize" vs "list recipes").
+    """
     model_hash = hashlib.md5(model.encode()).hexdigest()[:8]
-    return f"{content_id}_{tool_name}_{model_hash}"
+    instr_hash = hashlib.md5(instruction.encode()).hexdigest()[:8] if instruction else "default"
+    return f"{content_id}_{tool_name}_{instr_hash}_{model_hash}"
 
 
-def cache_path(content_id: str, tool_name: str, model: str) -> Path:
-    return _cache_dir() / f"{cache_key(content_id, tool_name, model)}.json"
+def cache_path(
+    content_id: str, tool_name: str, model: str, instruction: str = "",
+) -> Path:
+    return _cache_dir() / f"{cache_key(content_id, tool_name, model, instruction)}.json"
 
 
-def load(content_id: str, tool_name: str, model: str) -> dict | None:
+def load(
+    content_id: str, tool_name: str, model: str, instruction: str = "",
+) -> dict | None:
     """Return cached result dict or *None* if miss/expired."""
     ttl = get_config().cache_ttl_days
-    p = cache_path(content_id, tool_name, model)
+    p = cache_path(content_id, tool_name, model, instruction)
     if not p.exists():
         return None
     mtime = datetime.fromtimestamp(p.stat().st_mtime)
@@ -48,9 +57,11 @@ def load(content_id: str, tool_name: str, model: str) -> dict | None:
         return None
 
 
-def save(content_id: str, tool_name: str, model: str, analysis: dict) -> bool:
+def save(
+    content_id: str, tool_name: str, model: str, analysis: dict, instruction: str = "",
+) -> bool:
     """Write *analysis* to cache. Returns True on success."""
-    p = cache_path(content_id, tool_name, model)
+    p = cache_path(content_id, tool_name, model, instruction)
     try:
         envelope = {
             "cached_at": datetime.now().isoformat(),
@@ -71,7 +82,7 @@ def clear(content_id: str | None = None) -> int:
     """Remove cache files. If *content_id* given, only that ID."""
     removed = 0
     for f in _cache_dir().glob("*.json"):
-        if content_id is None or f.name.startswith(content_id):
+        if content_id is None or f.name.startswith(f"{content_id}_"):
             try:
                 f.unlink()
                 removed += 1

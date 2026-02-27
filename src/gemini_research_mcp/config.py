@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+VALID_THINKING_LEVELS = {"minimal", "low", "medium", "high"}
 
 
 class ServerConfig(BaseModel):
@@ -19,6 +21,23 @@ class ServerConfig(BaseModel):
     cache_ttl_days: int = Field(default=30)
     max_sessions: int = Field(default=50)
     session_timeout_hours: int = Field(default=2)
+    session_max_turns: int = Field(default=24)
+
+    @field_validator("default_thinking_level")
+    @classmethod
+    def validate_thinking_level(cls, value: str) -> str:
+        level = value.strip().lower()
+        if level not in VALID_THINKING_LEVELS:
+            allowed = ", ".join(sorted(VALID_THINKING_LEVELS))
+            raise ValueError(f"Invalid thinking level '{value}'. Allowed: {allowed}")
+        return level
+
+    @field_validator("cache_ttl_days", "max_sessions", "session_timeout_hours", "session_max_turns")
+    @classmethod
+    def validate_positive_ints(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("Configuration values must be >= 1")
+        return value
 
     @classmethod
     def from_env(cls) -> ServerConfig:
@@ -36,6 +55,7 @@ class ServerConfig(BaseModel):
             cache_ttl_days=int(os.getenv("GEMINI_CACHE_TTL_DAYS", "30")),
             max_sessions=int(os.getenv("GEMINI_MAX_SESSIONS", "50")),
             session_timeout_hours=int(os.getenv("GEMINI_SESSION_TIMEOUT_HOURS", "2")),
+            session_max_turns=int(os.getenv("GEMINI_SESSION_MAX_TURNS", "24")),
         )
 
 

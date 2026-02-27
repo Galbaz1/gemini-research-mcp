@@ -66,6 +66,10 @@ class SessionStore:
         session.history.append(user_content)
         session.history.append(model_content)
         session.turn_count += 1
+        # Bound replay context to avoid unbounded growth and token-limit failures.
+        max_history_items = max(get_config().session_max_turns, 1) * 2
+        if len(session.history) > max_history_items:
+            session.history = session.history[-max_history_items:]
         session.last_active = datetime.now()
         return session.turn_count
 
