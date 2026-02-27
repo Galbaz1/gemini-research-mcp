@@ -44,3 +44,39 @@ def clean_config():
     cfg_mod._config = None
     yield
     cfg_mod._config = None
+
+
+@pytest.fixture()
+def mock_weaviate_client():
+    """Patch WeaviateClient for unit tests — provides mock client + collection."""
+    mock_client = MagicMock()
+    mock_collection = MagicMock()
+    mock_client.collections.get.return_value = mock_collection
+    mock_client.collections.list_all.return_value = {}
+    mock_client.is_ready.return_value = True
+
+    # Mock data operations
+    mock_collection.data.insert.return_value = "test-uuid-1234"
+    mock_collection.data.update.return_value = None
+    mock_collection.query.hybrid.return_value = MagicMock(objects=[])
+    mock_collection.query.near_object.return_value = MagicMock(objects=[])
+    mock_collection.query.fetch_objects.return_value = MagicMock(objects=[])
+    mock_collection.aggregate.over_all.return_value = MagicMock(total_count=0)
+
+    with (
+        patch("video_research_mcp.weaviate_client._client", mock_client),
+        patch("video_research_mcp.weaviate_client._schema_ensured", True),
+        patch("video_research_mcp.weaviate_client.WeaviateClient.get", return_value=mock_client),
+        patch("video_research_mcp.weaviate_client.WeaviateClient.is_available", return_value=True),
+    ):
+        yield {
+            "client": mock_client,
+            "collection": mock_collection,
+        }
+
+
+@pytest.fixture()
+def mock_weaviate_disabled(monkeypatch, clean_config):
+    """Ensure Weaviate is disabled — empty WEAVIATE_URL."""
+    monkeypatch.delenv("WEAVIATE_URL", raising=False)
+    monkeypatch.delenv("WEAVIATE_API_KEY", raising=False)
