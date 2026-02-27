@@ -34,7 +34,7 @@ Three modules implement the knowledge store:
 | `weaviate_schema.py` | 7 collection definitions (PropertyDef, CollectionDef dataclasses) |
 | `weaviate_store.py` | Write-through functions (one per collection) |
 
-The 8 knowledge tools live in `tools/knowledge/` (split into `search.py`, `retrieval.py`, `ingest.py`, and `query_agent.py`).
+The 8 knowledge tools live in `tools/knowledge/` (split into `search.py`, `retrieval.py`, `ingest.py`, and `agent.py`).
 
 ## Setup
 

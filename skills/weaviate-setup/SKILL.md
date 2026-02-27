@@ -5,7 +5,7 @@ description: Interactive onboarding for the Weaviate knowledge store. Guides use
 
 # Weaviate Knowledge Store Setup
 
-You are guiding a user through setting up Weaviate as the persistent knowledge store for the video-research MCP server. All 13 existing tools automatically write results to Weaviate when configured. 4 knowledge query tools (`knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_ingest`) enable semantic search across accumulated research.
+You are guiding a user through setting up Weaviate as the persistent knowledge store for the video-research MCP server. All 22 tools automatically write results to Weaviate when configured. 8 knowledge tools (`knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_fetch`, `knowledge_ingest`, `knowledge_ask`, `knowledge_query`) enable semantic search and AI-powered Q&A across accumulated research.
 
 ## Setup Flow
 
@@ -47,14 +47,10 @@ services:
       QUERY_DEFAULTS_LIMIT: 25
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
       PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
-      DEFAULT_VECTORIZER_MODULE: text2vec-transformers
-      ENABLE_MODULES: text2vec-transformers
-      TRANSFORMERS_INFERENCE_API: http://t2v-transformers:8080
-  t2v-transformers:
-    image: cr.weaviate.io/semitechnologies/transformers-inference:sentence-transformers-all-MiniLM-L6-v2
-    environment:
-      ENABLE_CUDA: 0
+      DEFAULT_VECTORIZER_MODULE: text2vec-weaviate
+      ENABLE_MODULES: text2vec-weaviate
 ```
+- Note: Our collections use the `text2vec-weaviate` vectorizer (Weaviate's built-in embedding service). No sidecar container needed.
 - The URL will be `http://localhost:8080`
 - No API key needed for local
 
@@ -66,7 +62,7 @@ services:
 
 Once you have the URL (and optionally API key), tell the user to set the environment variables. There are two ways:
 
-**Option A — In `.mcp.json` (recommended for plugin users):**
+**Option A -- In `.mcp.json` (recommended for plugin users):**
 The MCP server config in `~/.claude/.mcp.json` or `.mcp.json` should include:
 ```json
 {
@@ -84,7 +80,7 @@ The MCP server config in `~/.claude/.mcp.json` or `.mcp.json` should include:
 }
 ```
 
-**Option B — Shell environment:**
+**Option B -- Shell environment:**
 ```bash
 export WEAVIATE_URL="<their-url>"
 export WEAVIATE_API_KEY="<their-key-if-any>"  # only for Cloud/authenticated deployments
@@ -95,6 +91,14 @@ export WEAVIATE_API_KEY="<their-key-if-any>"  # only for Cloud/authenticated dep
 After the user has configured the environment, tell them to restart Claude Code (or the MCP server) and test with:
 
 ```
+knowledge_search(query="test")
+```
+
+This will attempt to connect and search. On first connection, the server auto-creates all 7 collections. If the search returns empty results with no error, the connection is working.
+
+Then confirm collections exist:
+
+```
 knowledge_stats()
 ```
 
@@ -103,30 +107,65 @@ This should return counts for all 7 collections (all 0 initially). If it returns
 | Error | Fix |
 |-------|-----|
 | `WEAVIATE_CONNECTION` | Check URL is reachable, Docker is running, firewall allows the port |
-| `WEAVIATE_SCHEMA` | Collections couldn't be created — check Weaviate version (need >= 1.25) |
+| `WEAVIATE_SCHEMA` | Collections couldn't be created -- check Weaviate version (need >= 1.25) |
 | `Weaviate not configured` | `WEAVIATE_URL` env var is not set or server wasn't restarted |
 
 ### Step 5: Confirm Working
 
 Once `knowledge_stats` returns successfully, tell the user:
 
-1. All 13 existing tools now automatically store results to Weaviate
-2. Use `knowledge_search(query="...")` to find past results semantically
+1. All 22 tools now automatically store results to Weaviate
+2. Use `knowledge_search(query="...")` to find past results semantically (supports hybrid, semantic, keyword modes)
 3. Use `knowledge_related(object_id="...", collection="...")` to find similar items
-4. Use `knowledge_stats()` to see how much knowledge has accumulated
-5. The file cache continues to work alongside Weaviate — dual persistence
+4. Use `knowledge_fetch(object_id="...", collection="...")` to retrieve a specific object by UUID
+5. Use `knowledge_stats()` to see how much knowledge has accumulated
+6. Use `knowledge_ingest(collection="...", properties={...})` to manually insert data
+7. The file cache continues to work alongside Weaviate -- dual persistence
+
+### Step 6: Optional -- Enable QueryAgent Tools
+
+Ask the user if they want AI-powered Q&A over their knowledge store:
+
+```
+AskUserQuestion:
+  question: "Do you want to enable AI-powered knowledge Q&A?"
+  header: "QueryAgent (Optional)"
+  options:
+    - label: "Yes -- install weaviate-agents"
+      description: "Enables knowledge_ask (AI answers with sources) and knowledge_query (natural language search). Requires the weaviate-agents package."
+    - label: "No -- skip for now"
+      description: "You can install it later with: uv pip install 'video-research-mcp[agents]'"
+```
+
+**If yes**, tell them to install the agents extra:
+
+```bash
+uv pip install 'video-research-mcp[agents]'
+```
+
+Then restart the MCP server and test:
+
+```
+knowledge_ask(query="What have I researched so far?")
+```
+
+If successful, they now also have:
+- `knowledge_ask(query="...")` -- AI-generated answers grounded in stored knowledge, with source citations
+- `knowledge_query(query="...")` -- natural language object retrieval with automatic query understanding
+
+These tools use Weaviate's AsyncQueryAgent, which automatically translates natural-language queries into optimized Weaviate operations.
 
 ## 7 Collections Created Automatically
 
-| Collection | Populated by | Searchable fields |
+| Collection | Populated by | Knowledge tools that query it |
 |---|---|---|
-| `ResearchFindings` | `research_deep`, `research_assess_evidence` | claim, reasoning, executive_summary |
-| `VideoAnalyses` | `video_analyze`, `video_batch_analyze` | title, summary, key_points, instruction |
-| `ContentAnalyses` | `content_analyze` | title, summary, key_points, entities |
-| `VideoMetadata` | `video_metadata` | title, description, tags |
-| `SessionTranscripts` | `video_continue_session` | turn_prompt, turn_response, video_title |
-| `WebSearchResults` | `web_search` | query, response |
-| `ResearchPlans` | `research_plan` | topic, task_decomposition |
+| `ResearchFindings` | `research_deep`, `research_assess_evidence` | All 8 knowledge tools |
+| `VideoAnalyses` | `video_analyze`, `video_batch_analyze` | All 8 knowledge tools |
+| `ContentAnalyses` | `content_analyze` | All 8 knowledge tools |
+| `VideoMetadata` | `video_metadata` | All 8 knowledge tools |
+| `SessionTranscripts` | `video_continue_session` | All 8 knowledge tools |
+| `WebSearchResults` | `web_search` | All 8 knowledge tools |
+| `ResearchPlans` | `research_plan` | All 8 knowledge tools |
 
 ## Supported Deployment URLs
 
@@ -138,4 +177,4 @@ Once `knowledge_stats` returns successfully, tell the user:
 
 ## Graceful Degradation
 
-If `WEAVIATE_URL` is not set, the server works identically to before — no errors, no changes. All store operations silently return `None`. Knowledge tools return empty results with a hint to configure Weaviate.
+If `WEAVIATE_URL` is not set, the server works identically to before -- no errors, no changes. All store operations silently return `None`. Knowledge tools return empty results with a hint to configure Weaviate.
