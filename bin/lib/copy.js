@@ -24,8 +24,10 @@ const FILE_MAP = {
   'skills/gemini-visualize/templates/research-evidence-net.md':   'skills/gemini-visualize/templates/research-evidence-net.md',
   'skills/gemini-visualize/templates/content-knowledge-graph.md': 'skills/gemini-visualize/templates/content-knowledge-graph.md',
 
-  'agents/researcher.md':    'agents/researcher.md',
-  'agents/video-analyst.md': 'agents/video-analyst.md',
+  'agents/researcher.md':      'agents/researcher.md',
+  'agents/video-analyst.md':   'agents/video-analyst.md',
+  'agents/visualizer.md':      'agents/visualizer.md',
+  'agents/comment-analyst.md': 'agents/comment-analyst.md',
 };
 
 /** Directories to clean up during uninstall (deepest first). */
