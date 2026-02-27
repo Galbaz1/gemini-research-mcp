@@ -306,7 +306,7 @@ class TestQueryAgentSingleton:
                 from video_research_mcp.tools.knowledge.agent import _get_query_agent
                 agent1 = _get_query_agent(["VideoAnalyses", "ResearchFindings"])
                 agent2 = _get_query_agent(["ResearchFindings", "VideoAnalyses"])
-                # Same sorted tuple → same instance
+                # Same sorted tuple + same client → same agent
                 assert agent1 is agent2
                 assert mock_qa_class.call_count == 1
 
@@ -318,4 +318,28 @@ class TestQueryAgentSingleton:
                 from video_research_mcp.tools.knowledge.agent import _get_query_agent
                 _get_query_agent(["VideoAnalyses"])
                 _get_query_agent(["ResearchFindings"])
+                assert mock_qa_class.call_count == 2
+
+    def test_invalidates_on_client_change(self, mock_weaviate_client):
+        """GIVEN cached agent WHEN WeaviateClient.get() returns new client THEN creates new agent."""
+        client_a = MagicMock(name="client-A")
+        client_b = MagicMock(name="client-B")
+        agent_a = MagicMock(name="agent-A")
+        agent_b = MagicMock(name="agent-B")
+
+        with patch(f"{AGENT_MODULE}._query_agents", {}):
+            mock_qa_class = MagicMock(side_effect=[agent_a, agent_b])
+            with patch(f"{AGENT_MODULE}.QueryAgent", mock_qa_class, create=True):
+                from video_research_mcp.tools.knowledge.agent import _get_query_agent
+
+                # First call caches agent bound to client_a
+                with patch("video_research_mcp.weaviate_client.WeaviateClient.get", return_value=client_a):
+                    result_a = _get_query_agent(["VideoAnalyses"])
+
+                # Second call with new client → cache miss → new agent
+                with patch("video_research_mcp.weaviate_client.WeaviateClient.get", return_value=client_b):
+                    result_b = _get_query_agent(["VideoAnalyses"])
+
+                assert result_a is agent_a
+                assert result_b is agent_b
                 assert mock_qa_class.call_count == 2

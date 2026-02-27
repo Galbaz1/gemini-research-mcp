@@ -374,3 +374,42 @@ class TestV4PropertyAPI:
         first_call = mock_client.collections.create.call_args_list[0]
         props = first_call[1]["properties"]
         assert all(isinstance(p, Property) for p in props)
+
+
+class TestProviderHeaders:
+    """Tests for _collect_provider_headers()."""
+
+    def test_collects_env_headers(self, monkeypatch):
+        """_collect_provider_headers returns headers for set env vars."""
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-123")
+        monkeypatch.setenv("COHERE_API_KEY", "cohere-test")
+        from video_research_mcp.weaviate_client import _collect_provider_headers
+        headers = _collect_provider_headers()
+        assert headers["X-OpenAI-Api-Key"] == "sk-test-123"
+        assert headers["X-Cohere-Api-Key"] == "cohere-test"
+        assert len(headers) == 2
+
+    def test_returns_empty_when_no_keys(self, monkeypatch):
+        """_collect_provider_headers returns empty dict when no provider keys set."""
+        for key in ("OPENAI_API_KEY", "COHERE_API_KEY", "HUGGINGFACE_API_KEY",
+                     "JINAAI_API_KEY", "VOYAGEAI_API_KEY"):
+            monkeypatch.delenv(key, raising=False)
+        from video_research_mcp.weaviate_client import _collect_provider_headers
+        assert _collect_provider_headers() == {}
+
+    @patch("video_research_mcp.weaviate_client.weaviate.connect_to_weaviate_cloud")
+    def test_cloud_connection_passes_headers(self, mock_connect, clean_config, monkeypatch):
+        """Cloud connection passes provider headers to connect_to_weaviate_cloud."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        monkeypatch.setenv("WEAVIATE_API_KEY", "test-key")
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        from video_research_mcp.weaviate_client import WeaviateClient
+        WeaviateClient.reset()
+
+        mock_client = MagicMock()
+        mock_client.collections.list_all.return_value = {}
+        mock_connect.return_value = mock_client
+
+        WeaviateClient.get()
+        call_kwargs = mock_connect.call_args[1]
+        assert call_kwargs["headers"] == {"X-OpenAI-Api-Key": "sk-test"}

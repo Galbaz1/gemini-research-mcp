@@ -26,7 +26,7 @@ from ...models.knowledge import (
 from ...types import KnowledgeCollection
 from ...weaviate_client import WeaviateClient
 from . import knowledge_server
-from .helpers import ALL_COLLECTION_NAMES, serialize
+from .helpers import ALL_COLLECTION_NAMES, serialize, weaviate_not_configured
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ except (ImportError, Exception):
     # when the weaviate-agents extra is missing
     _HAS_QUERY_AGENT = False
 
-_query_agents: dict[tuple[str, ...], QueryAgent] = {}
+_query_agents: dict[tuple[str, ...], tuple[object, QueryAgent]] = {}
 _agent_lock = threading.Lock()
 
 _MISSING_DEP_ERROR = (
@@ -48,18 +48,16 @@ _MISSING_DEP_ERROR = (
 
 
 def _get_query_agent(collections: list[str] | None = None) -> QueryAgent:
-    """Return a cached QueryAgent for the given collection set."""
+    """Return a cached QueryAgent, invalidating on client reconnect."""
     target = tuple(sorted(collections)) if collections else tuple(ALL_COLLECTION_NAMES)
+    client = WeaviateClient.get()
     with _agent_lock:
-        if target not in _query_agents:
-            client = WeaviateClient.get()
-            _query_agents[target] = QueryAgent(client=client, collections=list(target))
-        return _query_agents[target]
-
-
-def _weaviate_not_configured() -> dict:
-    """Return an empty result when Weaviate is not configured."""
-    return {"error": "Weaviate not configured", "hint": "Set WEAVIATE_URL to enable knowledge tools"}
+        cached = _query_agents.get(target)
+        if cached is None or cached[0] is not client:
+            agent = QueryAgent(client=client, collections=list(target))
+            _query_agents[target] = (client, agent)
+            return agent
+        return cached[1]
 
 
 @knowledge_server.tool(
@@ -92,7 +90,7 @@ async def knowledge_ask(
     if not _HAS_QUERY_AGENT:
         return make_tool_error(ImportError(_MISSING_DEP_ERROR))
     if not get_config().weaviate_enabled:
-        return _weaviate_not_configured()
+        return weaviate_not_configured()
 
     try:
         target = list(collections) if collections else None
@@ -152,7 +150,7 @@ async def knowledge_query(
     if not _HAS_QUERY_AGENT:
         return make_tool_error(ImportError(_MISSING_DEP_ERROR))
     if not get_config().weaviate_enabled:
-        return _weaviate_not_configured()
+        return weaviate_not_configured()
 
     try:
         target = list(collections) if collections else None

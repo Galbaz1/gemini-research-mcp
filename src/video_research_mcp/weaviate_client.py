@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import threading
 from urllib.parse import urlparse
 
@@ -61,6 +62,24 @@ def _to_property(prop_def: PropertyDef) -> Property:
 _TIMEOUT = Timeout(init=30, query=60, insert=120)
 _ADDITIONAL_CONFIG = AdditionalConfig(timeout=_TIMEOUT)
 
+# Provider API key env vars → Weaviate header names (for third-party vectorizers)
+_PROVIDER_HEADER_MAP: dict[str, str] = {
+    "OPENAI_API_KEY": "X-OpenAI-Api-Key",
+    "COHERE_API_KEY": "X-Cohere-Api-Key",
+    "HUGGINGFACE_API_KEY": "X-HuggingFace-Api-Key",
+    "JINAAI_API_KEY": "X-JinaAI-Api-Key",
+    "VOYAGEAI_API_KEY": "X-VoyageAI-Api-Key",
+}
+
+
+def _collect_provider_headers() -> dict[str, str]:
+    """Scan env for third-party vectorizer API keys and return as Weaviate headers."""
+    return {
+        header: os.environ[env_var]
+        for env_var, header in _PROVIDER_HEADER_MAP.items()
+        if os.environ.get(env_var)
+    }
+
 
 def _connect(url: str, api_key: str) -> weaviate.WeaviateClient:
     """Connect to Weaviate using the appropriate method for the URL scheme.
@@ -84,10 +103,13 @@ def _connect(url: str, api_key: str) -> weaviate.WeaviateClient:
             additional_config=_ADDITIONAL_CONFIG,
         )
 
+    headers = _collect_provider_headers()
+
     if parsed.scheme == "https":
         return weaviate.connect_to_weaviate_cloud(
             cluster_url=url,
             auth_credentials=Auth.api_key(api_key) if api_key else None,
+            headers=headers or None,
             additional_config=_ADDITIONAL_CONFIG,
         )
 
@@ -100,6 +122,7 @@ def _connect(url: str, api_key: str) -> weaviate.WeaviateClient:
         grpc_port=(parsed.port or 8080) + 1,
         grpc_secure=parsed.scheme == "https",
         auth_credentials=Auth.api_key(api_key) if api_key else None,
+        headers=headers or None,
         additional_config=_ADDITIONAL_CONFIG,
     )
 
