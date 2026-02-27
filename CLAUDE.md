@@ -80,7 +80,7 @@ server.py (root, lifespan hook for cleanup)
 | `content_extract` | content | content + schema | caller-provided schema |
 | `web_search` | search | query + num_results | grounded sources dict |
 | `infra_cache` | infra | action + content_id | cache stats/entries/removed |
-| `infra_configure` | infra | model/thinking/temp overrides | current config |
+| `infra_configure` | infra | preset/model/thinking/temp overrides | current config + active preset |
 
 ### Instruction Examples
 
@@ -140,6 +140,29 @@ Tests mock `GeminiClient.get()`, `.generate()`, and `.generate_structured()` via
 2. **Test models** in `tests/test_models.py` — validate defaults, roundtrip serialization.
 3. **Test helpers** (URL validation, content part building) as pure function tests.
 4. **File naming**: `test_<domain>_tools.py` for tool tests, `test_<module>.py` for non-tool modules.
+
+## Plugin Installer (npx)
+
+This project is also a **Claude Code plugin** distributed via npm. The installer (`bin/install.js`) copies commands, skills, and agents from this repo to `~/.claude/` (global) or `.claude/` (local).
+
+**How it works:**
+- `bin/lib/copy.js` defines a `FILE_MAP` — source paths (relative to repo root) → destination paths (relative to `~/.claude/`).
+- Commands in `commands/` map to `commands/gr/` at the destination, giving them the `/gr:` namespace.
+- `bin/lib/manifest.js` tracks SHA-256 hashes of installed files in `~/.claude/gr-file-manifest.json`. This enables idempotent reinstalls and preserves user modifications.
+- `bin/lib/config.js` merges MCP server entries into `~/.claude/.mcp.json`.
+
+**Adding a new command/skill/agent:**
+1. Create the file in the appropriate source directory (`commands/`, `skills/`, `agents/`).
+2. Add an entry to `FILE_MAP` in `bin/lib/copy.js` (e.g. `'commands/models.md': 'commands/gr/models.md'`).
+3. Reinstall locally: `node bin/install.js --global` — only the new file gets copied.
+4. New sessions in any workspace will pick it up.
+
+**Install/update/uninstall:**
+```bash
+npx video-research-mcp@latest            # install (global by default)
+npx video-research-mcp@latest --check    # dry-run, show what would change
+npx video-research-mcp@latest --uninstall # remove all installed files
+```
 
 ## Env Vars
 
