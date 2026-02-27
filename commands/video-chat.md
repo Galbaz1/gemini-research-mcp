@@ -47,13 +47,40 @@ concepts: []
 5. Tell the user: **Session notes auto-saving to `gr/video-chat/<slug>/`**
 6. Invite the user to ask questions about the video.
 
+## Frame Extraction Support (local files only)
+
+When the input is a **local file** (not YouTube), the agent can extract video frames at specific timestamps. This enables visual documentation of discussions.
+
+When a question or answer references a specific visual moment (screen share, diagram, demo), the agent should:
+
+1. Note the timestamp from the `video_continue_session` response
+2. Extract the frame using ffmpeg:
+   ```
+   Bash: ffmpeg -y -ss 00:MM:SS -i <video-path> -frames:v 1 -q:v 2 <memory-dir>/gr/video-chat/<slug>/frames/frame_MMSS.png
+   ```
+3. Embed in the Q&A entry: `![description](frames/frame_MMSS.png)`
+
+Create the `frames/` directory on first extraction:
+```
+Bash: mkdir -p <memory-dir>/gr/video-chat/<slug>/frames
+```
+
+**When to extract frames:**
+- User asks "what was on screen at...?" — extract that moment
+- Answer describes a visual element (diagram, slide, demo) — extract it
+- User asks for a summary with visuals — extract key moments (5-10 frames)
+- After session end — extract frames for the most important moments discussed
+
+If ffmpeg is not installed, skip gracefully and note timestamps as text.
+
 ## Conversation Loop
 
 For each follow-up question:
 
 1. Use `video_continue_session` with the session_id and the user's prompt
 2. Present the answer conversationally, citing timestamps when available
-3. **Append to analysis.md** using `Edit` — add a timestamped Q&A entry:
+3. **Extract frames** if the answer references visual moments (local files only, see above)
+4. **Append to analysis.md** using `Edit` — add a timestamped Q&A entry:
 
 ```markdown
 

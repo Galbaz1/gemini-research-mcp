@@ -15,7 +15,23 @@ Analyze the provided video source with progressive memory saving and automatic v
    - If it starts with `http://` or `https://`: use `video_analyze` with `url` parameter
    - If it's a directory path (ends with `/` or is a known directory): use `video_batch_analyze` with `directory` parameter
    - Otherwise (file path): use `video_analyze` with `file_path` parameter
-2. For single video analysis, use instruction="Provide a comprehensive analysis including title, summary, key points, timestamps of important moments, main topics, and overall sentiment."
+2. For single video analysis, use this instruction (append the screenshot marker block for **local files only**):
+
+   **Base instruction** (always):
+   `instruction="Provide a comprehensive analysis including title, summary, key points, timestamps of important moments, main topics, and overall sentiment."`
+
+   **Screenshot markers** (append when input is a local file, NOT a YouTube URL):
+   ```
+   Also place inline screenshot markers at visually important moments using this format:
+   [SCREENSHOT:MM:SS:brief description of what is shown on screen]
+
+   Rules:
+   - Place 8-15 markers spread across the video
+   - Capture: screen shares, diagrams, slides, demos, key visual moments
+   - Skip: webcam-only talking heads, transitions, blank screens
+   - Description should explain what is visible (e.g., "architecture diagram showing data flow")
+   ```
+
 3. For batch (directory) analysis, use instruction="Provide a comprehensive analysis of this video."
 
 ## Phase 2: Present & Save Initial Results
@@ -64,6 +80,46 @@ concepts: []
 ```
 
    d. Tell the user: **Saved initial analysis to `gr/video/<slug>/`**
+
+## Phase 2.5: Extract Video Frames (local files only)
+
+If the input is a **local file** (not a YouTube URL), extract frames at screenshot-marked timestamps using ffmpeg.
+
+1. Parse the analysis results for `[SCREENSHOT:MM:SS:description]` markers
+2. For each marker, extract a frame using ffmpeg:
+
+```
+Bash: python3 -c "
+import subprocess, os, re
+
+video_path = '<absolute-path-to-video>'
+frames_dir = '<memory-dir>/gr/video/<slug>/frames'
+os.makedirs(frames_dir, exist_ok=True)
+
+analysis = open('<memory-dir>/gr/video/<slug>/analysis.md').read()
+markers = re.findall(r'\[SCREENSHOT:(\d{1,2}:\d{2}):(.*?)\]', analysis)
+
+for ts, desc in markers:
+    parts = ts.split(':')
+    ffmpeg_ts = f'00:{parts[0].zfill(2)}:{parts[1]}'
+    safe_ts = ts.replace(':', '')
+    out = os.path.join(frames_dir, f'frame_{safe_ts}.png')
+    subprocess.run(['ffmpeg', '-y', '-ss', ffmpeg_ts, '-i', video_path, '-frames:v', '1', '-q:v', '2', out], capture_output=True)
+    print(f'  {ts} — {desc}')
+print(f'Extracted {len(markers)} frames')
+"
+```
+
+3. Replace markers in `analysis.md` with embedded images:
+   - `[SCREENSHOT:12:44:SAP scherm]` becomes:
+   ```markdown
+   ![SAP scherm](frames/frame_1244.png)
+   *12:44 — SAP scherm*
+   ```
+
+4. If ffmpeg is not installed or extraction fails, leave the markers as timestamped text references: `*(12:44: SAP scherm)*`
+
+**Skip this phase** for YouTube URLs — ffmpeg can't extract frames from remote videos without downloading.
 
 ## Phase 3: Enrich with Relationships
 
