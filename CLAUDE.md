@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-An MCP server (stdio transport, FastMCP 3.0.2) exposing 13 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3 (`google-api-python-client`). Built with Pydantic v2, hatchling build backend. Requires Python >= 3.11.
+An MCP server (stdio transport, FastMCP 3.0.2) exposing 17 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3 (`google-api-python-client`). Built with Pydantic v2, hatchling build backend. Requires Python >= 3.11.
 
 ## Commands
 
@@ -31,7 +31,7 @@ GEMINI_API_KEY=... uv run video-research-mcp
 
 ## Architecture
 
-**Composite FastMCP server** — `server.py` creates a root `FastMCP("video-research")` and mounts 6 sub-servers:
+**Composite FastMCP server** — `server.py` creates a root `FastMCP("video-research")` and mounts 7 sub-servers:
 
 ```
 server.py (root, lifespan hook for cleanup)
@@ -43,7 +43,11 @@ server.py (root, lifespan hook for cleanup)
 ├── tools/research.py       → research_server (3 tools)
 ├── tools/content.py        → content_server  (2 tools)
 ├── tools/search.py         → search_server   (1 tool)
-└── tools/infra.py          → infra_server    (2 tools)
+├── tools/infra.py          → infra_server    (2 tools)
+├── tools/knowledge.py      → knowledge_server(4 tools)
+├── weaviate_client.py      → WeaviateClient singleton (thread-safe, multi-deployment)
+├── weaviate_schema.py      → 7 collection definitions
+└── weaviate_store.py       → write-through store functions (one per collection)
 ```
 
 **Instruction-driven tools:** Tools accept an `instruction` parameter (free text) instead of fixed modes. The LLM client writes the instruction, Gemini returns structured JSON via `response_json_schema`. Tools also accept an optional `output_schema` dict for caller-defined response shapes.
@@ -68,7 +72,7 @@ server.py (root, lifespan hook for cleanup)
 
 **Pydantic models** live in `models/` — one file per domain. These serve as both output schemas for Gemini structured output and response types for tool returns.
 
-## Tool Surface (13 tools)
+## Tool Surface (17 tools)
 
 | Tool | Server | Input | Output Schema |
 |------|--------|-------|---------------|
@@ -86,6 +90,10 @@ server.py (root, lifespan hook for cleanup)
 | `web_search` | search | query + num_results | grounded sources dict |
 | `infra_cache` | infra | action + content_id | cache stats/entries/removed |
 | `infra_configure` | infra | preset/model/thinking/temp overrides | current config + active preset |
+| `knowledge_search` | knowledge | query + collections + alpha | `KnowledgeSearchResult` |
+| `knowledge_related` | knowledge | object_id + collection | `KnowledgeRelatedResult` |
+| `knowledge_stats` | knowledge | collection (optional) | `KnowledgeStatsResult` |
+| `knowledge_ingest` | knowledge | collection + properties | `KnowledgeIngestResult` |
 
 ### Instruction Examples
 
@@ -190,3 +198,5 @@ All env vars with defaults — see `config.py:ServerConfig.from_env()` for canon
 | `GEMINI_RETRY_MAX_DELAY` | `60.0` |
 | `YOUTUBE_API_KEY` | `""` (falls back to `GEMINI_API_KEY`) |
 | `GEMINI_SESSION_DB` | `""` (empty = in-memory only) |
+| `WEAVIATE_URL` | `""` (empty = knowledge store disabled) |
+| `WEAVIATE_API_KEY` | `""` (required for Weaviate Cloud) |

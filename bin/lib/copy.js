@@ -24,6 +24,8 @@ const FILE_MAP = {
   'skills/gemini-visualize/templates/research-evidence-net.md':   'skills/gemini-visualize/templates/research-evidence-net.md',
   'skills/gemini-visualize/templates/content-knowledge-graph.md': 'skills/gemini-visualize/templates/content-knowledge-graph.md',
 
+  'skills/weaviate-setup/SKILL.md':                             'skills/weaviate-setup/SKILL.md',
+
   'agents/researcher.md':      'agents/researcher.md',
   'agents/video-analyst.md':   'agents/video-analyst.md',
   'agents/visualizer.md':      'agents/visualizer.md',
@@ -35,6 +37,7 @@ const CLEANUP_DIRS = [
   'skills/gemini-visualize/templates',
   'skills/gemini-visualize',
   'skills/video-research',
+  'skills/weaviate-setup',
   'commands/gr',
 ];
 

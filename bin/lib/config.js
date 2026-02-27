@@ -9,7 +9,11 @@ const MCP_SERVERS = {
   'video-research': {
     command: 'uvx',
     args: ['video-research-mcp'],
-    env: { GEMINI_API_KEY: '${GEMINI_API_KEY}' },
+    env: {
+      GEMINI_API_KEY: '${GEMINI_API_KEY}',
+      WEAVIATE_URL: '${WEAVIATE_URL}',
+      WEAVIATE_API_KEY: '${WEAVIATE_API_KEY}',
+    },
   },
   playwright: {
     command: 'npx',
