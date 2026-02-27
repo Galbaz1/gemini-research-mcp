@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "gemini-research": {
-      "command": "uv",
-      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "gemini-research-mcp"],
+      "command": "uvx",
+      "args": ["gemini-research-mcp"],
       "env": {
         "GEMINI_API_KEY": "${GEMINI_API_KEY}"
       }

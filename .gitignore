@@ -8,3 +8,6 @@ dist/
 .env
 .envrc
 .claude/*.local.md
+node_modules/
+*.tgz
+gr-file-manifest.json

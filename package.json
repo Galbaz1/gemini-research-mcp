@@ -1,0 +1,30 @@
+{
+  "name": "gemini-research-mcp",
+  "version": "0.2.0",
+  "description": "Gemini 3.1 Pro research partner for Claude Code — video analysis, deep research, content extraction",
+  "bin": {
+    "gemini-research-mcp": "bin/install.js"
+  },
+  "files": [
+    "bin",
+    "commands",
+    "skills",
+    "agents"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "keywords": [
+    "claude-code",
+    "mcp",
+    "gemini",
+    "research",
+    "video-analysis"
+  ],
+  "author": "Fausto",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Galbaz1/gemini-research-mcp"
+  }
+}

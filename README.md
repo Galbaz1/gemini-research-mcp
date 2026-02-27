@@ -58,24 +58,30 @@ Find gaps across all your past analyses:
 ## Quickstart
 
 ```bash
-# 1. Clone
-git clone https://github.com/YOUR_ORG/gemini-research-mcp
-cd gemini-research-mcp
+# Install (one command)
+npx gemini-research-mcp@latest
 
-# 2. Set your API key
+# Set your API key
 export GEMINI_API_KEY="your-key-here"
 
-# 3. Install as Claude Code plugin
-claude plugin add /path/to/gemini-research-mcp
-
-# 4. Use from any project
-claude --plugin-dir /path/to/gemini-research-mcp
+# Use from any project
 /gr:video https://youtube.com/watch?v=...
+/gr:research "impact of EU AI Act on open-source models"
+/gr:search "latest MCP protocol updates"
 ```
 
-**Prerequisites**: Python >= 3.11, [uv](https://docs.astral.sh/uv/), a [Google AI API key](https://aistudio.google.com/apikey)
+The installer copies commands, skills, and agents to `~/.claude/` and configures the MCP server to run via `uvx` from PyPI — no local clone needed.
 
-**Optional**: [ffmpeg](https://ffmpeg.org/) (for video frame extraction), [Node.js](https://nodejs.org/) (for Playwright screenshots)
+```bash
+# Other install options
+npx gemini-research-mcp@latest --local     # Install to ./.claude/ (this project only)
+npx gemini-research-mcp@latest --check     # Show install status
+npx gemini-research-mcp@latest --uninstall # Clean removal
+```
+
+**Prerequisites**: Python >= 3.11, [uv](https://docs.astral.sh/uv/), [Node.js](https://nodejs.org/) >= 16, a [Google AI API key](https://aistudio.google.com/apikey)
+
+**Optional**: [ffmpeg](https://ffmpeg.org/) (for video frame extraction)
 
 ## What You Get
 
@@ -203,24 +209,24 @@ Use `/gr:recall fuzzy` to find concepts you're unsure about across all analyses.
 
 ## Installation
 
-### As Claude Code Plugin (recommended)
+### npx Installer (recommended)
 
 ```bash
-claude plugin add /path/to/gemini-research-mcp
+npx gemini-research-mcp@latest
 ```
 
-The plugin auto-starts the MCP server, registers commands, agents, and skills. Playwright is bundled for screenshot capture (runs headless, no visible browser).
+Installs commands, skills, agents, and MCP config. The server runs via `uvx gemini-research-mcp` from PyPI — no local clone needed.
 
 ### Standalone MCP Server
 
-Add to your project's `.mcp.json`:
+If you only need the 11 tools (no commands/skills/agents), add to your project's `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "gemini-research": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/gemini-research-mcp", "gemini-research-mcp"],
+      "command": "uvx",
+      "args": ["gemini-research-mcp"],
       "env": {
         "GEMINI_API_KEY": "${GEMINI_API_KEY}"
       }
@@ -229,18 +235,16 @@ Add to your project's `.mcp.json`:
 }
 ```
 
-Note: Standalone mode provides the 11 tools but not the commands, agents, skills, or Playwright integration. Use the plugin install for the full experience.
-
 ### Claude Desktop
 
-Add to `claude_desktop_config.json`:
+Tools only (no commands, skills, agents, or Playwright integration). Add to `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "gemini-research": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/gemini-research-mcp", "gemini-research-mcp"],
+      "command": "uvx",
+      "args": ["gemini-research-mcp"],
       "env": {
         "GEMINI_API_KEY": "your-key-here"
       }
@@ -249,22 +253,13 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-### VS Code (Copilot MCP)
+### From Source (development)
 
-Add to `.vscode/mcp.json`:
-
-```json
-{
-  "servers": {
-    "gemini-research": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/gemini-research-mcp", "gemini-research-mcp"],
-      "env": {
-        "GEMINI_API_KEY": "${GEMINI_API_KEY}"
-      }
-    }
-  }
-}
+```bash
+git clone https://github.com/Galbaz1/gemini-research-mcp
+cd gemini-research-mcp
+uv venv && source .venv/bin/activate && uv pip install -e ".[dev]"
+node bin/install.js --global
 ```
 
 ## Environment Variables
@@ -308,6 +303,20 @@ uv run ruff check src/ tests/
 | No frames extracted | Install ffmpeg: `brew install ffmpeg` (macOS) or `apt install ffmpeg` (Linux) |
 | Visualization not generated | Playwright runs via npx — ensure Node.js is available on PATH |
 | Screenshot capture fails | The HTML visualization is still saved; screenshot is a bonus artifact |
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and PR guidelines.
+
+For security vulnerabilities, please see [SECURITY.md](SECURITY.md) instead of opening a public issue.
+
+## Author
+
+**Fausto Albers**
+
+Lead Gen AI Research & Development at the [Industrial Digital Twins Lab](https://www.hva.nl), Amsterdam University of Applied Sciences (HvA), in the research group of Jurjen Helmus.
+
+Founder of [Wonder Why](https://wonderwhy.ai).
 
 ## License
 
