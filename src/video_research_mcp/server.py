@@ -8,12 +8,14 @@ from contextlib import asynccontextmanager
 from fastmcp import FastMCP
 
 from .client import GeminiClient
+from .weaviate_client import WeaviateClient
 from .tools.video import video_server
 from .tools.research import research_server
 from .tools.content import content_server
 from .tools.search import search_server
 from .tools.infra import infra_server
 from .tools.youtube import youtube_server
+from .tools.knowledge import knowledge_server
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,7 @@ logger = logging.getLogger(__name__)
 async def _lifespan(server: FastMCP):
     """Startup/shutdown hook — tears down shared Gemini clients."""
     yield {}
+    await WeaviateClient.aclose()
     closed = await GeminiClient.close_all()
     logger.info("Lifespan shutdown: closed %d client(s)", closed)
 
@@ -41,6 +44,7 @@ app.mount(content_server)
 app.mount(search_server)
 app.mount(infra_server)
 app.mount(youtube_server)
+app.mount(knowledge_server)
 
 
 def main() -> None:

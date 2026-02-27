@@ -1,0 +1,295 @@
+"""Knowledge query tools — 4 tools on a FastMCP sub-server."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import Annotated
+
+from fastmcp import FastMCP
+from mcp.types import ToolAnnotations
+from pydantic import Field
+from weaviate.classes.query import MetadataQuery
+
+from ..config import get_config
+from ..errors import make_tool_error
+from ..models.knowledge import (
+    CollectionStats,
+    KnowledgeHit,
+    KnowledgeIngestResult,
+    KnowledgeRelatedResult,
+    KnowledgeSearchResult,
+    KnowledgeStatsResult,
+)
+from ..types import KnowledgeCollection
+from ..weaviate_client import WeaviateClient
+from ..weaviate_schema import ALL_COLLECTIONS as SCHEMA_COLLECTIONS
+
+logger = logging.getLogger(__name__)
+knowledge_server = FastMCP("knowledge")
+
+ALL_COLLECTION_NAMES: list[str] = [c.name for c in SCHEMA_COLLECTIONS]
+
+# Pre-compute allowed property names per collection for ingest validation
+_ALLOWED_PROPERTIES: dict[str, set[str]] = {
+    c.name: {p.name for p in c.properties} for c in SCHEMA_COLLECTIONS
+}
+
+
+def _weaviate_not_configured() -> dict:
+    """Return an empty result when Weaviate is not configured."""
+    return {"error": "Weaviate not configured", "hint": "Set WEAVIATE_URL to enable knowledge tools"}
+
+
+@knowledge_server.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    )
+)
+async def knowledge_search(
+    query: Annotated[str, Field(min_length=1, description="Search query")],
+    collections: Annotated[
+        list[KnowledgeCollection] | None,
+        Field(description="Collections to search (all if omitted)"),
+    ] = None,
+    limit: Annotated[int, Field(ge=1, le=100, description="Max results per collection")] = 10,
+    alpha: Annotated[float, Field(ge=0.0, le=1.0, description="0=BM25, 1=vector, 0.5=hybrid")] = 0.5,
+) -> dict:
+    """Hybrid search across knowledge collections.
+
+    Searches any/all 7 collections using Weaviate's hybrid search
+    (BM25 + vector). Results are merged and sorted by score.
+
+    Args:
+        query: Text to search for.
+        collections: Which collections to search (default: all).
+        limit: Maximum results per collection.
+        alpha: Search balance — 0 for keyword, 1 for semantic, 0.5 for hybrid.
+
+    Returns:
+        Dict matching KnowledgeSearchResult schema.
+    """
+    if not get_config().weaviate_enabled:
+        return KnowledgeSearchResult(query=query).model_dump()
+
+    try:
+        target = list(collections) if collections else ALL_COLLECTION_NAMES
+
+        def _search():
+            client = WeaviateClient.get()
+            hits: list[KnowledgeHit] = []
+            for col_name in target:
+                try:
+                    collection = client.collections.get(col_name)
+                    response = collection.query.hybrid(
+                        query=query,
+                        limit=limit,
+                        alpha=alpha,
+                        return_metadata=MetadataQuery(score=True),
+                    )
+                    for obj in response.objects:
+                        props = {k: _serialize(v) for k, v in obj.properties.items()}
+                        hits.append(KnowledgeHit(
+                            collection=col_name,
+                            object_id=str(obj.uuid),
+                            score=getattr(obj.metadata, "score", 0.0) or 0.0,
+                            properties=props,
+                        ))
+                except Exception as exc:
+                    logger.warning("Search failed for %s: %s", col_name, exc)
+
+            hits.sort(key=lambda h: h.score, reverse=True)
+            return hits
+
+        hits = await asyncio.to_thread(_search)
+        return KnowledgeSearchResult(
+            query=query,
+            total_results=len(hits),
+            results=hits,
+        ).model_dump()
+
+    except Exception as exc:
+        return make_tool_error(exc)
+
+
+@knowledge_server.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    )
+)
+async def knowledge_related(
+    object_id: Annotated[str, Field(min_length=1, description="UUID of the source object")],
+    collection: KnowledgeCollection,
+    limit: Annotated[int, Field(ge=1, le=50, description="Max related results")] = 5,
+) -> dict:
+    """Find semantically related objects using near-object vector search.
+
+    Args:
+        object_id: UUID of the source object.
+        collection: Collection the source object belongs to.
+        limit: Maximum number of related results.
+
+    Returns:
+        Dict matching KnowledgeRelatedResult schema.
+    """
+    if not get_config().weaviate_enabled:
+        return KnowledgeRelatedResult(
+            source_id=object_id, source_collection=collection,
+        ).model_dump()
+
+    try:
+        def _search():
+            client = WeaviateClient.get()
+            col = client.collections.get(collection)
+            response = col.query.near_object(
+                near_object=object_id,
+                limit=limit + 1,
+                return_metadata=MetadataQuery(distance=True),
+            )
+            hits = []
+            for obj in response.objects:
+                if str(obj.uuid) == object_id:
+                    continue
+                props = {k: _serialize(v) for k, v in obj.properties.items()}
+                distance = getattr(obj.metadata, "distance", None)
+                score = 1.0 - distance if distance is not None else 0.0
+                hits.append(KnowledgeHit(
+                    collection=collection,
+                    object_id=str(obj.uuid),
+                    score=score,
+                    properties=props,
+                ))
+            return hits[:limit]
+
+        hits = await asyncio.to_thread(_search)
+        return KnowledgeRelatedResult(
+            source_id=object_id,
+            source_collection=collection,
+            related=hits,
+        ).model_dump()
+
+    except Exception as exc:
+        return make_tool_error(exc)
+
+
+@knowledge_server.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    )
+)
+async def knowledge_stats(
+    collection: Annotated[
+        KnowledgeCollection | None,
+        Field(description="Collection to count (all if omitted)"),
+    ] = None,
+) -> dict:
+    """Get object counts per collection.
+
+    Args:
+        collection: Single collection name, or None for all collections.
+
+    Returns:
+        Dict matching KnowledgeStatsResult schema.
+    """
+    if not get_config().weaviate_enabled:
+        return KnowledgeStatsResult().model_dump()
+
+    try:
+        target = [collection] if collection else ALL_COLLECTION_NAMES
+
+        def _count():
+            client = WeaviateClient.get()
+            stats = []
+            for col_name in target:
+                try:
+                    col = client.collections.get(col_name)
+                    agg = col.aggregate.over_all(total_count=True)
+                    stats.append(CollectionStats(
+                        name=col_name,
+                        count=agg.total_count or 0,
+                    ))
+                except Exception as exc:
+                    logger.warning("Stats failed for %s: %s", col_name, exc)
+                    stats.append(CollectionStats(name=col_name, count=0))
+            return stats
+
+        stats = await asyncio.to_thread(_count)
+        total = sum(s.count for s in stats)
+        return KnowledgeStatsResult(
+            collections=stats,
+            total_objects=total,
+        ).model_dump()
+
+    except Exception as exc:
+        return make_tool_error(exc)
+
+
+@knowledge_server.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=False,
+    )
+)
+async def knowledge_ingest(
+    collection: KnowledgeCollection,
+    properties: Annotated[dict, Field(description="Object properties to insert")],
+) -> dict:
+    """Manually insert data into a knowledge collection.
+
+    Properties are validated against the collection schema — unknown keys
+    are rejected.
+
+    Args:
+        collection: Target collection name.
+        properties: Dict of property values matching the collection schema.
+
+    Returns:
+        Dict matching KnowledgeIngestResult schema.
+    """
+    if not get_config().weaviate_enabled:
+        return _weaviate_not_configured()
+
+    # Validate properties against schema
+    allowed = _ALLOWED_PROPERTIES.get(collection, set())
+    unknown = set(properties) - allowed
+    if unknown:
+        return make_tool_error(
+            ValueError(f"Unknown properties for {collection}: {sorted(unknown)}")
+        )
+
+    try:
+        def _insert():
+            client = WeaviateClient.get()
+            col = client.collections.get(collection)
+            uuid = col.data.insert(properties=properties)
+            return str(uuid)
+
+        object_id = await asyncio.to_thread(_insert)
+        return KnowledgeIngestResult(
+            collection=collection,
+            object_id=object_id,
+            status="success",
+        ).model_dump()
+
+    except Exception as exc:
+        return make_tool_error(exc)
+
+
+def _serialize(value: object) -> object:
+    """Make Weaviate property values JSON-serializable."""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    if isinstance(value, (list, tuple)):
+        return [_serialize(v) for v in value]
+    return value
