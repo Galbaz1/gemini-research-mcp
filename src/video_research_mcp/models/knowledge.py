@@ -1,8 +1,8 @@
 """Knowledge tool models — response schemas for Weaviate-backed tools.
 
 Output schemas for knowledge_search, knowledge_related, knowledge_stats,
-knowledge_ingest, and knowledge_fetch tools. Populated from Weaviate query
-responses, not from Gemini structured output.
+knowledge_ingest, knowledge_fetch, knowledge_ask, and knowledge_query tools.
+Populated from Weaviate query responses, not from Gemini structured output.
 """
 
 from __future__ import annotations
@@ -84,3 +84,26 @@ class KnowledgeFetchResult(BaseModel):
     object_id: str = Field(description="Weaviate object UUID")
     found: bool = Field(default=False, description="Whether the object was found")
     properties: dict = Field(default_factory=dict, description="Object properties")
+
+
+class KnowledgeAskSource(BaseModel):
+    """Source reference from QueryAgent ask mode."""
+
+    collection: str = Field(description="Source collection name")
+    object_id: str = Field(description="Source object UUID")
+
+
+class KnowledgeAskResult(BaseModel):
+    """Output schema for knowledge_ask — AI-generated answer with source citations."""
+
+    query: str = Field(description="Original question")
+    answer: str = Field(default="", description="AI-generated answer")
+    sources: list[KnowledgeAskSource] = Field(default_factory=list)
+
+
+class KnowledgeQueryResult(BaseModel):
+    """Output schema for knowledge_query — natural language object retrieval."""
+
+    query: str = Field(description="Original search query")
+    total_results: int = Field(default=0)
+    results: list[KnowledgeHit] = Field(default_factory=list)
