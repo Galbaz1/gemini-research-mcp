@@ -20,6 +20,9 @@ class ErrorCategory(str, Enum):
     VIDEO_PRIVATE = "VIDEO_PRIVATE"
     VIDEO_UNAVAILABLE = "VIDEO_UNAVAILABLE"
     NETWORK_ERROR = "NETWORK_ERROR"
+    FILE_NOT_FOUND = "FILE_NOT_FOUND"
+    FILE_UNSUPPORTED = "FILE_UNSUPPORTED"
+    FILE_TOO_LARGE = "FILE_TOO_LARGE"
     UNKNOWN = "UNKNOWN"
 
 
@@ -86,6 +89,16 @@ def categorize_error(error: Exception) -> tuple[ErrorCategory, str]:
         return (
             ErrorCategory.NETWORK_ERROR,
             "Request timed out — try again or check connectivity",
+        )
+    if isinstance(error, FileNotFoundError):
+        return (
+            ErrorCategory.FILE_NOT_FOUND,
+            "File not found — check the path",
+        )
+    if "unsupported video extension" in s:
+        return (
+            ErrorCategory.FILE_UNSUPPORTED,
+            "File extension not supported — use mp4, webm, mov, avi, mkv, mpeg, wmv, or 3gpp",
         )
 
     return (ErrorCategory.UNKNOWN, str(error))

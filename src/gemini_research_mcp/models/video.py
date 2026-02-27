@@ -36,6 +36,7 @@ class SessionInfo(BaseModel):
     session_id: str
     status: str = "created"
     video_title: str = ""
+    source_type: str = ""
 
 
 class SessionResponse(BaseModel):

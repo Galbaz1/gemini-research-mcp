@@ -1,0 +1,73 @@
+"""Shared video analysis pipeline — cache check, Gemini call, cache save."""
+
+from __future__ import annotations
+
+import json
+import logging
+
+from google.genai import types
+
+from ..cache import load as cache_load, save as cache_save
+from ..client import GeminiClient
+from ..config import get_config
+from ..models.video import VideoResult
+
+logger = logging.getLogger(__name__)
+
+
+async def analyze_video(
+    contents: types.Content,
+    *,
+    instruction: str,
+    content_id: str,
+    source_label: str,
+    output_schema: dict | None = None,
+    thinking_level: str = "high",
+    use_cache: bool = True,
+) -> dict:
+    """Run the video analysis pipeline shared by video_analyze and video_batch_analyze.
+
+    Args:
+        contents: Gemini Content with video part + text prompt.
+        instruction: The analysis instruction (used for cache keying).
+        content_id: Unique ID for caching (video_id or file hash).
+        source_label: Human-readable source (URL or file path) added to result.
+        output_schema: Optional custom JSON Schema for the response.
+        thinking_level: Gemini thinking depth.
+        use_cache: Whether to check/save cache.
+
+    Returns:
+        Dict matching VideoResult schema (default) or the custom output_schema.
+    """
+    cfg = get_config()
+
+    if use_cache:
+        cached = cache_load(content_id, "video_analyze", cfg.default_model, instruction=instruction)
+        if cached:
+            cached["cached"] = True
+            return cached
+
+    if output_schema:
+        raw = await GeminiClient.generate(
+            contents,
+            thinking_level=thinking_level,
+            response_schema=output_schema,
+        )
+        try:
+            result = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"Gemini returned non-JSON for custom schema: {raw[:200]!r}"
+            ) from exc
+    else:
+        model_result = await GeminiClient.generate_structured(
+            contents,
+            schema=VideoResult,
+            thinking_level=thinking_level,
+        )
+        result = model_result.model_dump()
+
+    result["source"] = source_label
+    if use_cache:
+        cache_save(content_id, "video_analyze", cfg.default_model, result, instruction=instruction)
+    return result

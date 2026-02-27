@@ -16,6 +16,7 @@ from gemini_research_mcp.models.research import (
     ResearchSynthesis,
 )
 from gemini_research_mcp.models.content import ContentResult
+from gemini_research_mcp.models.video_batch import BatchVideoItem, BatchVideoResult
 
 
 class TestVideoModels:
@@ -49,10 +50,46 @@ class TestVideoModels:
     def test_session_info(self):
         s = SessionInfo(session_id="abc123", video_title="Test")
         assert s.status == "created"
+        assert s.source_type == ""
+
+    def test_session_info_source_type(self):
+        s = SessionInfo(session_id="abc", source_type="youtube")
+        assert s.source_type == "youtube"
 
     def test_session_response(self):
         r = SessionResponse(response="Analysis here", turn_count=3)
         assert r.turn_count == 3
+
+
+class TestBatchVideoModels:
+    def test_batch_item_defaults(self):
+        item = BatchVideoItem(file_name="a.mp4", file_path="/tmp/a.mp4")
+        assert item.result == {}
+        assert item.error == ""
+
+    def test_batch_item_with_error(self):
+        item = BatchVideoItem(file_name="b.mp4", file_path="/tmp/b.mp4", error="fail")
+        assert item.error == "fail"
+
+    def test_batch_result_defaults(self):
+        r = BatchVideoResult(directory="/tmp", total_files=0, successful=0, failed=0)
+        assert r.items == []
+
+    def test_batch_result_roundtrip(self):
+        r = BatchVideoResult(
+            directory="/videos",
+            total_files=2,
+            successful=1,
+            failed=1,
+            items=[
+                BatchVideoItem(file_name="a.mp4", file_path="/videos/a.mp4", result={"title": "A"}),
+                BatchVideoItem(file_name="b.mp4", file_path="/videos/b.mp4", error="timeout"),
+            ],
+        )
+        d = r.model_dump()
+        assert d["total_files"] == 2
+        r2 = BatchVideoResult.model_validate(d)
+        assert r2.items[1].error == "timeout"
 
 
 class TestResearchModels:
