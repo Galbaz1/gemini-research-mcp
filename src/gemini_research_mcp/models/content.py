@@ -1,24 +1,20 @@
-"""Content analysis models."""
+"""Content analysis models — structured output schemas for Gemini."""
 
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
 
-class DocumentAnalysis(BaseModel):
-    """Result of analysing a document or URL."""
+class ContentResult(BaseModel):
+    """Default structured output for content_analyze.
 
+    Replaces the old ``DocumentAnalysis`` and ``Summary`` models.
+    Used when the caller does not provide a custom ``output_schema``.
+    """
+
+    title: str = ""
     summary: str = ""
     key_points: list[str] = Field(default_factory=list)
-    structure: str = ""
     entities: list[str] = Field(default_factory=list)
-    methodology_notes: str = ""
+    structure_notes: str = ""
     quality_assessment: str = ""
-
-
-class Summary(BaseModel):
-    """Condensed summary output."""
-
-    text: str = ""
-    word_count: int = 0
-    key_takeaways: list[str] = Field(default_factory=list)

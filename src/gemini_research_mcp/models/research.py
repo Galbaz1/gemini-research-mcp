@@ -1,4 +1,4 @@
-"""Research tool models."""
+"""Research tool models — structured output schemas for Gemini."""
 
 from __future__ import annotations
 
@@ -15,6 +15,21 @@ class Finding(BaseModel):
     supporting: list[str] = Field(default_factory=list)
     contradicting: list[str] = Field(default_factory=list)
     reasoning: str = ""
+
+
+class FindingsContainer(BaseModel):
+    """Wrapper for structured extraction of multiple findings."""
+
+    findings: list[Finding] = Field(default_factory=list)
+
+
+class ResearchSynthesis(BaseModel):
+    """Structured output for the synthesis phase of deep research."""
+
+    executive_summary: str = ""
+    open_questions: list[str] = Field(default_factory=list)
+    methodology_critique: str = ""
+    recommendations: list[str] = Field(default_factory=list)
 
 
 class ResearchReport(BaseModel):

@@ -1,39 +1,33 @@
-"""Video analysis models."""
+"""Video analysis models — structured output schemas for Gemini."""
 
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
 
-class VideoAnalysis(BaseModel):
-    """Result of analysing a single YouTube video."""
+class Timestamp(BaseModel):
+    """A single timestamped moment in a video."""
 
-    url: str
-    mode: str = "general"
+    time: str = ""
+    description: str = ""
+
+
+class VideoResult(BaseModel):
+    """Default structured output for video_analyze.
+
+    Used when the caller does not provide a custom ``output_schema``.
+    All fields are optional (defaults) so Gemini can populate only what's relevant.
+    """
+
     title: str = ""
     summary: str = ""
-    key_moments: list[str] = Field(default_factory=list)
-    themes: list[str] = Field(default_factory=list)
+    key_points: list[str] = Field(default_factory=list)
+    timestamps: list[Timestamp] = Field(default_factory=list)
+    topics: list[str] = Field(default_factory=list)
     sentiment: str = ""
-    # Tutorial / claude_code mode fields
-    commands: list[str] = Field(default_factory=list)
-    code_snippets: list[str] = Field(default_factory=list)
-    workflow_steps: list[str] = Field(default_factory=list)
-    tools_mentioned: list[str] = Field(default_factory=list)
-    # Error fields
-    error: str | None = None
-    error_category: str | None = None
-    error_hint: str | None = None
-    cached: bool = False
 
 
-class ComparisonResult(BaseModel):
-    """Cross-video comparison output."""
-
-    common_themes: list[str] = Field(default_factory=list)
-    common_commands: list[str] = Field(default_factory=list)
-    unique_per_video: dict[str, list[str]] = Field(default_factory=dict)
-    recommendation: str = ""
+# ── Session models (unchanged — stateful, not structured-output) ────────────
 
 
 class SessionInfo(BaseModel):
