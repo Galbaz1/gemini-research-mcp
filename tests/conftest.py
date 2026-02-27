@@ -15,16 +15,25 @@ def _set_dummy_api_key(monkeypatch):
 
 @pytest.fixture()
 def mock_gemini_client():
-    """Patch GeminiClient.get() and .generate() for unit tests."""
+    """Patch GeminiClient.get(), .generate(), and .generate_structured() for unit tests."""
     with (
         patch("gemini_research_mcp.client.GeminiClient.get") as mock_get,
         patch(
             "gemini_research_mcp.client.GeminiClient.generate", new_callable=AsyncMock
         ) as mock_gen,
+        patch(
+            "gemini_research_mcp.client.GeminiClient.generate_structured",
+            new_callable=AsyncMock,
+        ) as mock_structured,
     ):
         client = MagicMock()
         mock_get.return_value = client
-        yield {"get": mock_get, "generate": mock_gen, "client": client}
+        yield {
+            "get": mock_get,
+            "generate": mock_gen,
+            "generate_structured": mock_structured,
+            "client": client,
+        }
 
 
 @pytest.fixture()

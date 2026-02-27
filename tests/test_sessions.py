@@ -71,3 +71,22 @@ class TestSessionStore:
         session.last_active = datetime.now() - timedelta(hours=2)
         store._evict_expired()
         assert store.get(session.session_id) is None
+
+    def test_history_trimmed_to_max_turn_window(self):
+        store = SessionStore()
+        cfg_mod._config = cfg_mod.ServerConfig(
+            gemini_api_key="test",
+            max_sessions=50,
+            session_timeout_hours=24,
+            session_max_turns=2,
+        )
+        session = store.create("https://youtube.com/watch?v=abc", "general")
+        for i in range(3):
+            user = types.Content(role="user", parts=[types.Part(text=f"u{i}")])
+            model = types.Content(role="model", parts=[types.Part(text=f"m{i}")])
+            store.add_turn(session.session_id, user, model)
+
+        assert session.turn_count == 3
+        assert len(session.history) == 4
+        latest_text = [p.text for c in session.history for p in c.parts if p.text]
+        assert latest_text == ["u1", "m1", "u2", "m2"]

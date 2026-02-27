@@ -1,16 +1,15 @@
-"""Tests for video tool helpers (URL parsing, response parsing)."""
+"""Tests for video tools and URL helpers."""
 
 from __future__ import annotations
 
 import pytest
 
-from gemini_research_mcp.tools.video import (
+from gemini_research_mcp.tools.video_url import (
     _extract_video_id,
     _normalize_youtube_url,
-    _parse_labeled_line,
-    _parse_list_from_label,
-    _parse_markdown_section,
 )
+from gemini_research_mcp.tools.video import video_analyze
+from gemini_research_mcp.models.video import VideoResult
 
 
 class TestUrlHelpers:
@@ -38,50 +37,77 @@ class TestUrlHelpers:
     def test_extract_video_id(self):
         assert _extract_video_id("https://www.youtube.com/watch?v=abc123") == "abc123"
         assert _extract_video_id("https://youtu.be/xyz789") == "xyz789"
+        assert _extract_video_id("https://www.youtube.com/shorts/short123") == "short123"
 
     def test_extract_video_id_invalid(self):
         with pytest.raises(ValueError):
             _extract_video_id("https://example.com")
 
+    def test_reject_spoofed_youtube_domains(self):
+        with pytest.raises(ValueError):
+            _extract_video_id("https://notyoutube.com/watch?v=abc123")
+        with pytest.raises(ValueError):
+            _extract_video_id("https://youtube.com.evil.test/watch?v=abc123")
 
-class TestParsers:
-    def test_parse_labeled_line(self):
-        text = "TITLE: My Video Title\nSUMMARY: This is the summary"
-        assert _parse_labeled_line(text, "TITLE") == "My Video Title"
-        assert _parse_labeled_line(text, "SUMMARY") == "This is the summary"
 
-    def test_parse_labeled_line_with_markdown(self):
-        text = "**TITLE**: A **bold** title\nSUMMARY: text"
-        result = _parse_labeled_line(text, "TITLE")
-        assert "bold" in result
+class TestVideoAnalyze:
+    @pytest.mark.asyncio
+    async def test_video_analyze_default_schema(self, mock_gemini_client):
+        """video_analyze with no custom schema uses VideoResult via generate_structured."""
+        mock_gemini_client["generate_structured"].return_value = VideoResult(
+            title="Test Video",
+            summary="A test summary",
+            key_points=["point 1"],
+            topics=["AI"],
+        )
 
-    def test_parse_labeled_line_missing(self):
-        assert _parse_labeled_line("nothing here", "TITLE") == ""
+        result = await video_analyze(
+            url="https://www.youtube.com/watch?v=abc123",
+            use_cache=False,
+        )
 
-    def test_parse_list_comma(self):
-        text = "THEMES: artificial intelligence, machine learning, deep learning"
-        result = _parse_list_from_label(text, "THEMES")
-        assert len(result) == 3
-        assert "artificial intelligence" in result[0]
+        assert result["title"] == "Test Video"
+        assert result["summary"] == "A test summary"
+        assert result["url"] == "https://www.youtube.com/watch?v=abc123"
+        mock_gemini_client["generate_structured"].assert_called_once()
 
-    def test_parse_list_filters_short_items(self):
-        """Items ≤2 chars are filtered (noise reduction from original youtube_agent)."""
-        text = "THEMES: AI, machine learning"
-        result = _parse_list_from_label(text, "THEMES")
-        assert len(result) == 1  # "AI" is only 2 chars, filtered
+    @pytest.mark.asyncio
+    async def test_video_analyze_custom_schema(self, mock_gemini_client):
+        """video_analyze with custom output_schema uses generate() + json.loads."""
+        mock_gemini_client["generate"].return_value = '{"recipes": ["pasta", "salad"]}'
 
-    def test_parse_list_pipe(self):
-        text = "COMMANDS: npm install | pip install | cargo build"
-        result = _parse_list_from_label(text, "COMMANDS")
-        assert len(result) == 3
+        custom_schema = {"type": "object", "properties": {"recipes": {"type": "array"}}}
+        result = await video_analyze(
+            url="https://www.youtube.com/watch?v=abc123",
+            instruction="List all recipes",
+            output_schema=custom_schema,
+            use_cache=False,
+        )
 
-    def test_parse_markdown_section(self):
-        text = """### COMMANDS
-`npm install` | Install dependencies
-`npm run build` | Build project
+        assert result["recipes"] == ["pasta", "salad"]
+        assert result["url"] == "https://www.youtube.com/watch?v=abc123"
+        mock_gemini_client["generate"].assert_called_once()
 
-### TOOLS
-Something else"""
-        result = _parse_markdown_section(text, "COMMANDS")
-        assert len(result) == 2
-        assert "npm install" in result[0]
+    @pytest.mark.asyncio
+    async def test_video_analyze_invalid_url(self):
+        """Invalid URL returns tool error without calling Gemini."""
+        result = await video_analyze(url="https://example.com/page")
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_video_analyze_with_instruction(self, mock_gemini_client):
+        """Custom instruction is forwarded to the Gemini call."""
+        mock_gemini_client["generate_structured"].return_value = VideoResult(
+            title="CLI Video",
+            key_points=["use --verbose"],
+        )
+
+        result = await video_analyze(
+            url="https://www.youtube.com/watch?v=abc123",
+            instruction="Extract all CLI commands shown",
+            use_cache=False,
+        )
+
+        assert result["title"] == "CLI Video"
+        call_args = mock_gemini_client["generate_structured"].call_args
+        assert call_args is not None

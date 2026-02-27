@@ -40,6 +40,14 @@ class TestCache:
         assert cache.load("vid1", "analyze", "model") is None
         assert cache.load("vid2", "analyze", "model") is not None
 
+    def test_clear_specific_does_not_delete_prefix_matches(self):
+        cache.save("vid1", "analyze", "model", {"a": 1})
+        cache.save("vid12", "analyze", "model", {"b": 2})
+        removed = cache.clear("vid1")
+        assert removed == 1
+        assert cache.load("vid1", "analyze", "model") is None
+        assert cache.load("vid12", "analyze", "model") is not None
+
     def test_clear_all(self):
         cache.save("vid1", "analyze", "model", {"a": 1})
         cache.save("vid2", "analyze", "model", {"b": 2})
@@ -57,3 +65,39 @@ class TestCache:
         entries = cache.list_entries()
         assert len(entries) >= 1
         assert entries[0]["content_id"] == "vid1"
+
+
+class TestCacheWithInstruction:
+    """Verify that instruction param differentiates cache entries."""
+
+    def test_different_instructions_different_keys(self):
+        """Same content + different instruction → different cache entries."""
+        cache.save("vid1", "analyze", "model", {"a": 1}, instruction="summarize")
+        cache.save("vid1", "analyze", "model", {"b": 2}, instruction="list recipes")
+
+        loaded1 = cache.load("vid1", "analyze", "model", instruction="summarize")
+        loaded2 = cache.load("vid1", "analyze", "model", instruction="list recipes")
+
+        assert loaded1 is not None
+        assert loaded2 is not None
+        assert loaded1["a"] == 1
+        assert loaded2["b"] == 2
+
+    def test_empty_instruction_uses_default_key(self):
+        """No instruction → 'default' hash segment."""
+        key_no_instr = cache.cache_key("vid1", "analyze", "model")
+        key_empty = cache.cache_key("vid1", "analyze", "model", instruction="")
+        assert key_no_instr == key_empty
+        assert "_default_" in key_no_instr
+
+    def test_instruction_miss(self):
+        """Cache with one instruction misses for a different instruction."""
+        cache.save("vid1", "analyze", "model", {"a": 1}, instruction="summarize")
+        assert cache.load("vid1", "analyze", "model", instruction="different") is None
+
+    def test_clear_clears_all_instructions(self):
+        """Clearing by content_id removes all instruction variants."""
+        cache.save("vid1", "analyze", "model", {"a": 1}, instruction="summarize")
+        cache.save("vid1", "analyze", "model", {"b": 2}, instruction="list recipes")
+        removed = cache.clear("vid1")
+        assert removed == 2
