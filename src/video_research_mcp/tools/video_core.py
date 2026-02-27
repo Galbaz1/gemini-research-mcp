@@ -23,7 +23,10 @@ _ANALYSIS_PREAMBLE = (
 
 
 def _enrich_prompt(contents: types.Content, new_text: str) -> types.Content:
-    """Replace the text part in Content with an enriched prompt."""
+    """Return a new Content with every text part replaced by ``new_text``.
+
+    Non-text parts (e.g. file data) are preserved as-is.
+    """
     new_parts = []
     for part in contents.parts:
         if part.text:

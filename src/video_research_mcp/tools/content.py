@@ -130,7 +130,12 @@ async def _analyze_url(
     output_schema: dict | None,
     thinking_level: ThinkingLevel,
 ) -> dict:
-    """Analyze URL content using UrlContext tool wiring."""
+    """Analyze URL content using Gemini's UrlContext tool wiring.
+
+    Attempts structured output with UrlContext first. If that fails (e.g.
+    UrlContext and response_json_schema don't compose), falls back to a
+    two-step approach: fetch unstructured text, then reshape into schema.
+    """
     try:
         raw = await GeminiClient.generate(
             prompt_text,
@@ -156,7 +161,11 @@ async def _analyze_parts(
     output_schema: dict | None,
     thinking_level: ThinkingLevel,
 ) -> dict:
-    """Analyze file/text content from pre-built parts."""
+    """Analyze file/text content from pre-built Gemini parts.
+
+    Appends the instruction as a text part, then routes to either
+    ``generate`` (custom schema) or ``generate_structured`` (ContentResult).
+    """
     parts.append(types.Part(text=instruction))
     contents = types.Content(parts=parts)
 
@@ -181,7 +190,7 @@ async def _reshape_to_schema(
     unstructured: str,
     output_schema: dict | None,
 ) -> dict:
-    """Reshape unstructured text into the target schema."""
+    """Reshape unstructured Gemini text into the target schema via a second LLM call."""
     if output_schema:
         raw = await GeminiClient.generate(
             f"{instruction}\n\nContent:\n{unstructured}",

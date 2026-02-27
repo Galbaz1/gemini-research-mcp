@@ -8,16 +8,31 @@ from google.genai import types
 
 
 def _is_youtube_host(host: str) -> bool:
+    """Check if host is a youtube.com domain (including subdomains like www.youtube.com)."""
     host = host.lower().split(":", 1)[0]
     return host == "youtube.com" or host.endswith(".youtube.com")
 
 
 def _is_youtu_be_host(host: str) -> bool:
+    """Check if host is the youtu.be short-link domain."""
     host = host.lower().split(":", 1)[0]
     return host == "youtu.be" or host == "www.youtu.be"
 
 
 def _extract_video_id_from_parsed(parsed) -> str | None:
+    """Extract video ID from a pre-parsed YouTube URL.
+
+    Handles multiple URL formats:
+    - youtu.be/<id> (short links)
+    - youtube.com/watch?v=<id> (standard)
+    - youtube.com/shorts/<id>, /embed/<id>, /live/<id> (path-based)
+
+    Args:
+        parsed: A ``urllib.parse.ParseResult`` from ``urlparse()``.
+
+    Returns:
+        Video ID string, or None if the URL is not a recognized YouTube format.
+    """
     host = parsed.netloc.lower().split(":", 1)[0]
     if _is_youtu_be_host(host):
         return parsed.path.strip("/").split("/", 1)[0] or None
@@ -47,6 +62,13 @@ def _normalize_youtube_url(url: str) -> str:
 
 
 def _extract_video_id(url: str) -> str:
+    """Extract video ID from a YouTube URL string.
+
+    Strips backslash escapes and trailing query/fragment noise from the ID.
+
+    Raises:
+        ValueError: If no video ID can be extracted.
+    """
     url = url.replace("\\", "")
     parsed = urlparse(url)
     vid = _extract_video_id_from_parsed(parsed)
