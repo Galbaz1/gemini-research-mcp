@@ -1,8 +1,7 @@
 ---
-name: analyze
 description: Analyze any content — URL, file, or pasted text
 argument-hint: <url|file-path|text>
-allowed-tools: mcp__plugin_gemini-research_gemini-research__content_analyze, mcp__plugin_gemini-research_gemini-research__content_extract
+allowed-tools: mcp__plugin_gr_gemini-research__content_analyze, mcp__plugin_gr_gemini-research__content_extract
 model: sonnet
 ---
 

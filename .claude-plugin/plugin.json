@@ -1,5 +1,5 @@
 {
-  "name": "gemini-research",
+  "name": "gr",
   "version": "0.2.0",
   "description": "Gemini 3.1 Pro research partner — video analysis, deep research, content extraction, and web search via 11 instruction-driven tools.",
   "author": {

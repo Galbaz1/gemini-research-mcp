@@ -1,8 +1,7 @@
 ---
-name: video
 description: Analyze a YouTube video with comprehensive extraction
 argument-hint: <youtube-url>
-allowed-tools: mcp__plugin_gemini-research_gemini-research__video_analyze, mcp__plugin_gemini-research_gemini-research__video_create_session, mcp__plugin_gemini-research_gemini-research__video_continue_session
+allowed-tools: mcp__plugin_gr_gemini-research__video_analyze, mcp__plugin_gr_gemini-research__video_create_session, mcp__plugin_gr_gemini-research__video_continue_session
 model: sonnet
 ---
 

@@ -1,0 +1,19 @@
+---
+description: Web search via Gemini grounding
+argument-hint: <query>
+allowed-tools: mcp__plugin_gr_gemini-research__web_search
+model: sonnet
+---
+
+# Web Search: $ARGUMENTS
+
+Search the web for the given query using Gemini-grounded search.
+
+## Steps
+
+1. Use `web_search` with query="$ARGUMENTS"
+2. Present results clearly with:
+   - **Source title** and URL for each result
+   - **Key excerpt** or summary from each source
+   - **Relevance** — how well it answers the query
+3. If results are thin, suggest refined queries the user could try

@@ -1,8 +1,7 @@
 ---
-name: research
 description: Deep research on any topic with evidence-tier labeling
 argument-hint: <topic>
-allowed-tools: mcp__plugin_gemini-research_gemini-research__web_search, mcp__plugin_gemini-research_gemini-research__research_deep, mcp__plugin_gemini-research_gemini-research__research_plan, mcp__plugin_gemini-research_gemini-research__research_assess_evidence
+allowed-tools: mcp__plugin_gr_gemini-research__web_search, mcp__plugin_gr_gemini-research__research_deep, mcp__plugin_gr_gemini-research__research_plan, mcp__plugin_gr_gemini-research__research_assess_evidence
 model: sonnet
 ---
 
