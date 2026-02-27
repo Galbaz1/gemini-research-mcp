@@ -1,7 +1,7 @@
 """Knowledge tool models — response schemas for Weaviate-backed tools.
 
 Output schemas for knowledge_search, knowledge_related, knowledge_stats,
-and knowledge_ingest tools. These are populated from Weaviate query
+knowledge_ingest, and knowledge_fetch tools. Populated from Weaviate query
 responses, not from Gemini structured output.
 """
 
@@ -72,3 +72,15 @@ class KnowledgeIngestResult(BaseModel):
     collection: str = Field(description="Target collection")
     object_id: str = Field(default="", description="Created object UUID")
     status: str = Field(default="success", description="Ingest status")
+
+
+class KnowledgeFetchResult(BaseModel):
+    """Output schema for knowledge_fetch.
+
+    Returns a single object retrieved by UUID from a specific collection.
+    """
+
+    collection: str = Field(description="Source collection name")
+    object_id: str = Field(description="Weaviate object UUID")
+    found: bool = Field(default=False, description="Whether the object was found")
+    properties: dict = Field(default_factory=dict, description="Object properties")

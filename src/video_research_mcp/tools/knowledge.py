@@ -1,10 +1,10 @@
-"""Knowledge query tools — 4 tools on a FastMCP sub-server."""
+"""Knowledge query tools — 6 tools on a FastMCP sub-server."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -16,6 +16,7 @@ from ..errors import make_tool_error
 from .knowledge_filters import build_collection_filter
 from ..models.knowledge import (
     CollectionStats,
+    KnowledgeFetchResult,
     KnowledgeHit,
     KnowledgeIngestResult,
     KnowledgeRelatedResult,
@@ -25,6 +26,8 @@ from ..models.knowledge import (
 from ..types import KnowledgeCollection
 from ..weaviate_client import WeaviateClient
 from ..weaviate_schema import ALL_COLLECTIONS as SCHEMA_COLLECTIONS
+
+SearchType = Literal["hybrid", "semantic", "keyword"]
 
 logger = logging.getLogger(__name__)
 knowledge_server = FastMCP("knowledge")
@@ -56,8 +59,12 @@ async def knowledge_search(
         list[KnowledgeCollection] | None,
         Field(description="Collections to search (all if omitted)"),
     ] = None,
+    search_type: Annotated[
+        SearchType,
+        Field(description="Search mode: hybrid (BM25+vector), semantic (vector only), keyword (BM25 only)"),
+    ] = "hybrid",
     limit: Annotated[int, Field(ge=1, le=100, description="Max results per collection")] = 10,
-    alpha: Annotated[float, Field(ge=0.0, le=1.0, description="0=BM25, 1=vector, 0.5=hybrid")] = 0.5,
+    alpha: Annotated[float, Field(ge=0.0, le=1.0, description="Hybrid balance: 0=BM25, 1=vector")] = 0.5,
     evidence_tier: Annotated[str | None, Field(description="Filter by evidence tier (e.g. CONFIRMED)")] = None,
     source_tool: Annotated[str | None, Field(description="Filter by originating tool name")] = None,
     date_from: Annotated[str | None, Field(description="Filter created_at >= ISO date")] = None,
@@ -65,18 +72,18 @@ async def knowledge_search(
     category: Annotated[str | None, Field(description="Filter VideoMetadata by category")] = None,
     video_id: Annotated[str | None, Field(description="Filter by video_id")] = None,
 ) -> dict:
-    """Hybrid search across knowledge collections with optional filters.
+    """Search across knowledge collections using hybrid, semantic, or keyword mode.
 
-    Searches any/all 7 collections using Weaviate's hybrid search
-    (BM25 + vector). Results are merged and sorted by score.
+    Searches any/all 7 collections. Results are merged and sorted by score.
     Filters are collection-aware: conditions are skipped for collections
     that lack the relevant property.
 
     Args:
         query: Text to search for.
         collections: Which collections to search (default: all).
+        search_type: Search algorithm — hybrid, semantic (near_text), or keyword (BM25).
         limit: Maximum results per collection.
-        alpha: Search balance — 0 for keyword, 1 for semantic, 0.5 for hybrid.
+        alpha: Hybrid balance (only used when search_type="hybrid").
         evidence_tier: Filter ResearchFindings by evidence tier.
         source_tool: Filter any collection by originating tool.
         date_from: Filter objects created on or after this ISO date.
@@ -108,19 +115,15 @@ async def knowledge_search(
                     col_filter = build_collection_filter(
                         col_name, _ALLOWED_PROPERTIES.get(col_name, set()), **filter_kwargs,
                     )
-                    response = collection.query.hybrid(
-                        query=query,
-                        limit=limit,
-                        alpha=alpha,
-                        filters=col_filter,
-                        return_metadata=MetadataQuery(score=True),
+                    response = _dispatch_search(
+                        collection, query, search_type, limit, alpha, col_filter,
                     )
                     for obj in response.objects:
                         props = {k: _serialize(v) for k, v in obj.properties.items()}
                         hits.append(KnowledgeHit(
                             collection=col_name,
                             object_id=str(obj.uuid),
-                            score=getattr(obj.metadata, "score", 0.0) or 0.0,
+                            score=_extract_score(obj, search_type),
                             properties=props,
                         ))
                 except Exception as exc:
@@ -139,6 +142,40 @@ async def knowledge_search(
 
     except Exception as exc:
         return make_tool_error(exc)
+
+
+def _dispatch_search(collection, query, search_type, limit, alpha, col_filter):
+    """Dispatch to the correct Weaviate query method based on search_type."""
+    if search_type == "semantic":
+        return collection.query.near_text(
+            query=query,
+            limit=limit,
+            filters=col_filter,
+            return_metadata=MetadataQuery(distance=True),
+        )
+    if search_type == "keyword":
+        return collection.query.bm25(
+            query=query,
+            limit=limit,
+            filters=col_filter,
+            return_metadata=MetadataQuery(score=True),
+        )
+    # Default: hybrid
+    return collection.query.hybrid(
+        query=query,
+        limit=limit,
+        alpha=alpha,
+        filters=col_filter,
+        return_metadata=MetadataQuery(score=True),
+    )
+
+
+def _extract_score(obj, search_type: str) -> float:
+    """Extract a normalized score from a Weaviate result object."""
+    if search_type == "semantic":
+        distance = getattr(obj.metadata, "distance", None)
+        return 1.0 - distance if distance is not None else 0.0
+    return getattr(obj.metadata, "score", 0.0) or 0.0
 
 
 @knowledge_server.tool(
@@ -333,6 +370,54 @@ async def knowledge_ingest(
             object_id=object_id,
             status="success",
         ).model_dump()
+
+    except Exception as exc:
+        return make_tool_error(exc)
+
+
+@knowledge_server.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    )
+)
+async def knowledge_fetch(
+    object_id: Annotated[str, Field(min_length=1, description="Weaviate object UUID")],
+    collection: KnowledgeCollection,
+) -> dict:
+    """Fetch a single object by UUID from a knowledge collection.
+
+    Args:
+        object_id: UUID of the object to retrieve.
+        collection: Collection the object belongs to.
+
+    Returns:
+        Dict matching KnowledgeFetchResult schema.
+    """
+    if not get_config().weaviate_enabled:
+        return _weaviate_not_configured()
+
+    try:
+        def _fetch():
+            client = WeaviateClient.get()
+            col = client.collections.get(collection)
+            obj = col.query.fetch_object_by_id(object_id)
+            if obj is None:
+                return KnowledgeFetchResult(
+                    collection=collection, object_id=object_id, found=False,
+                )
+            props = {k: _serialize(v) for k, v in obj.properties.items()}
+            return KnowledgeFetchResult(
+                collection=collection,
+                object_id=str(obj.uuid),
+                found=True,
+                properties=props,
+            )
+
+        result = await asyncio.to_thread(_fetch)
+        return result.model_dump()
 
     except Exception as exc:
         return make_tool_error(exc)
