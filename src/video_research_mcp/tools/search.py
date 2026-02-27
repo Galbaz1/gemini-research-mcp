@@ -62,7 +62,10 @@ async def web_search(
                     for c in chunks
                 ]
 
-        return {"query": query, "response": text, **grounding}
+        result = {"query": query, "response": text, **grounding}
+        from ..weaviate_store import store_web_search
+        await store_web_search(query, text, grounding.get("sources", []))
+        return result
 
     except Exception as exc:
         return make_tool_error(exc)

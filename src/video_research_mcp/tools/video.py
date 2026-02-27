@@ -239,6 +239,8 @@ async def video_continue_session(
             parts=[types.Part(text=text)],
         )
         turn = session_store.add_turn(session_id, user_content, model_content)
+        from ..weaviate_store import store_session_turn
+        await store_session_turn(session_id, session.video_title, turn, prompt, text)
         return SessionResponse(response=text, turn_count=turn).model_dump()
     except Exception as exc:
         return make_tool_error(exc)

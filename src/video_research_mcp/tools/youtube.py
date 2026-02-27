@@ -72,7 +72,10 @@ async def video_metadata(
 
     try:
         meta = await YouTubeClient.video_metadata(video_id)
-        return meta.model_dump()
+        meta_dict = meta.model_dump()
+        from ..weaviate_store import store_video_metadata
+        await store_video_metadata(meta_dict)
+        return meta_dict
     except Exception as exc:
         return make_tool_error(exc)
 

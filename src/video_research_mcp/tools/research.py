@@ -85,7 +85,7 @@ async def research_deep(
             thinking_level=thinking_level,
         )
 
-        return ResearchReport(
+        report = ResearchReport(
             topic=topic,
             scope=scope,
             executive_summary=synthesis.executive_summary,
@@ -93,6 +93,9 @@ async def research_deep(
             open_questions=synthesis.open_questions,
             methodology_critique=synthesis.methodology_critique,
         ).model_dump()
+        from ..weaviate_store import store_research_finding
+        await store_research_finding(report)
+        return report
 
     except Exception as exc:
         return make_tool_error(exc)
@@ -127,7 +130,10 @@ async def research_plan(
             system_instruction=DEEP_RESEARCH_SYSTEM,
             thinking_level="high",
         )
-        return plan.model_dump()
+        result = plan.model_dump()
+        from ..weaviate_store import store_research_plan
+        await store_research_plan(result)
+        return result
 
     except Exception as exc:
         # Fallback: unstructured generate for minimal plan
@@ -137,12 +143,15 @@ async def research_plan(
                 system_instruction=DEEP_RESEARCH_SYSTEM,
                 thinking_level="high",
             )
-            return ResearchPlan(
+            fallback = ResearchPlan(
                 topic=topic,
                 scope=scope,
                 phases=[Phase(name="Full Plan", description=raw[:500], tasks=[])],
                 task_decomposition=[raw],
             ).model_dump()
+            from ..weaviate_store import store_research_plan
+            await store_research_plan(fallback)
+            return fallback
         except Exception:
             return make_tool_error(exc)
 
@@ -174,7 +183,10 @@ async def research_assess_evidence(
             system_instruction=DEEP_RESEARCH_SYSTEM,
             thinking_level="high",
         )
-        return assessment.model_dump()
+        result = assessment.model_dump()
+        from ..weaviate_store import store_evidence_assessment
+        await store_evidence_assessment(result)
+        return result
 
     except Exception as exc:
         return make_tool_error(exc)

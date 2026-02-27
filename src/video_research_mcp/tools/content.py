@@ -110,9 +110,14 @@ async def content_analyze(
         schema = output_schema or ContentResult.model_json_schema()
 
         if use_url_context:
-            return await _analyze_url(prompt_text, instruction, schema, output_schema, thinking_level)
+            result = await _analyze_url(prompt_text, instruction, schema, output_schema, thinking_level)
         else:
-            return await _analyze_parts(parts, instruction, schema, output_schema, thinking_level)
+            result = await _analyze_parts(parts, instruction, schema, output_schema, thinking_level)
+
+        from ..weaviate_store import store_content_analysis
+        source = url or file_path or "(text)"
+        await store_content_analysis(result, source, instruction)
+        return result
 
     except Exception as exc:
         return make_tool_error(exc)

@@ -90,4 +90,6 @@ async def analyze_video(
     result["source"] = source_label
     if use_cache:
         cache_save(content_id, "video_analyze", cfg.default_model, result, instruction=instruction)
+    from ..weaviate_store import store_video_analysis
+    await store_video_analysis(result, content_id, instruction, source_label)
     return result
