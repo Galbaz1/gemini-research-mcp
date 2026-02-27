@@ -165,6 +165,29 @@ Interactive: [Open concept map](concept-map.html)
    - `concept-map.html` — interactive concept map
    - `screenshot.png` — static capture
 
+## Phase 7: Workspace Output
+
+Copy all artifacts to the user's workspace so they can browse results without navigating into `.claude/` memory paths. Use Python `shutil` (bash `cp` may be sandboxed):
+
+```
+Bash: python3 -c "
+import shutil, os
+src = '<memory-dir>/gr/video/<slug>'
+dst = os.path.join(os.getcwd(), 'output', '<slug>')
+os.makedirs(dst, exist_ok=True)
+for f in os.listdir(src):
+    fp = os.path.join(src, f)
+    if os.path.isfile(fp):
+        shutil.copy2(fp, dst)
+        print(f'  {f}')
+print(f'Copied to output/<slug>/')
+"
+```
+
+Tell the user: **Output also saved to `output/<slug>/`** in your workspace.
+
+If the workspace copy fails, it's non-critical — the memory copy is authoritative. Log the error and continue.
+
 ## Deeper Exploration
 
 After presenting results, ask if the user wants to dive deeper:

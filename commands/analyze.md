@@ -153,6 +153,29 @@ Interactive: [Open knowledge graph](knowledge-graph.html)
    - `knowledge-graph.html` — interactive knowledge graph
    - `screenshot.png` — static capture
 
+## Phase 7: Workspace Output
+
+Copy all artifacts to the user's workspace. Use Python `shutil` (bash `cp` may be sandboxed):
+
+```
+Bash: python3 -c "
+import shutil, os
+src = '<memory-dir>/gr/analysis/<slug>'
+dst = os.path.join(os.getcwd(), 'output', '<slug>')
+os.makedirs(dst, exist_ok=True)
+for f in os.listdir(src):
+    fp = os.path.join(src, f)
+    if os.path.isfile(fp):
+        shutil.copy2(fp, dst)
+        print(f'  {f}')
+print(f'Copied to output/<slug>/')
+"
+```
+
+Tell the user: **Output also saved to `output/<slug>/`** in your workspace.
+
+If the workspace copy fails, it's non-critical — the memory copy is authoritative.
+
 ## Deeper Exploration
 
 Offer to extract specific structured data with `content_extract` if the user needs a particular schema. Any deeper analysis appends timestamped sections to the existing `analysis.md` and may trigger a visualization update.

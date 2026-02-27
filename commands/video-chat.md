@@ -126,10 +126,34 @@ Append to analysis.md:
 Interactive: [Open concept map](concept-map.html)
 ```
 
-Confirm: **Session complete — saved to `gr/video-chat/<slug>/`**
+### 6. Workspace Output
+
+Copy all artifacts to the user's workspace. Use Python `shutil` (bash `cp` may be sandboxed):
+
+```
+Bash: python3 -c "
+import shutil, os
+src = '<memory-dir>/gr/video-chat/<slug>'
+dst = os.path.join(os.getcwd(), 'output', '<slug>')
+os.makedirs(dst, exist_ok=True)
+for f in os.listdir(src):
+    fp = os.path.join(src, f)
+    if os.path.isfile(fp):
+        shutil.copy2(fp, dst)
+        print(f'  {f}')
+print(f'Copied to output/<slug>/')
+"
+```
+
+If the workspace copy fails, it's non-critical — the memory copy is authoritative.
+
+### 7. Confirm
+
+Tell the user: **Session complete — saved to `gr/video-chat/<slug>/`**
 - `analysis.md` — timestamped Q&A with concept tracking
 - `concept-map.html` — interactive concept map
 - `screenshot.png` — static capture
+- Also copied to **`output/<slug>/`** in your workspace
 
 Suggest: browse past sessions with `/gr:recall video-chat`
 

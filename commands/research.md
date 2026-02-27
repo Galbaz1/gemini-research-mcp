@@ -162,6 +162,29 @@ Interactive: [Open evidence network](evidence-net.html)
    - `evidence-net.html` — interactive evidence network
    - `screenshot.png` — static capture
 
+## Phase 7: Workspace Output
+
+Copy all artifacts to the user's workspace. Use Python `shutil` (bash `cp` may be sandboxed):
+
+```
+Bash: python3 -c "
+import shutil, os
+src = '<memory-dir>/gr/research/<slug>'
+dst = os.path.join(os.getcwd(), 'output', '<slug>')
+os.makedirs(dst, exist_ok=True)
+for f in os.listdir(src):
+    fp = os.path.join(src, f)
+    if os.path.isfile(fp):
+        shutil.copy2(fp, dst)
+        print(f'  {f}')
+print(f'Copied to output/<slug>/')
+"
+```
+
+Tell the user: **Output also saved to `output/<slug>/`** in your workspace.
+
+If the workspace copy fails, it's non-critical — the memory copy is authoritative.
+
 ## Deeper Analysis
 
 If the user wants deeper analysis, offer:
