@@ -23,8 +23,10 @@ from .weaviate_schema import CollectionDef, PropertyDef
 logger = logging.getLogger(__name__)
 
 _client: weaviate.WeaviateClient | None = None
+_async_client: weaviate.WeaviateAsyncClient | None = None
 _schema_ensured = False
 _lock = threading.Lock()
+_async_lock = asyncio.Lock()
 
 _DATA_TYPE_MAP: dict[str, DataType] = {
     "text": DataType.TEXT,
@@ -127,11 +129,25 @@ def _connect(url: str, api_key: str) -> weaviate.WeaviateClient:
     )
 
 
+async def _aconnect(url: str, api_key: str) -> weaviate.WeaviateAsyncClient:
+    """Create and connect an async Weaviate client (cloud clusters only)."""
+    headers = _collect_provider_headers()
+    client = weaviate.use_async_with_weaviate_cloud(
+        cluster_url=url,
+        auth_credentials=Auth.api_key(api_key) if api_key else None,
+        headers=headers or None,
+        additional_config=_ADDITIONAL_CONFIG,
+    )
+    await client.connect()
+    return client
+
+
 class WeaviateClient:
     """Process-wide Weaviate client singleton (single cluster, not a pool).
 
     All methods are classmethods operating on module-level _client state.
     Thread-safe via _lock for concurrent asyncio.to_thread usage.
+    Async client available via aget() for AsyncQueryAgent.
     """
 
     @classmethod
@@ -159,6 +175,29 @@ class WeaviateClient:
                 _schema_ensured = True
 
         return _client
+
+    @classmethod
+    async def aget(cls) -> weaviate.WeaviateAsyncClient:
+        """Return (or create) the shared async Weaviate client.
+
+        For use with AsyncQueryAgent. Cloud clusters only (uses
+        use_async_with_weaviate_cloud). Schema is ensured via the sync
+        client — call get() first if collections may not exist yet.
+
+        Raises:
+            ValueError: If WEAVIATE_URL is not configured.
+        """
+        global _async_client
+        cfg = get_config()
+        if not cfg.weaviate_url:
+            raise ValueError("WEAVIATE_URL not configured")
+
+        async with _async_lock:
+            if _async_client is None:
+                _async_client = await _aconnect(cfg.weaviate_url, cfg.weaviate_api_key)
+                logger.info("Async-connected to Weaviate at %s", cfg.weaviate_url)
+
+        return _async_client
 
     @classmethod
     def ensure_collections(cls) -> None:
@@ -233,7 +272,7 @@ class WeaviateClient:
 
     @classmethod
     def close(cls) -> None:
-        """Close the shared client connection."""
+        """Close the shared sync client connection."""
         global _client, _schema_ensured
         with _lock:
             if _client is not None:
@@ -247,12 +286,22 @@ class WeaviateClient:
 
     @classmethod
     async def aclose(cls) -> None:
-        """Async wrapper for close — runs in thread to avoid blocking."""
+        """Close both sync and async clients."""
+        global _async_client
         await asyncio.to_thread(cls.close)
+        async with _async_lock:
+            if _async_client is not None:
+                try:
+                    await _async_client.close()
+                except Exception:
+                    pass
+                _async_client = None
+                logger.info("Closed async Weaviate client")
 
     @classmethod
     def reset(cls) -> None:
         """Reset singleton state (testing utility, matches YouTubeClient.reset)."""
-        global _client, _schema_ensured
+        global _client, _async_client, _schema_ensured
         _client = None
+        _async_client = None
         _schema_ensured = False

@@ -1,8 +1,8 @@
-"""Tests for knowledge_ask and knowledge_query QueryAgent tools."""
+"""Tests for knowledge_ask and knowledge_query AsyncQueryAgent tools."""
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 AGENT_MODULE = "video_research_mcp.tools.knowledge.agent"
@@ -33,9 +33,9 @@ class TestKnowledgeAsk:
     async def test_returns_answer_with_sources(
         self, mock_weaviate_client, clean_config, monkeypatch
     ):
-        """GIVEN QueryAgent returns answer+sources WHEN knowledge_ask THEN returns structured result."""
+        """GIVEN AsyncQueryAgent returns answer+sources WHEN knowledge_ask THEN returns structured result."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
-        mock_agent = MagicMock()
+        mock_agent = AsyncMock()
         source = MagicMock(collection="ResearchFindings", object_id="uuid-abc")
         mock_agent.ask.return_value = MagicMock(
             final_answer="RAG combines retrieval with generation.",
@@ -44,7 +44,7 @@ class TestKnowledgeAsk:
 
         with (
             patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
-            patch(f"{AGENT_MODULE}._get_query_agent", return_value=mock_agent),
+            patch(f"{AGENT_MODULE}._get_query_agent", new_callable=AsyncMock, return_value=mock_agent),
         ):
             from video_research_mcp.tools.knowledge.agent import knowledge_ask
             result = await knowledge_ask(query="What is RAG?")
@@ -58,14 +58,14 @@ class TestKnowledgeAsk:
     async def test_returns_empty_answer(
         self, mock_weaviate_client, clean_config, monkeypatch
     ):
-        """GIVEN QueryAgent returns no answer WHEN knowledge_ask THEN answer is empty string."""
+        """GIVEN AsyncQueryAgent returns no answer WHEN knowledge_ask THEN answer is empty string."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
-        mock_agent = MagicMock()
+        mock_agent = AsyncMock()
         mock_agent.ask.return_value = MagicMock(final_answer=None, sources=[])
 
         with (
             patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
-            patch(f"{AGENT_MODULE}._get_query_agent", return_value=mock_agent),
+            patch(f"{AGENT_MODULE}._get_query_agent", new_callable=AsyncMock, return_value=mock_agent),
         ):
             from video_research_mcp.tools.knowledge.agent import knowledge_ask
             result = await knowledge_ask(query="Unknown question")
@@ -76,16 +76,16 @@ class TestKnowledgeAsk:
     async def test_returns_no_sources(
         self, mock_weaviate_client, clean_config, monkeypatch
     ):
-        """GIVEN QueryAgent returns answer without sources WHEN knowledge_ask THEN sources is empty."""
+        """GIVEN AsyncQueryAgent returns answer without sources WHEN knowledge_ask THEN sources is empty."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
-        mock_agent = MagicMock()
+        mock_agent = AsyncMock()
         mock_agent.ask.return_value = MagicMock(
             final_answer="An answer", sources=None,
         )
 
         with (
             patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
-            patch(f"{AGENT_MODULE}._get_query_agent", return_value=mock_agent),
+            patch(f"{AGENT_MODULE}._get_query_agent", new_callable=AsyncMock, return_value=mock_agent),
         ):
             from video_research_mcp.tools.knowledge.agent import knowledge_ask
             result = await knowledge_ask(query="test")
@@ -98,12 +98,13 @@ class TestKnowledgeAsk:
     ):
         """GIVEN specific collections WHEN knowledge_ask THEN agent receives those collections."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
-        mock_agent = MagicMock()
+        mock_agent = AsyncMock()
         mock_agent.ask.return_value = MagicMock(final_answer="ok", sources=[])
 
+        mock_get = AsyncMock(return_value=mock_agent)
         with (
             patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
-            patch(f"{AGENT_MODULE}._get_query_agent", return_value=mock_agent) as mock_get,
+            patch(f"{AGENT_MODULE}._get_query_agent", mock_get),
         ):
             from video_research_mcp.tools.knowledge.agent import knowledge_ask
             await knowledge_ask(
@@ -116,12 +117,13 @@ class TestKnowledgeAsk:
     ):
         """GIVEN no collections specified WHEN knowledge_ask THEN passes None (all collections)."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
-        mock_agent = MagicMock()
+        mock_agent = AsyncMock()
         mock_agent.ask.return_value = MagicMock(final_answer="ok", sources=[])
 
+        mock_get = AsyncMock(return_value=mock_agent)
         with (
             patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
-            patch(f"{AGENT_MODULE}._get_query_agent", return_value=mock_agent) as mock_get,
+            patch(f"{AGENT_MODULE}._get_query_agent", mock_get),
         ):
             from video_research_mcp.tools.knowledge.agent import knowledge_ask
             await knowledge_ask(query="test")
@@ -130,14 +132,14 @@ class TestKnowledgeAsk:
     async def test_handles_agent_exception(
         self, mock_weaviate_client, clean_config, monkeypatch
     ):
-        """GIVEN QueryAgent raises WHEN knowledge_ask THEN returns error dict."""
+        """GIVEN AsyncQueryAgent raises WHEN knowledge_ask THEN returns error dict."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
-        mock_agent = MagicMock()
+        mock_agent = AsyncMock()
         mock_agent.ask.side_effect = RuntimeError("Agent failed")
 
         with (
             patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
-            patch(f"{AGENT_MODULE}._get_query_agent", return_value=mock_agent),
+            patch(f"{AGENT_MODULE}._get_query_agent", new_callable=AsyncMock, return_value=mock_agent),
         ):
             from video_research_mcp.tools.knowledge.agent import knowledge_ask
             result = await knowledge_ask(query="test")
@@ -171,7 +173,7 @@ class TestKnowledgeQuery:
     async def test_returns_search_results(
         self, mock_weaviate_client, clean_config, monkeypatch
     ):
-        """GIVEN QueryAgent returns objects WHEN knowledge_query THEN returns KnowledgeQueryResult."""
+        """GIVEN AsyncQueryAgent returns objects WHEN knowledge_query THEN returns KnowledgeQueryResult."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
         obj1 = MagicMock(
             collection="ResearchFindings",
@@ -183,14 +185,14 @@ class TestKnowledgeQuery:
             uuid="uuid-2",
             properties={"title": "RAG Tutorial"},
         )
-        mock_agent = MagicMock()
+        mock_agent = AsyncMock()
         mock_agent.search.return_value = MagicMock(
             search_results=MagicMock(objects=[obj1, obj2]),
         )
 
         with (
             patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
-            patch(f"{AGENT_MODULE}._get_query_agent", return_value=mock_agent),
+            patch(f"{AGENT_MODULE}._get_query_agent", new_callable=AsyncMock, return_value=mock_agent),
         ):
             from video_research_mcp.tools.knowledge.agent import knowledge_query
             result = await knowledge_query(query="RAG systems")
@@ -205,16 +207,16 @@ class TestKnowledgeQuery:
     async def test_returns_empty_results(
         self, mock_weaviate_client, clean_config, monkeypatch
     ):
-        """GIVEN QueryAgent returns no objects WHEN knowledge_query THEN returns empty list."""
+        """GIVEN AsyncQueryAgent returns no objects WHEN knowledge_query THEN returns empty list."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
-        mock_agent = MagicMock()
+        mock_agent = AsyncMock()
         mock_agent.search.return_value = MagicMock(
             search_results=MagicMock(objects=[]),
         )
 
         with (
             patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
-            patch(f"{AGENT_MODULE}._get_query_agent", return_value=mock_agent),
+            patch(f"{AGENT_MODULE}._get_query_agent", new_callable=AsyncMock, return_value=mock_agent),
         ):
             from video_research_mcp.tools.knowledge.agent import knowledge_query
             result = await knowledge_query(query="nonexistent topic")
@@ -227,14 +229,15 @@ class TestKnowledgeQuery:
     ):
         """GIVEN specific collections WHEN knowledge_query THEN agent receives them."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
-        mock_agent = MagicMock()
+        mock_agent = AsyncMock()
         mock_agent.search.return_value = MagicMock(
             search_results=MagicMock(objects=[]),
         )
 
+        mock_get = AsyncMock(return_value=mock_agent)
         with (
             patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
-            patch(f"{AGENT_MODULE}._get_query_agent", return_value=mock_agent) as mock_get,
+            patch(f"{AGENT_MODULE}._get_query_agent", mock_get),
         ):
             from video_research_mcp.tools.knowledge.agent import knowledge_query
             await knowledge_query(query="test", collections=["VideoMetadata"])
@@ -245,14 +248,14 @@ class TestKnowledgeQuery:
     ):
         """GIVEN custom limit WHEN knowledge_query THEN passes limit to agent.search()."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
-        mock_agent = MagicMock()
+        mock_agent = AsyncMock()
         mock_agent.search.return_value = MagicMock(
             search_results=MagicMock(objects=[]),
         )
 
         with (
             patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
-            patch(f"{AGENT_MODULE}._get_query_agent", return_value=mock_agent),
+            patch(f"{AGENT_MODULE}._get_query_agent", new_callable=AsyncMock, return_value=mock_agent),
         ):
             from video_research_mcp.tools.knowledge.agent import knowledge_query
             await knowledge_query(query="test", limit=25)
@@ -261,14 +264,14 @@ class TestKnowledgeQuery:
     async def test_handles_agent_exception(
         self, mock_weaviate_client, clean_config, monkeypatch
     ):
-        """GIVEN QueryAgent raises WHEN knowledge_query THEN returns error dict."""
+        """GIVEN AsyncQueryAgent raises WHEN knowledge_query THEN returns error dict."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
-        mock_agent = MagicMock()
+        mock_agent = AsyncMock()
         mock_agent.search.side_effect = RuntimeError("Search failed")
 
         with (
             patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
-            patch(f"{AGENT_MODULE}._get_query_agent", return_value=mock_agent),
+            patch(f"{AGENT_MODULE}._get_query_agent", new_callable=AsyncMock, return_value=mock_agent),
         ):
             from video_research_mcp.tools.knowledge.agent import knowledge_query
             result = await knowledge_query(query="test")
@@ -281,12 +284,12 @@ class TestKnowledgeQuery:
     ):
         """GIVEN search_results is None WHEN knowledge_query THEN returns empty results."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
-        mock_agent = MagicMock()
+        mock_agent = AsyncMock()
         mock_agent.search.return_value = MagicMock(search_results=None)
 
         with (
             patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
-            patch(f"{AGENT_MODULE}._get_query_agent", return_value=mock_agent),
+            patch(f"{AGENT_MODULE}._get_query_agent", new_callable=AsyncMock, return_value=mock_agent),
         ):
             from video_research_mcp.tools.knowledge.agent import knowledge_query
             result = await knowledge_query(query="test")
@@ -296,32 +299,43 @@ class TestKnowledgeQuery:
 
 
 class TestQueryAgentSingleton:
-    """Tests for the _get_query_agent caching behavior."""
+    """Tests for the _get_query_agent async caching behavior."""
 
-    def test_caches_by_collection_set(self, mock_weaviate_client):
+    async def test_caches_by_collection_set(self, mock_weaviate_client):
         """GIVEN same collections WHEN _get_query_agent called twice THEN returns same instance."""
+        import asyncio
         with patch(f"{AGENT_MODULE}._query_agents", {}):
             mock_qa_class = MagicMock()
-            with patch(f"{AGENT_MODULE}.QueryAgent", mock_qa_class, create=True):
+            with (
+                patch(f"{AGENT_MODULE}.AsyncQueryAgent", mock_qa_class, create=True),
+                patch(f"{AGENT_MODULE}._agent_lock", asyncio.Lock()),
+                patch("video_research_mcp.weaviate_client.WeaviateClient.aget", new_callable=AsyncMock, return_value=mock_weaviate_client["client"]),
+            ):
                 from video_research_mcp.tools.knowledge.agent import _get_query_agent
-                agent1 = _get_query_agent(["VideoAnalyses", "ResearchFindings"])
-                agent2 = _get_query_agent(["ResearchFindings", "VideoAnalyses"])
+                agent1 = await _get_query_agent(["VideoAnalyses", "ResearchFindings"])
+                agent2 = await _get_query_agent(["ResearchFindings", "VideoAnalyses"])
                 # Same sorted tuple + same client → same agent
                 assert agent1 is agent2
                 assert mock_qa_class.call_count == 1
 
-    def test_different_collections_get_different_agents(self, mock_weaviate_client):
+    async def test_different_collections_get_different_agents(self, mock_weaviate_client):
         """GIVEN different collections WHEN _get_query_agent called THEN returns different instances."""
+        import asyncio
         with patch(f"{AGENT_MODULE}._query_agents", {}):
             mock_qa_class = MagicMock()
-            with patch(f"{AGENT_MODULE}.QueryAgent", mock_qa_class, create=True):
+            with (
+                patch(f"{AGENT_MODULE}.AsyncQueryAgent", mock_qa_class, create=True),
+                patch(f"{AGENT_MODULE}._agent_lock", asyncio.Lock()),
+                patch("video_research_mcp.weaviate_client.WeaviateClient.aget", new_callable=AsyncMock, return_value=mock_weaviate_client["client"]),
+            ):
                 from video_research_mcp.tools.knowledge.agent import _get_query_agent
-                _get_query_agent(["VideoAnalyses"])
-                _get_query_agent(["ResearchFindings"])
+                await _get_query_agent(["VideoAnalyses"])
+                await _get_query_agent(["ResearchFindings"])
                 assert mock_qa_class.call_count == 2
 
-    def test_invalidates_on_client_change(self, mock_weaviate_client):
-        """GIVEN cached agent WHEN WeaviateClient.get() returns new client THEN creates new agent."""
+    async def test_invalidates_on_client_change(self, mock_weaviate_client):
+        """GIVEN cached agent WHEN WeaviateClient.aget() returns new client THEN creates new agent."""
+        import asyncio
         client_a = MagicMock(name="client-A")
         client_b = MagicMock(name="client-B")
         agent_a = MagicMock(name="agent-A")
@@ -329,16 +343,19 @@ class TestQueryAgentSingleton:
 
         with patch(f"{AGENT_MODULE}._query_agents", {}):
             mock_qa_class = MagicMock(side_effect=[agent_a, agent_b])
-            with patch(f"{AGENT_MODULE}.QueryAgent", mock_qa_class, create=True):
+            with (
+                patch(f"{AGENT_MODULE}.AsyncQueryAgent", mock_qa_class, create=True),
+                patch(f"{AGENT_MODULE}._agent_lock", asyncio.Lock()),
+            ):
                 from video_research_mcp.tools.knowledge.agent import _get_query_agent
 
                 # First call caches agent bound to client_a
-                with patch("video_research_mcp.weaviate_client.WeaviateClient.get", return_value=client_a):
-                    result_a = _get_query_agent(["VideoAnalyses"])
+                with patch("video_research_mcp.weaviate_client.WeaviateClient.aget", new_callable=AsyncMock, return_value=client_a):
+                    result_a = await _get_query_agent(["VideoAnalyses"])
 
                 # Second call with new client → cache miss → new agent
-                with patch("video_research_mcp.weaviate_client.WeaviateClient.get", return_value=client_b):
-                    result_b = _get_query_agent(["VideoAnalyses"])
+                with patch("video_research_mcp.weaviate_client.WeaviateClient.aget", new_callable=AsyncMock, return_value=client_b):
+                    result_b = await _get_query_agent(["VideoAnalyses"])
 
                 assert result_a is agent_a
                 assert result_b is agent_b
