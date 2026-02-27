@@ -1,36 +1,42 @@
-"""Web & search tools — 2 tools on a FastMCP sub-server."""
+"""Web search tool — Google Search grounding via Gemini."""
 
 from __future__ import annotations
 
 import logging
+from typing import Annotated
 
 from fastmcp import FastMCP
 from google.genai import types
+from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from ..client import GeminiClient
+from ..config import get_config
 from ..errors import make_tool_error
-from ..prompts.content import WEB_ANALYZE
 
 logger = logging.getLogger(__name__)
-web_server = FastMCP("web")
+search_server = FastMCP("search")
 
 
-@web_server.tool()
+@search_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
 async def web_search(
-    query: str,
-    num_results: int = 5,
+    query: Annotated[str, Field(min_length=2, description="Search query")],
+    num_results: Annotated[int, Field(ge=1, le=20, description="Number of results")] = 5,
 ) -> dict:
     """Search the web using Gemini's built-in Google Search grounding.
 
-    Returns relevant search results with title, URL, and snippet.
+    Args:
+        query: Search terms.
+        num_results: How many results to return (1-20).
+
+    Returns:
+        Dict with query, response text, and grounding sources.
     """
     try:
         config = types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())],
         )
         client = GeminiClient.get()
-        from ..config import get_config
-
         cfg = get_config()
         response = await client.aio.models.generate_content(
             model=cfg.flash_model,
@@ -39,7 +45,6 @@ async def web_search(
         )
         text = response.text or ""
 
-        # Extract grounding metadata if available
         grounding = {}
         if response.candidates:
             cand = response.candidates[0]
@@ -56,24 +61,5 @@ async def web_search(
 
         return {"query": query, "response": text, **grounding}
 
-    except Exception as exc:
-        return make_tool_error(exc)
-
-
-@web_server.tool()
-async def web_analyze_url(
-    url: str,
-    prompt: str = "Summarize this page",
-) -> dict:
-    """Fetch and analyse a URL's content with a custom prompt."""
-    try:
-        content = types.Content(
-            parts=[
-                types.Part(file_data=types.FileData(file_uri=url)),
-                types.Part(text=WEB_ANALYZE.format(prompt=prompt)),
-            ]
-        )
-        resp = await GeminiClient.generate(content, thinking_level="medium")
-        return {"url": url, "content": resp}
     except Exception as exc:
         return make_tool_error(exc)
