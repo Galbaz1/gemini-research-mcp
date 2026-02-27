@@ -180,7 +180,12 @@ class TestVideoCreateSession:
 
         uploaded = MagicMock()
         uploaded.uri = "https://generativelanguage.googleapis.com/v1/files/xyz"
+        uploaded.name = "files/xyz"
+        uploaded.state = "PROCESSING"
         mock_gemini_client["client"].aio.files.upload = AsyncMock(return_value=uploaded)
+        mock_gemini_client["client"].aio.files.get = AsyncMock(
+            return_value=MagicMock(state="ACTIVE")
+        )
         mock_gemini_client["generate"].return_value = "Local Talk"
 
         result = await video_create_session(file_path=str(f))

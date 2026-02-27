@@ -14,6 +14,24 @@ from ..models.video import VideoResult
 
 logger = logging.getLogger(__name__)
 
+_ANALYSIS_PREAMBLE = (
+    "Analyze this video thoroughly. For timestamps, use PRECISE times from the "
+    "actual video (not rounded estimates). Extract AT LEAST 5-10 key points. "
+    "Include specific details, quotes, or data mentioned in the video. "
+    "For each timestamp, describe what is happening at that exact moment."
+)
+
+
+def _enrich_prompt(contents: types.Content, new_text: str) -> types.Content:
+    """Replace the text part in Content with an enriched prompt."""
+    new_parts = []
+    for part in contents.parts:
+        if part.text:
+            new_parts.append(types.Part(text=new_text))
+        else:
+            new_parts.append(part)
+    return types.Content(parts=new_parts)
+
 
 async def analyze_video(
     contents: types.Content,
@@ -60,6 +78,8 @@ async def analyze_video(
                 f"Gemini returned non-JSON for custom schema: {raw[:200]!r}"
             ) from exc
     else:
+        enriched = f"{_ANALYSIS_PREAMBLE}\n\nUser instruction: {instruction}"
+        contents = _enrich_prompt(contents, enriched)
         model_result = await GeminiClient.generate_structured(
             contents,
             schema=VideoResult,

@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 class Timestamp(BaseModel):
     """A single timestamped moment in a video."""
 
-    time: str = ""
-    description: str = ""
+    time: str = Field(default="", description="Precise timestamp in MM:SS or HH:MM:SS format")
+    description: str = Field(default="", description="What is happening at this exact moment")
 
 
 class VideoResult(BaseModel):
@@ -21,8 +21,14 @@ class VideoResult(BaseModel):
 
     title: str = ""
     summary: str = ""
-    key_points: list[str] = Field(default_factory=list)
-    timestamps: list[Timestamp] = Field(default_factory=list)
+    key_points: list[str] = Field(
+        default_factory=list,
+        description="At least 5 substantive points with specific details from the video",
+    )
+    timestamps: list[Timestamp] = Field(
+        default_factory=list,
+        description="Precise timestamps (MM:SS) for key moments — not rounded estimates",
+    )
     topics: list[str] = Field(default_factory=list)
     sentiment: str = ""
 

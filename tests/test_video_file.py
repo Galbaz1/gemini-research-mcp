@@ -15,7 +15,18 @@ from video_research_mcp.tools.video_file import (
     _video_file_content,
     _video_file_uri,
     _video_mime_type,
+    _wait_for_active,
 )
+
+
+def _mock_upload_result(uri="https://generativelanguage.googleapis.com/v1/files/abc123",
+                        name="files/abc123", state="PROCESSING"):
+    """Create a mock upload result with required attributes."""
+    uploaded = MagicMock()
+    uploaded.uri = uri
+    uploaded.name = name
+    uploaded.state = state
+    return uploaded
 
 
 class TestVideoMimeType:
@@ -100,9 +111,10 @@ class TestVideoFileContent:
         f = tmp_path / "big.mp4"
         f.write_bytes(b"\x00" * LARGE_FILE_THRESHOLD)
 
-        uploaded = MagicMock()
-        uploaded.uri = "https://generativelanguage.googleapis.com/v1/files/abc123"
+        uploaded = _mock_upload_result()
         mock_gemini_client["client"].aio.files.upload = AsyncMock(return_value=uploaded)
+        active_file = MagicMock(state="ACTIVE")
+        mock_gemini_client["client"].aio.files.get = AsyncMock(return_value=active_file)
 
         content, content_id = await _video_file_content(str(f), "analyze")
 
@@ -123,12 +135,60 @@ class TestVideoFileUri:
         f = tmp_path / "tiny.mp4"
         f.write_bytes(b"\x00" * 50)
 
-        uploaded = MagicMock()
-        uploaded.uri = "https://generativelanguage.googleapis.com/v1/files/xyz"
+        uploaded = _mock_upload_result(
+            uri="https://generativelanguage.googleapis.com/v1/files/xyz",
+            name="files/xyz",
+        )
         mock_gemini_client["client"].aio.files.upload = AsyncMock(return_value=uploaded)
+        active_file = MagicMock(state="ACTIVE")
+        mock_gemini_client["client"].aio.files.get = AsyncMock(return_value=active_file)
 
         uri, content_id = await _video_file_uri(str(f))
 
         assert uri == uploaded.uri
         assert content_id == _file_content_hash(f)
         mock_gemini_client["client"].aio.files.upload.assert_called_once()
+
+
+class TestWaitForActive:
+    @pytest.mark.asyncio
+    async def test_immediate_active(self, mock_gemini_client):
+        """Returns immediately when file is already ACTIVE."""
+        client = mock_gemini_client["client"]
+        client.aio.files.get = AsyncMock(return_value=MagicMock(state="ACTIVE"))
+
+        await _wait_for_active(client, "files/abc123")
+
+        client.aio.files.get.assert_called_once_with(name="files/abc123")
+
+    @pytest.mark.asyncio
+    async def test_processing_then_active(self, mock_gemini_client):
+        """Polls through PROCESSING state until ACTIVE."""
+        client = mock_gemini_client["client"]
+        client.aio.files.get = AsyncMock(side_effect=[
+            MagicMock(state="PROCESSING"),
+            MagicMock(state="PROCESSING"),
+            MagicMock(state="ACTIVE"),
+        ])
+
+        await _wait_for_active(client, "files/abc123", interval=0.01)
+
+        assert client.aio.files.get.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_failed_state_raises(self, mock_gemini_client):
+        """Raises RuntimeError immediately on FAILED state."""
+        client = mock_gemini_client["client"]
+        client.aio.files.get = AsyncMock(return_value=MagicMock(state="FAILED"))
+
+        with pytest.raises(RuntimeError, match="File processing failed"):
+            await _wait_for_active(client, "files/abc123")
+
+    @pytest.mark.asyncio
+    async def test_timeout_raises(self, mock_gemini_client):
+        """Raises TimeoutError when file stays PROCESSING past deadline."""
+        client = mock_gemini_client["client"]
+        client.aio.files.get = AsyncMock(return_value=MagicMock(state="PROCESSING"))
+
+        with pytest.raises(TimeoutError, match="not active after"):
+            await _wait_for_active(client, "files/abc123", timeout=0.05, interval=0.01)

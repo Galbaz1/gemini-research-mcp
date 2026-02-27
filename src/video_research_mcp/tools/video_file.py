@@ -57,14 +57,49 @@ def _validate_video_path(file_path: str) -> tuple[Path, str]:
     return p, mime
 
 
+async def _wait_for_active(
+    client, file_name: str, *, timeout: float = 120, interval: float = 2.0
+) -> None:
+    """Poll Gemini Files API until file state is ACTIVE.
+
+    Args:
+        client: google.genai client instance.
+        file_name: The file resource name (e.g. "files/abc123").
+        timeout: Max seconds to wait before raising TimeoutError.
+        interval: Seconds between polling attempts.
+
+    Raises:
+        RuntimeError: If the file enters FAILED state.
+        TimeoutError: If the file doesn't become ACTIVE within timeout.
+    """
+    loop = asyncio.get_event_loop()
+    start = loop.time()
+    deadline = start + timeout
+    while True:
+        file_info = await client.aio.files.get(name=file_name)
+        if file_info.state == "ACTIVE":
+            elapsed = loop.time() - start
+            if elapsed > interval:  # Only log if we actually waited
+                logger.info("File %s active after %.1fs", file_name, elapsed)
+            return
+        if file_info.state == "FAILED":
+            raise RuntimeError(f"File processing failed: {file_name}")
+        if loop.time() > deadline:
+            raise TimeoutError(
+                f"File {file_name} not active after {timeout}s (state: {file_info.state})"
+            )
+        await asyncio.sleep(interval)
+
+
 async def _upload_large_file(path: Path, mime_type: str) -> str:
-    """Upload via Gemini File API, return the file URI."""
+    """Upload via Gemini File API, wait for ACTIVE state, return the file URI."""
     client = GeminiClient.get()
     uploaded = await client.aio.files.upload(
         file=path,
         config=types.UploadFileConfig(mime_type=mime_type),
     )
-    logger.info("Uploaded %s → %s", path.name, uploaded.uri)
+    logger.info("Uploaded %s → %s (state=%s)", path.name, uploaded.uri, uploaded.state)
+    await _wait_for_active(client, uploaded.name)
     return uploaded.uri
 
 
