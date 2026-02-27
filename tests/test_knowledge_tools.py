@@ -69,6 +69,54 @@ class TestKnowledgeSearch:
         assert len(result["results"]) == 2
         assert result["results"][0]["score"] >= result["results"][1]["score"]
 
+    async def test_passes_filters_to_hybrid(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_search passes filter object to hybrid() when filters provided."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(
+            query="AI", collections=["ResearchFindings"], evidence_tier="CONFIRMED",
+        )
+        call_kwargs = mock_weaviate_client["collection"].query.hybrid.call_args[1]
+        assert call_kwargs["filters"] is not None
+        assert result["filters_applied"] == {"evidence_tier": "CONFIRMED"}
+
+    async def test_filter_skipped_for_inapplicable_collection(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_search skips evidence_tier filter for VideoAnalyses (no such property)."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.tools.knowledge import knowledge_search
+        await knowledge_search(
+            query="test", collections=["VideoAnalyses"], evidence_tier="CONFIRMED",
+        )
+        # VideoAnalyses doesn't have evidence_tier, so filters should be None
+        call_kwargs = mock_weaviate_client["collection"].query.hybrid.call_args[1]
+        assert call_kwargs["filters"] is None
+
+    async def test_source_tool_filter(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_search applies source_tool filter to any collection."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(
+            query="test", collections=["VideoAnalyses"], source_tool="video_analyze",
+        )
+        call_kwargs = mock_weaviate_client["collection"].query.hybrid.call_args[1]
+        assert call_kwargs["filters"] is not None
+        assert result["filters_applied"] == {"source_tool": "video_analyze"}
+
+    async def test_no_filters_applied_field_when_no_filters(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_search returns filters_applied=None when no filters used."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(query="test")
+        assert result["filters_applied"] is None
+
 
 class TestKnowledgeRelated:
     """Tests for knowledge_related tool."""
@@ -142,6 +190,59 @@ class TestKnowledgeStats:
         result = await knowledge_stats(collection="VideoAnalyses")
         assert len(result["collections"]) == 1
         assert result["collections"][0]["count"] == 10
+
+    async def test_group_by_returns_groups(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_stats with group_by returns grouped counts."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        mock_agg = MagicMock(total_count=10)
+        mock_col = MagicMock()
+        mock_col.aggregate.over_all.return_value = mock_agg
+
+        # Mock grouped aggregation response
+        group1 = MagicMock()
+        group1.grouped_by = MagicMock(value="CONFIRMED")
+        group1.total_count = 7
+        group2 = MagicMock()
+        group2.grouped_by = MagicMock(value="INFERENCE")
+        group2.total_count = 3
+        mock_grouped_response = MagicMock()
+        mock_grouped_response.groups = [group1, group2]
+
+        # First call returns total count, second returns grouped
+        call_count = [0]
+        def over_all_side_effect(**kwargs):
+            call_count[0] += 1
+            if "group_by" in kwargs:
+                return mock_grouped_response
+            return mock_agg
+        mock_col.aggregate.over_all.side_effect = over_all_side_effect
+
+        mock_weaviate_client["client"].collections.get.return_value = mock_col
+
+        from video_research_mcp.tools.knowledge import knowledge_stats
+        result = await knowledge_stats(collection="ResearchFindings", group_by="evidence_tier")
+        assert len(result["collections"]) == 1
+        stats = result["collections"][0]
+        assert stats["groups"] is not None
+        assert stats["groups"]["CONFIRMED"] == 7
+        assert stats["groups"]["INFERENCE"] == 3
+
+    async def test_group_by_skipped_for_inapplicable_property(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_stats ignores group_by when property doesn't exist in collection."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        mock_agg = MagicMock(total_count=5)
+        mock_col = MagicMock()
+        mock_col.aggregate.over_all.return_value = mock_agg
+        mock_weaviate_client["client"].collections.get.return_value = mock_col
+
+        from video_research_mcp.tools.knowledge import knowledge_stats
+        # VideoAnalyses doesn't have evidence_tier
+        result = await knowledge_stats(collection="VideoAnalyses", group_by="evidence_tier")
+        assert result["collections"][0]["groups"] is None
 
 
 class TestKnowledgeIngest:
