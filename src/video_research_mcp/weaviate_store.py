@@ -13,6 +13,7 @@ import logging
 from datetime import datetime, timezone
 
 import weaviate.util
+from weaviate.classes.data import DataObject
 
 from .config import get_config
 from .weaviate_client import WeaviateClient
@@ -53,7 +54,7 @@ async def store_video_analysis(
         def _insert():
             client = WeaviateClient.get()
             collection = client.collections.get("VideoAnalyses")
-            return str(collection.data.insert(properties={
+            uuid = collection.data.insert(properties={
                 "created_at": _now(),
                 "source_tool": "video_analyze",
                 "video_id": content_id,
@@ -63,7 +64,18 @@ async def store_video_analysis(
                 "summary": result.get("summary", ""),
                 "key_points": result.get("key_points", []),
                 "raw_result": json.dumps(result),
-            }))
+                "timestamps_json": json.dumps(result.get("timestamps", [])),
+                "topics": result.get("topics", []),
+                "sentiment": result.get("sentiment", ""),
+            })
+            # Cross-ref to VideoMetadata (non-fatal)
+            if content_id:
+                try:
+                    meta_uuid = weaviate.util.generate_uuid5(content_id)
+                    collection.data.reference_add(from_uuid=uuid, from_property="has_metadata", to=meta_uuid)
+                except Exception:
+                    pass
+            return str(uuid)
 
         return await asyncio.to_thread(_insert)
     except Exception as exc:
@@ -102,6 +114,8 @@ async def store_content_analysis(
                 "key_points": result.get("key_points", []),
                 "entities": result.get("entities", []),
                 "raw_result": json.dumps(result),
+                "structure_notes": result.get("structure_notes", ""),
+                "quality_assessment": result.get("quality_assessment", ""),
             }))
 
         return await asyncio.to_thread(_insert)
@@ -129,36 +143,63 @@ async def store_research_finding(report_dict: dict) -> list[str] | None:
         def _insert_all():
             client = WeaviateClient.get()
             collection = client.collections.get("ResearchFindings")
-            uuids = []
+            now = _now()
+            topic = report_dict.get("topic", "")
+            scope = report_dict.get("scope", "")
 
-            report_uuid = str(collection.data.insert(properties={
-                "created_at": _now(),
+            # Build batch: report object + finding objects
+            report_props = {
+                "created_at": now,
                 "source_tool": "research_deep",
-                "topic": report_dict.get("topic", ""),
-                "scope": report_dict.get("scope", ""),
+                "topic": topic,
+                "scope": scope,
                 "claim": "",
                 "evidence_tier": "",
                 "reasoning": "",
                 "executive_summary": report_dict.get("executive_summary", ""),
                 "confidence": 0.0,
                 "open_questions": report_dict.get("open_questions", []),
-            }))
-            uuids.append(report_uuid)
+                "supporting": [],
+                "contradicting": [],
+                "methodology_critique": report_dict.get("methodology_critique", ""),
+                "recommendations": report_dict.get("recommendations", []),
+                "report_uuid": "",
+            }
+            objects = [DataObject(properties=report_props)]
 
             for finding in report_dict.get("findings", []):
-                finding_uuid = str(collection.data.insert(properties={
-                    "created_at": _now(),
+                objects.append(DataObject(properties={
+                    "created_at": now,
                     "source_tool": "research_deep",
-                    "topic": report_dict.get("topic", ""),
-                    "scope": report_dict.get("scope", ""),
+                    "topic": topic,
+                    "scope": scope,
                     "claim": finding.get("claim", ""),
                     "evidence_tier": finding.get("evidence_tier", ""),
                     "reasoning": finding.get("reasoning", ""),
                     "executive_summary": "",
                     "confidence": finding.get("confidence", 0.0),
                     "open_questions": [],
+                    "supporting": finding.get("supporting", []),
+                    "contradicting": finding.get("contradicting", []),
+                    "methodology_critique": "",
+                    "recommendations": [],
+                    "report_uuid": "",
                 }))
-                uuids.append(finding_uuid)
+
+            result = collection.data.insert_many(objects)
+            uuids = [str(obj.uuid) for obj in result.all_objects]
+
+            # Set report_uuid on findings and add cross-references
+            if len(uuids) > 1:
+                report_uuid = uuids[0]
+                for finding_uuid in uuids[1:]:
+                    try:
+                        collection.data.update(uuid=finding_uuid, properties={"report_uuid": report_uuid})
+                        collection.data.reference_add(
+                            from_uuid=finding_uuid, from_property="belongs_to_report", to=report_uuid,
+                        )
+                    except Exception:
+                        pass
 
             return uuids
 
@@ -192,6 +233,7 @@ async def store_research_plan(plan_dict: dict) -> str | None:
                 "scope": plan_dict.get("scope", ""),
                 "task_decomposition": plan_dict.get("task_decomposition", []),
                 "phases_json": json.dumps(plan_dict.get("phases", [])),
+                "recommended_models_json": json.dumps(plan_dict.get("recommended_models", [])),
             }))
 
         return await asyncio.to_thread(_insert)
@@ -230,6 +272,11 @@ async def store_evidence_assessment(assessment_dict: dict) -> str | None:
                 "executive_summary": "",
                 "confidence": assessment_dict.get("confidence", 0.0),
                 "open_questions": [],
+                "supporting": assessment_dict.get("supporting", []),
+                "contradicting": assessment_dict.get("contradicting", []),
+                "methodology_critique": "",
+                "recommendations": [],
+                "report_uuid": "",
             }))
 
         return await asyncio.to_thread(_insert)
@@ -292,6 +339,13 @@ def _meta_properties(meta_dict: dict, video_id: str) -> dict:
         "like_count": meta_dict.get("like_count", 0),
         "duration": meta_dict.get("duration", ""),
         "published_at": meta_dict.get("published_at", ""),
+        "channel_id": meta_dict.get("channel_id", ""),
+        "comment_count": meta_dict.get("comment_count", 0),
+        "duration_seconds": meta_dict.get("duration_seconds", 0),
+        "category": meta_dict.get("category", ""),
+        "definition": meta_dict.get("definition", ""),
+        "has_captions": meta_dict.get("has_captions", False),
+        "default_language": meta_dict.get("default_language", ""),
     }
 
 
