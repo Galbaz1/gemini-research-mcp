@@ -292,3 +292,123 @@ class TestKnowledgeIngest:
             properties={"title": "Will fail"},
         )
         assert "error" in result
+
+
+class TestSearchModes:
+    """Tests for search_type parameter in knowledge_search."""
+
+    async def test_default_uses_hybrid(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_search defaults to hybrid search."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.tools.knowledge import knowledge_search
+        await knowledge_search(query="test", collections=["VideoAnalyses"])
+        mock_weaviate_client["collection"].query.hybrid.assert_called_once()
+        mock_weaviate_client["collection"].query.near_text.assert_not_called()
+        mock_weaviate_client["collection"].query.bm25.assert_not_called()
+
+    async def test_semantic_uses_near_text(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """search_type="semantic" dispatches to near_text."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        obj = MagicMock()
+        obj.uuid = "uuid-1"
+        obj.properties = {"title": "Result"}
+        obj.metadata = MagicMock(distance=0.2)
+        mock_weaviate_client["collection"].query.near_text.return_value = MagicMock(objects=[obj])
+
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(
+            query="test", collections=["VideoAnalyses"], search_type="semantic",
+        )
+        mock_weaviate_client["collection"].query.near_text.assert_called_once()
+        mock_weaviate_client["collection"].query.hybrid.assert_not_called()
+        assert result["total_results"] == 1
+        assert result["results"][0]["score"] == 0.8  # 1.0 - 0.2
+
+    async def test_keyword_uses_bm25(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """search_type="keyword" dispatches to bm25."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        obj = MagicMock()
+        obj.uuid = "uuid-1"
+        obj.properties = {"query": "AI"}
+        obj.metadata = MagicMock(score=2.5)
+        mock_weaviate_client["collection"].query.bm25.return_value = MagicMock(objects=[obj])
+
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(
+            query="AI", collections=["WebSearchResults"], search_type="keyword",
+        )
+        mock_weaviate_client["collection"].query.bm25.assert_called_once()
+        mock_weaviate_client["collection"].query.hybrid.assert_not_called()
+        assert result["total_results"] == 1
+        assert result["results"][0]["score"] == 2.5
+
+    async def test_semantic_passes_filters(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """Semantic search respects collection filters."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        mock_weaviate_client["collection"].query.near_text.return_value = MagicMock(objects=[])
+
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(
+            query="AI", collections=["ResearchFindings"],
+            search_type="semantic", evidence_tier="CONFIRMED",
+        )
+        call_kwargs = mock_weaviate_client["collection"].query.near_text.call_args[1]
+        assert call_kwargs["filters"] is not None
+        assert result["filters_applied"] == {"evidence_tier": "CONFIRMED"}
+
+
+class TestKnowledgeFetch:
+    """Tests for knowledge_fetch tool."""
+
+    async def test_returns_error_when_disabled(self, mock_weaviate_disabled):
+        """knowledge_fetch returns error when Weaviate not configured."""
+        from video_research_mcp.tools.knowledge import knowledge_fetch
+        result = await knowledge_fetch(object_id="test-uuid", collection="VideoAnalyses")
+        assert "error" in result
+
+    async def test_returns_object_when_found(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_fetch returns properties when object exists."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        obj = MagicMock()
+        obj.uuid = "test-uuid-1234"
+        obj.properties = {"title": "My Video", "summary": "A summary"}
+        mock_weaviate_client["collection"].query.fetch_object_by_id.return_value = obj
+
+        from video_research_mcp.tools.knowledge import knowledge_fetch
+        result = await knowledge_fetch(object_id="test-uuid-1234", collection="VideoAnalyses")
+        assert result["found"] is True
+        assert result["collection"] == "VideoAnalyses"
+        assert result["properties"]["title"] == "My Video"
+
+    async def test_returns_not_found_for_missing_object(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_fetch returns found=False when UUID doesn't exist."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        mock_weaviate_client["collection"].query.fetch_object_by_id.return_value = None
+
+        from video_research_mcp.tools.knowledge import knowledge_fetch
+        result = await knowledge_fetch(object_id="nonexistent", collection="VideoAnalyses")
+        assert result["found"] is False
+        assert result["properties"] == {}
+
+    async def test_handles_fetch_error(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_fetch returns error dict on failure."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        mock_weaviate_client["collection"].query.fetch_object_by_id.side_effect = RuntimeError("fail")
+
+        from video_research_mcp.tools.knowledge import knowledge_fetch
+        result = await knowledge_fetch(object_id="test-uuid", collection="VideoAnalyses")
+        assert "error" in result
