@@ -40,12 +40,22 @@ class PropertyDef:
 
 
 @dataclass
+class ReferenceDef:
+    """Cross-reference from one collection to another."""
+
+    name: str
+    target_collection: str
+    description: str = ""
+
+
+@dataclass
 class CollectionDef:
     """A Weaviate collection definition."""
 
     name: str
     description: str = ""
     properties: list[PropertyDef] = field(default_factory=list)
+    references: list[ReferenceDef] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to Weaviate REST API collection (class) format.
@@ -84,6 +94,14 @@ RESEARCH_FINDINGS = CollectionDef(
         PropertyDef("executive_summary", ["text"], "Report executive summary"),
         PropertyDef("confidence", ["number"], "Confidence score 0-1", skip_vectorization=True),
         PropertyDef("open_questions", ["text[]"], "Open research questions", skip_vectorization=True),
+        PropertyDef("supporting", ["text[]"], "Supporting evidence sources"),
+        PropertyDef("contradicting", ["text[]"], "Contradicting evidence sources"),
+        PropertyDef("methodology_critique", ["text"], "Critique of research methodology"),
+        PropertyDef("recommendations", ["text[]"], "Action recommendations"),
+        PropertyDef("report_uuid", ["text"], "Parent report UUID", skip_vectorization=True),
+    ],
+    references=[
+        ReferenceDef("belongs_to_report", "ResearchFindings", "Link to parent report"),
     ],
 )
 
@@ -98,6 +116,12 @@ VIDEO_ANALYSES = CollectionDef(
         PropertyDef("summary", ["text"], "Analysis summary"),
         PropertyDef("key_points", ["text[]"], "Key points extracted"),
         PropertyDef("raw_result", ["text"], "Full JSON result", skip_vectorization=True),
+        PropertyDef("timestamps_json", ["text"], "Timestamps as JSON array", skip_vectorization=True),
+        PropertyDef("topics", ["text[]"], "Topics covered in the video"),
+        PropertyDef("sentiment", ["text"], "Overall sentiment", skip_vectorization=True),
+    ],
+    references=[
+        ReferenceDef("has_metadata", "VideoMetadata", "Link to video metadata"),
     ],
 )
 
@@ -112,6 +136,8 @@ CONTENT_ANALYSES = CollectionDef(
         PropertyDef("key_points", ["text[]"], "Key points extracted"),
         PropertyDef("entities", ["text[]"], "Named entities found"),
         PropertyDef("raw_result", ["text"], "Full JSON result", skip_vectorization=True),
+        PropertyDef("structure_notes", ["text"], "Content structure observations"),
+        PropertyDef("quality_assessment", ["text"], "Content quality assessment"),
     ],
 )
 
@@ -128,6 +154,13 @@ VIDEO_METADATA = CollectionDef(
         PropertyDef("like_count", ["int"], "Like count", skip_vectorization=True),
         PropertyDef("duration", ["text"], "Video duration", skip_vectorization=True),
         PropertyDef("published_at", ["text"], "Publish date", skip_vectorization=True),
+        PropertyDef("channel_id", ["text"], "YouTube channel ID", skip_vectorization=True),
+        PropertyDef("comment_count", ["int"], "Comment count", skip_vectorization=True),
+        PropertyDef("duration_seconds", ["int"], "Duration in seconds", skip_vectorization=True),
+        PropertyDef("category", ["text"], "Video category label"),
+        PropertyDef("definition", ["text"], "Video definition (hd/sd)", skip_vectorization=True),
+        PropertyDef("has_captions", ["boolean"], "Whether captions are available", skip_vectorization=True),
+        PropertyDef("default_language", ["text"], "Default language code", skip_vectorization=True),
     ],
 )
 
@@ -161,6 +194,7 @@ RESEARCH_PLANS = CollectionDef(
         PropertyDef("scope", ["text"], "Research scope", skip_vectorization=True),
         PropertyDef("task_decomposition", ["text[]"], "Task breakdown"),
         PropertyDef("phases_json", ["text"], "Phases as JSON", skip_vectorization=True),
+        PropertyDef("recommended_models_json", ["text"], "Recommended models as JSON", skip_vectorization=True),
     ],
 )
 
