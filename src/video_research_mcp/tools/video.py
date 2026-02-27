@@ -19,6 +19,7 @@ from ..models.video import SessionInfo, SessionResponse
 from ..models.video_batch import BatchVideoItem, BatchVideoResult
 from ..sessions import session_store
 from ..types import ThinkingLevel, VideoDirectoryPath, VideoFilePath, YouTubeUrl
+from ..youtube import YouTubeClient
 from .video_core import analyze_video
 from .video_file import (
     SUPPORTED_VIDEO_EXTENSIONS,
@@ -150,12 +151,25 @@ async def video_create_session(
     except (ValueError, FileNotFoundError) as exc:
         return make_tool_error(exc)
 
-    try:
-        title_content = _video_content(clean_url, "What is the title of this video? Reply with just the title.")
-        resp = await GeminiClient.generate(title_content, thinking_level="low")
-        title = resp.strip()
-    except Exception:
-        title = Path(file_path).stem if file_path else ""
+    title = ""
+    if source_type == "youtube":
+        try:
+            video_id = _extract_video_id(url)
+            meta = await YouTubeClient.video_metadata(video_id)
+            title = meta.title
+        except Exception:
+            logger.debug("YouTube API title fetch failed, falling back to Gemini")
+
+    if not title:
+        try:
+            title_content = _video_content(
+                clean_url,
+                "What is the title of this video? Reply with just the title.",
+            )
+            resp = await GeminiClient.generate(title_content, thinking_level="low")
+            title = resp.strip()
+        except Exception:
+            title = Path(file_path).stem if file_path else ""
 
     session = session_store.create(clean_url, "general", video_title=title)
     return SessionInfo(

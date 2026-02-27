@@ -13,6 +13,7 @@ from .tools.research import research_server
 from .tools.content import content_server
 from .tools.search import search_server
 from .tools.infra import infra_server
+from .tools.youtube import youtube_server
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ app.mount(research_server)
 app.mount(content_server)
 app.mount(search_server)
 app.mount(infra_server)
+app.mount(youtube_server)
 
 
 def main() -> None:

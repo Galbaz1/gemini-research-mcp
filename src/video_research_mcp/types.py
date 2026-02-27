@@ -25,3 +25,7 @@ VideoDirectoryPath = Annotated[str, Field(
     min_length=1,
     description="Path to a directory containing video files",
 )]
+PlaylistUrl = Annotated[str, Field(
+    min_length=10,
+    description="YouTube playlist URL (must contain 'list=' parameter)",
+)]
