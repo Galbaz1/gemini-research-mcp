@@ -12,6 +12,10 @@ ThinkingLevel = Literal["minimal", "low", "medium", "high"]
 Scope = Literal["quick", "moderate", "deep", "comprehensive"]
 CacheAction = Literal["stats", "list", "clear"]
 ModelPreset = Literal["best", "stable", "budget"]
+KnowledgeCollection = Literal[
+    "ResearchFindings", "VideoAnalyses", "ContentAnalyses",
+    "VideoMetadata", "SessionTranscripts", "WebSearchResults", "ResearchPlans",
+]
 
 # ── Annotated aliases ────────────────────────────────────────────────────────
 

@@ -23,6 +23,10 @@ class ErrorCategory(str, Enum):
     FILE_NOT_FOUND = "FILE_NOT_FOUND"
     FILE_UNSUPPORTED = "FILE_UNSUPPORTED"
     FILE_TOO_LARGE = "FILE_TOO_LARGE"
+    WEAVIATE_CONNECTION = "WEAVIATE_CONNECTION"
+    WEAVIATE_SCHEMA = "WEAVIATE_SCHEMA"
+    WEAVIATE_QUERY = "WEAVIATE_QUERY"
+    WEAVIATE_IMPORT = "WEAVIATE_IMPORT"
     UNKNOWN = "UNKNOWN"
 
 
@@ -100,6 +104,26 @@ def categorize_error(error: Exception) -> tuple[ErrorCategory, str]:
             ErrorCategory.FILE_UNSUPPORTED,
             "File extension not supported — use mp4, webm, mov, avi, mkv, mpeg, wmv, or 3gpp",
         )
+    if "weaviate" in s and ("connect" in s or "unreachable" in s or "refused" in s):
+        return (
+            ErrorCategory.WEAVIATE_CONNECTION,
+            "Cannot reach Weaviate — check WEAVIATE_URL and network connectivity",
+        )
+    if "weaviate" in s and ("schema" in s or "collection" in s):
+        return (
+            ErrorCategory.WEAVIATE_SCHEMA,
+            "Weaviate schema error — collection may already exist or schema is invalid",
+        )
+    if "weaviate" in s and ("import" in s or "insert" in s or "batch" in s):
+        return (
+            ErrorCategory.WEAVIATE_IMPORT,
+            "Weaviate import failed — check object properties and data types",
+        )
+    if "weaviate" in s:
+        return (
+            ErrorCategory.WEAVIATE_QUERY,
+            "Weaviate query failed — check collection name and query parameters",
+        )
 
     return (ErrorCategory.UNKNOWN, str(error))
 
@@ -110,6 +134,7 @@ def make_tool_error(error: Exception) -> dict:
     retryable = cat in {
         ErrorCategory.API_QUOTA_EXCEEDED,
         ErrorCategory.NETWORK_ERROR,
+        ErrorCategory.WEAVIATE_CONNECTION,
     }
     return ToolError(
         error=str(error),

@@ -45,6 +45,9 @@ class ServerConfig(BaseModel):
     retry_max_delay: float = Field(default=60.0)
     youtube_api_key: str = Field(default="")
     session_db_path: str = Field(default="")
+    weaviate_url: str = Field(default="")
+    weaviate_api_key: str = Field(default="")
+    weaviate_enabled: bool = Field(default=False)
 
     @field_validator("default_thinking_level")
     @classmethod
@@ -98,6 +101,9 @@ class ServerConfig(BaseModel):
             retry_max_delay=float(os.getenv("GEMINI_RETRY_MAX_DELAY", "60.0")),
             youtube_api_key=os.getenv("YOUTUBE_API_KEY", ""),
             session_db_path=os.getenv("GEMINI_SESSION_DB", ""),
+            weaviate_url=os.getenv("WEAVIATE_URL", ""),
+            weaviate_api_key=os.getenv("WEAVIATE_API_KEY", ""),
+            weaviate_enabled=bool(os.getenv("WEAVIATE_URL", "")),
         )
 
 
