@@ -28,8 +28,11 @@ class VideoSession:
 class SessionStore:
     """Process-wide session registry with TTL eviction."""
 
-    def __init__(self) -> None:
+    def __init__(self, db_path: str = "") -> None:
+        from .persistence import SessionDB
+
         self._sessions: dict[str, VideoSession] = {}
+        self._db: SessionDB | None = SessionDB(db_path) if db_path else None
 
     def create(self, url: str, mode: str, video_title: str = "") -> VideoSession:
         """Create a new session, evicting expired ones first."""
@@ -47,11 +50,18 @@ class SessionStore:
             video_title=video_title,
         )
         self._sessions[sid] = session
+        if self._db:
+            self._db.save_sync(session)
         return session
 
     def get(self, session_id: str) -> VideoSession | None:
         self._evict_expired()
-        return self._sessions.get(session_id)
+        session = self._sessions.get(session_id)
+        if session is None and self._db:
+            session = self._db.load_sync(session_id)
+            if session is not None:
+                self._sessions[session_id] = session
+        return session
 
     def add_turn(
         self,
@@ -71,6 +81,8 @@ class SessionStore:
         if len(session.history) > max_history_items:
             session.history = session.history[-max_history_items:]
         session.last_active = datetime.now()
+        if self._db:
+            self._db.save_sync(session)
         return session.turn_count
 
     def _evict_expired(self) -> int:
@@ -86,5 +98,14 @@ class SessionStore:
         return len(self._sessions)
 
 
+def _make_default_store() -> SessionStore:
+    """Build the module-level singleton, reading config if available."""
+    try:
+        cfg = get_config()
+        return SessionStore(db_path=cfg.session_db_path)
+    except Exception:
+        return SessionStore()
+
+
 # Module-level singleton
-session_store = SessionStore()
+session_store = _make_default_store()

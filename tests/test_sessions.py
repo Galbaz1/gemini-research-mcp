@@ -90,3 +90,43 @@ class TestSessionStore:
         assert len(session.history) == 4
         latest_text = [p.text for c in session.history for p in c.parts if p.text]
         assert latest_text == ["u1", "m1", "u2", "m2"]
+
+
+class TestSessionStorePersistence:
+    """Session store with SQLite persistence."""
+
+    def test_persist_and_recover(self, tmp_path):
+        """GIVEN persistence enabled WHEN session created THEN recoverable from new store."""
+        db_path = str(tmp_path / "sessions.db")
+        store1 = SessionStore(db_path=db_path)
+        session = store1.create(
+            "https://youtube.com/watch?v=test", "general", "Test"
+        )
+
+        # New store with same DB should recover the session
+        store2 = SessionStore(db_path=db_path)
+        recovered = store2.get(session.session_id)
+        assert recovered is not None
+        assert recovered.url == "https://youtube.com/watch?v=test"
+
+    def test_no_persistence_by_default(self):
+        """GIVEN no db_path WHEN store created THEN _db is None."""
+        store = SessionStore()
+        assert store._db is None
+
+    def test_add_turn_persists(self, tmp_path):
+        """GIVEN persistence enabled WHEN turn added THEN persisted."""
+        db_path = str(tmp_path / "sessions.db")
+        store = SessionStore(db_path=db_path)
+        session = store.create(
+            "https://youtube.com/watch?v=test", "general"
+        )
+        user = types.Content(role="user", parts=[types.Part(text="Q")])
+        model = types.Content(role="model", parts=[types.Part(text="A")])
+        store.add_turn(session.session_id, user, model)
+
+        # Recover from fresh store
+        store2 = SessionStore(db_path=db_path)
+        recovered = store2.get(session.session_id)
+        assert recovered.turn_count == 1
+        assert len(recovered.history) == 2
