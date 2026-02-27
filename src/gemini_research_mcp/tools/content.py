@@ -1,18 +1,22 @@
-"""Content analysis tools — 3 tools on a FastMCP sub-server."""
+"""Content analysis tools — 2 tools on a FastMCP sub-server."""
 
 from __future__ import annotations
 
 import json
 import logging
 from pathlib import Path
+from typing import Annotated
 
 from fastmcp import FastMCP
 from google.genai import types
+from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from ..client import GeminiClient
 from ..errors import make_tool_error
-from ..models.content import DocumentAnalysis, Summary
-from ..prompts.content import ANALYZE_DOCUMENT, STRUCTURED_EXTRACT, SUMMARIZE
+from ..models.content import ContentResult
+from ..prompts.content import STRUCTURED_EXTRACT
+from ..types import ThinkingLevel
 
 logger = logging.getLogger(__name__)
 content_server = FastMCP("content")
@@ -51,139 +55,152 @@ def _build_content_parts(
     return parts, description
 
 
-@content_server.tool()
-async def content_analyze_document(
-    file_path: str | None = None,
-    url: str | None = None,
-    text: str | None = None,
-    focus: str = "",
-    thinking_level: str = "medium",
+@content_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
+async def content_analyze(
+    instruction: Annotated[str, Field(
+        description="What to analyze — e.g. 'summarize key findings', "
+        "'extract methodology', 'list all citations'"
+    )] = "Provide a comprehensive analysis of this content.",
+    file_path: Annotated[str | None, Field(description="Local file path (PDF or text)")] = None,
+    url: Annotated[str | None, Field(description="URL to analyze")] = None,
+    text: Annotated[str | None, Field(description="Raw text content")] = None,
+    output_schema: Annotated[dict | None, Field(
+        description="Optional JSON Schema for the response. "
+        "If omitted, uses default ContentResult schema."
+    )] = None,
+    thinking_level: ThinkingLevel = "medium",
 ) -> dict:
-    """Analyse a document (PDF, text, or URL) — summary, key points, entities.
+    """Analyze content (file, URL, or text) with any instruction.
 
-    Uses Gemini's native PDF understanding for file_path inputs.
+    Provide exactly one of file_path, url, or text. Uses Gemini's structured
+    output for reliable JSON responses. Pass a custom output_schema to control
+    the response shape, or use the default ContentResult schema.
+
+    Args:
+        instruction: What to analyze or extract from the content.
+        file_path: Path to a local PDF or text file.
+        url: URL to fetch and analyze.
+        text: Raw text content.
+        output_schema: Optional JSON Schema dict for custom output shape.
+        thinking_level: Gemini thinking depth.
+
+    Returns:
+        Dict matching ContentResult schema (default) or the custom output_schema.
     """
     try:
-        parts, desc = _build_content_parts(file_path=file_path, url=url, text=text)
+        if url and not file_path and not text:
+            use_url_context = True
+            prompt_text = f"{instruction}\n\nAnalyze this exact URL:\n{url}"
+        elif file_path or text:
+            use_url_context = False
+            parts, desc = _build_content_parts(file_path=file_path, text=text)
+        else:
+            raise ValueError("Provide at least one of: file_path, url, or text")
     except (FileNotFoundError, ValueError) as exc:
         return make_tool_error(exc)
 
-    focus_instruction = f"Focus your analysis on: {focus}" if focus else ""
-    prompt_text = ANALYZE_DOCUMENT.format(
-        content_description=desc, focus_instruction=focus_instruction
-    )
-    parts.append(types.Part(text=prompt_text))
-
     try:
-        resp = await GeminiClient.generate(
-            types.Content(parts=parts),
-            thinking_level=thinking_level,
-        )
+        schema = output_schema or ContentResult.model_json_schema()
 
-        # Best-effort parse
-        lines = resp.split("\n")
-        summary = ""
-        key_points: list[str] = []
-        entities: list[str] = []
-        quality = ""
-        methodology = ""
-        structure = ""
-        section = ""
-
-        for ln in lines:
-            s = ln.strip()
-            up = s.upper()
-            if "SUMMARY" in up and (":" in up or up.startswith("#")):
-                section = "summary"
-                continue
-            if "KEY POINT" in up:
-                section = "kp"
-                continue
-            if "STRUCTURE" in up:
-                section = "struct"
-                continue
-            if "ENTIT" in up:
-                section = "ent"
-                continue
-            if "METHODOLOGY" in up:
-                section = "meth"
-                continue
-            if "QUALITY" in up:
-                section = "qual"
-                continue
-
-            if section == "summary" and s:
-                summary += s + " "
-            elif section == "kp" and s.startswith("-"):
-                key_points.append(s.lstrip("- "))
-            elif section == "struct" and s:
-                structure += s + " "
-            elif section == "ent" and s.startswith("-"):
-                entities.append(s.lstrip("- "))
-            elif section == "meth" and s:
-                methodology += s + " "
-            elif section == "qual" and s:
-                quality += s + " "
-
-        return DocumentAnalysis(
-            summary=summary.strip() or resp[:500],
-            key_points=key_points,
-            structure=structure.strip(),
-            entities=entities,
-            methodology_notes=methodology.strip(),
-            quality_assessment=quality.strip(),
-        ).model_dump()
+        if use_url_context:
+            return await _analyze_url(prompt_text, instruction, schema, output_schema, thinking_level)
+        else:
+            return await _analyze_parts(parts, instruction, schema, output_schema, thinking_level)
 
     except Exception as exc:
         return make_tool_error(exc)
 
 
-@content_server.tool()
-async def content_summarize(
-    content: str,
-    detail_level: str = "medium",
-) -> dict:
-    """Summarize content at brief / medium / detailed level."""
-    prompt = SUMMARIZE.format(content=content, detail_level=detail_level)
-    try:
-        resp = await GeminiClient.generate(prompt, thinking_level="low")
-
-        # Parse TEXT: and KEY_TAKEAWAYS:
-        text = ""
-        takeaways: list[str] = []
-        in_text = False
-        for ln in resp.split("\n"):
-            s = ln.strip()
-            if s.upper().startswith("TEXT:"):
-                text = s[5:].strip()
-                in_text = True
-                continue
-            if s.upper().startswith("KEY_TAKEAWAYS:") or s.upper().startswith("KEY TAKEAWAYS:"):
-                in_text = False
-                items = s.split(":", 1)[1].strip()
-                takeaways = [i.strip() for i in items.split("|") if i.strip()]
-                continue
-            if in_text and s:
-                text += " " + s
-
-        return Summary(
-            text=text.strip() or resp,
-            word_count=len((text or resp).split()),
-            key_takeaways=takeaways,
-        ).model_dump()
-
-    except Exception as exc:
-        return make_tool_error(exc)
-
-
-@content_server.tool()
-async def content_structured_extract(
-    content: str,
+async def _analyze_url(
+    prompt_text: str,
+    instruction: str,
     schema: dict,
+    output_schema: dict | None,
+    thinking_level: ThinkingLevel,
+) -> dict:
+    """Analyze URL content using UrlContext tool wiring."""
+    try:
+        raw = await GeminiClient.generate(
+            prompt_text,
+            thinking_level=thinking_level,
+            tools=[types.Tool(url_context=types.UrlContext())],
+            response_schema=schema,
+        )
+        return json.loads(raw)
+    except Exception:
+        # Fallback: two-step — fetch unstructured, then reshape
+        unstructured = await GeminiClient.generate(
+            prompt_text,
+            thinking_level=thinking_level,
+            tools=[types.Tool(url_context=types.UrlContext())],
+        )
+        return await _reshape_to_schema(instruction, unstructured, output_schema)
+
+
+async def _analyze_parts(
+    parts: list[types.Part],
+    instruction: str,
+    schema: dict,
+    output_schema: dict | None,
+    thinking_level: ThinkingLevel,
+) -> dict:
+    """Analyze file/text content from pre-built parts."""
+    parts.append(types.Part(text=instruction))
+    contents = types.Content(parts=parts)
+
+    if output_schema:
+        raw = await GeminiClient.generate(
+            contents,
+            thinking_level=thinking_level,
+            response_schema=output_schema,
+        )
+        return json.loads(raw)
+
+    result = await GeminiClient.generate_structured(
+        contents,
+        schema=ContentResult,
+        thinking_level=thinking_level,
+    )
+    return result.model_dump()
+
+
+async def _reshape_to_schema(
+    instruction: str,
+    unstructured: str,
+    output_schema: dict | None,
+) -> dict:
+    """Reshape unstructured text into the target schema."""
+    if output_schema:
+        raw = await GeminiClient.generate(
+            f"{instruction}\n\nContent:\n{unstructured}",
+            thinking_level="low",
+            response_schema=output_schema,
+        )
+        return json.loads(raw)
+
+    result = await GeminiClient.generate_structured(
+        f"{instruction}\n\nContent:\n{unstructured}",
+        schema=ContentResult,
+        thinking_level="low",
+    )
+    return result.model_dump()
+
+
+@content_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
+async def content_extract(
+    content: Annotated[str, Field(min_length=1, description="Text content to extract from")],
+    schema: Annotated[dict, Field(description="JSON Schema defining the extraction structure")],
 ) -> dict:
     """Extract structured data from content using a JSON Schema.
 
-    Uses Gemini's ``response_json_schema`` for guaranteed structured output.
+    Uses Gemini's response_json_schema for guaranteed structured output.
+
+    Args:
+        content: Source text to extract data from.
+        schema: JSON Schema describing the desired output structure.
+
+    Returns:
+        Dict matching the provided schema, or error dict on parse failure.
     """
     try:
         prompt = STRUCTURED_EXTRACT.format(
