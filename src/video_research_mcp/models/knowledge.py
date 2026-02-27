@@ -1,4 +1,9 @@
-"""Pydantic models for knowledge query tool responses."""
+"""Knowledge tool models — response schemas for Weaviate-backed tools.
+
+Output schemas for knowledge_search, knowledge_related, knowledge_stats,
+and knowledge_ingest tools. These are populated from Weaviate query
+responses, not from Gemini structured output.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +11,10 @@ from pydantic import BaseModel, Field
 
 
 class KnowledgeHit(BaseModel):
-    """Single search result from a knowledge query."""
+    """Single search result from a Weaviate vector or hybrid query.
+
+    Used as an item type in KnowledgeSearchResult and KnowledgeRelatedResult.
+    """
 
     collection: str = Field(description="Source collection name")
     object_id: str = Field(description="Weaviate object UUID")
@@ -15,7 +23,10 @@ class KnowledgeHit(BaseModel):
 
 
 class KnowledgeSearchResult(BaseModel):
-    """Result from knowledge_search."""
+    """Output schema for knowledge_search.
+
+    Wraps hybrid (vector + keyword) search results from Weaviate.
+    """
 
     query: str = Field(description="Original search query")
     total_results: int = Field(default=0, description="Total results returned")
@@ -23,7 +34,10 @@ class KnowledgeSearchResult(BaseModel):
 
 
 class KnowledgeRelatedResult(BaseModel):
-    """Result from knowledge_related."""
+    """Output schema for knowledge_related.
+
+    Returns objects semantically similar to a given source object.
+    """
 
     source_id: str = Field(description="Source object UUID")
     source_collection: str = Field(description="Source collection name")
@@ -38,14 +52,20 @@ class CollectionStats(BaseModel):
 
 
 class KnowledgeStatsResult(BaseModel):
-    """Result from knowledge_stats."""
+    """Output schema for knowledge_stats.
+
+    Reports object counts per Weaviate collection and a total across all.
+    """
 
     collections: list[CollectionStats] = Field(default_factory=list)
     total_objects: int = Field(default=0, description="Sum of all collection counts")
 
 
 class KnowledgeIngestResult(BaseModel):
-    """Result from knowledge_ingest."""
+    """Output schema for knowledge_ingest.
+
+    Confirms insertion of a new object into a Weaviate collection.
+    """
 
     collection: str = Field(description="Target collection")
     object_id: str = Field(default="", description="Created object UUID")

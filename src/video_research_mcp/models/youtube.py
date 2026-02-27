@@ -1,4 +1,9 @@
-"""YouTube Data API models — metadata and playlist schemas."""
+"""YouTube Data API models — metadata and playlist schemas.
+
+Output schemas for video_metadata and video_playlist tools. These are
+populated from YouTube Data API v3 responses (not Gemini), so they are
+not used with generate_structured().
+"""
 
 from __future__ import annotations
 
@@ -25,7 +30,11 @@ YOUTUBE_CATEGORIES: dict[str, str] = {
 
 
 class VideoMetadata(BaseModel):
-    """Ground-truth metadata from the YouTube Data API."""
+    """Output schema for video_metadata.
+
+    Populated from the YouTube Data API v3 videos().list() response.
+    Category is resolved from numeric ID to label via YOUTUBE_CATEGORIES.
+    """
 
     video_id: str
     title: str = ""
@@ -55,7 +64,11 @@ class PlaylistItem(BaseModel):
 
 
 class PlaylistInfo(BaseModel):
-    """Playlist metadata with video items."""
+    """Output schema for video_playlist.
+
+    Populated from YouTube Data API v3 playlistItems().list() responses,
+    paginated up to the caller's max_items limit.
+    """
 
     playlist_id: str
     items: list[PlaylistItem] = Field(default_factory=list)

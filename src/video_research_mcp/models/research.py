@@ -1,4 +1,8 @@
-"""Research tool models — structured output schemas for Gemini."""
+"""Research tool models — structured output schemas for Gemini.
+
+Defines output schemas for research_deep, research_plan, and
+research_assess_evidence tools. Used with GeminiClient.generate_structured().
+"""
 
 from __future__ import annotations
 
@@ -18,13 +22,21 @@ class Finding(BaseModel):
 
 
 class FindingsContainer(BaseModel):
-    """Wrapper for structured extraction of multiple findings."""
+    """Intermediate schema for the evidence-collection phase of research_deep.
+
+    Used with generate_structured() to extract findings from a single
+    research pass. Findings are later merged into ResearchReport.
+    """
 
     findings: list[Finding] = Field(default_factory=list)
 
 
 class ResearchSynthesis(BaseModel):
-    """Structured output for the synthesis phase of deep research."""
+    """Intermediate schema for the synthesis phase of research_deep.
+
+    Used with generate_structured() in the final synthesis pass.
+    Fields are merged into the top-level ResearchReport before returning.
+    """
 
     executive_summary: str = ""
     open_questions: list[str] = Field(default_factory=list)
@@ -33,7 +45,11 @@ class ResearchSynthesis(BaseModel):
 
 
 class ResearchReport(BaseModel):
-    """Output of a deep research analysis."""
+    """Output schema for research_deep.
+
+    Assembled from FindingsContainer (evidence phase) and ResearchSynthesis
+    (synthesis phase). Also persisted to Weaviate via store_research_finding().
+    """
 
     topic: str
     scope: str = "moderate"
@@ -53,7 +69,12 @@ class Phase(BaseModel):
 
 
 class ResearchPlan(BaseModel):
-    """Orchestration blueprint for multi-agent research."""
+    """Output schema for research_plan.
+
+    Returned by GeminiClient.generate_structured(). Describes a phased
+    research execution plan with model-tier assignments per phase.
+    Also persisted to Weaviate via store_research_plan().
+    """
 
     topic: str
     scope: str
@@ -63,7 +84,12 @@ class ResearchPlan(BaseModel):
 
 
 class EvidenceAssessment(BaseModel):
-    """Assessment of a specific claim against sources."""
+    """Output schema for research_assess_evidence.
+
+    Returned by GeminiClient.generate_structured(). Assesses a single
+    claim against provided sources with an evidence tier and confidence score.
+    Also persisted to Weaviate via store_evidence_assessment().
+    """
 
     claim: str
     tier: str = "UNKNOWN"

@@ -1,4 +1,9 @@
-"""Weaviate client singleton — mirrors GeminiClient pattern from client.py."""
+"""Weaviate client singleton — mirrors GeminiClient pattern from client.py.
+
+Provides a process-wide WeaviateClient that lazily connects on first use
+and idempotently creates collections from weaviate_schema.ALL_COLLECTIONS.
+Used by weaviate_store.py (write-through) and tools/knowledge.py (queries).
+"""
 
 from __future__ import annotations
 
@@ -59,7 +64,11 @@ def _connect(url: str, api_key: str) -> weaviate.WeaviateClient:
 
 
 class WeaviateClient:
-    """Process-wide Weaviate client (single cluster, not a pool)."""
+    """Process-wide Weaviate client singleton (single cluster, not a pool).
+
+    All methods are classmethods operating on module-level _client state.
+    Thread-safe via _lock for concurrent asyncio.to_thread usage.
+    """
 
     @classmethod
     def get(cls) -> weaviate.WeaviateClient:

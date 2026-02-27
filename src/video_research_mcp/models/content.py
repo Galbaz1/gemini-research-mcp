@@ -1,4 +1,9 @@
-"""Content analysis models — structured output schemas for Gemini."""
+"""Content analysis models — structured output schemas for Gemini.
+
+Defines the default output schema for the content_analyze tool.
+Used with GeminiClient.generate_structured() when the caller does
+not supply a custom output_schema.
+"""
 
 from __future__ import annotations
 

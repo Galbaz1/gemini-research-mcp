@@ -1,4 +1,9 @@
-"""Write-through store functions — one per Weaviate collection."""
+"""Write-through store functions — one per Weaviate collection.
+
+Each store_* function is called by its corresponding tool after a
+successful Gemini response. All writes are fire-and-forget: failures
+log a warning but never propagate to the tool caller.
+"""
 
 from __future__ import annotations
 
@@ -28,7 +33,20 @@ def _now() -> datetime:
 async def store_video_analysis(
     result: dict, content_id: str, instruction: str, source_url: str = ""
 ) -> str | None:
-    """Store a video analysis result. Returns UUID or None."""
+    """Persist a video_analyze result to the VideoAnalyses collection.
+
+    Called by tools/video.py after a successful video_analyze or
+    video_batch_analyze call.
+
+    Args:
+        result: Serialised VideoResult dict.
+        content_id: YouTube video ID or file content hash.
+        instruction: The analysis instruction used.
+        source_url: Original URL or file path.
+
+    Returns:
+        Weaviate object UUID, or None if disabled/failed.
+    """
     if not _is_enabled():
         return None
     try:
@@ -56,7 +74,18 @@ async def store_video_analysis(
 async def store_content_analysis(
     result: dict, source: str, instruction: str
 ) -> str | None:
-    """Store a content analysis result. Returns UUID or None."""
+    """Persist a content_analyze result to the ContentAnalyses collection.
+
+    Called by tools/content.py after a successful content_analyze call.
+
+    Args:
+        result: Serialised ContentResult dict.
+        source: URL, file path, or "(text)" for inline text input.
+        instruction: The analysis instruction used.
+
+    Returns:
+        Weaviate object UUID, or None if disabled/failed.
+    """
     if not _is_enabled():
         return None
     try:
@@ -82,7 +111,18 @@ async def store_content_analysis(
 
 
 async def store_research_finding(report_dict: dict) -> list[str] | None:
-    """Store a research report + each finding as separate objects. Returns UUIDs or None."""
+    """Persist a research_deep report to the ResearchFindings collection.
+
+    Creates one object for the report-level summary and one per finding,
+    all in the same collection. Called by tools/research.py after
+    research_deep completes.
+
+    Args:
+        report_dict: Serialised ResearchReport dict.
+
+    Returns:
+        List of Weaviate object UUIDs (report + findings), or None.
+    """
     if not _is_enabled():
         return None
     try:
@@ -129,7 +169,16 @@ async def store_research_finding(report_dict: dict) -> list[str] | None:
 
 
 async def store_research_plan(plan_dict: dict) -> str | None:
-    """Store a research plan. Returns UUID or None."""
+    """Persist a research_plan result to the ResearchPlans collection.
+
+    Called by tools/research.py after research_plan completes.
+
+    Args:
+        plan_dict: Serialised ResearchPlan dict.
+
+    Returns:
+        Weaviate object UUID, or None if disabled/failed.
+    """
     if not _is_enabled():
         return None
     try:
@@ -152,7 +201,18 @@ async def store_research_plan(plan_dict: dict) -> str | None:
 
 
 async def store_evidence_assessment(assessment_dict: dict) -> str | None:
-    """Store an evidence assessment as a research finding. Returns UUID or None."""
+    """Persist a research_assess_evidence result to ResearchFindings.
+
+    Stored in the same collection as research_deep findings but with
+    source_tool="research_assess_evidence" for differentiation.
+    Called by tools/research.py after research_assess_evidence completes.
+
+    Args:
+        assessment_dict: Serialised EvidenceAssessment dict.
+
+    Returns:
+        Weaviate object UUID, or None if disabled/failed.
+    """
     if not _is_enabled():
         return None
     try:
@@ -179,7 +239,18 @@ async def store_evidence_assessment(assessment_dict: dict) -> str | None:
 
 
 async def store_video_metadata(meta_dict: dict) -> str | None:
-    """Store video metadata with deterministic UUID for dedup. Returns UUID or None."""
+    """Persist video_metadata result to the VideoMetadata collection.
+
+    Uses a deterministic UUID derived from video_id so repeated fetches
+    for the same video upsert (replace) rather than duplicate.
+    Called by tools/youtube.py after video_metadata completes.
+
+    Args:
+        meta_dict: Serialised VideoMetadata dict.
+
+    Returns:
+        Weaviate object UUID, or None if disabled/failed.
+    """
     if not _is_enabled():
         return None
     try:
@@ -208,7 +279,7 @@ async def store_video_metadata(meta_dict: dict) -> str | None:
 
 
 def _meta_properties(meta_dict: dict, video_id: str) -> dict:
-    """Build properties dict for VideoMetadata collection."""
+    """Build the Weaviate properties dict for a VideoMetadata insert/replace."""
     return {
         "created_at": _now(),
         "source_tool": "video_metadata",
@@ -227,7 +298,20 @@ def _meta_properties(meta_dict: dict, video_id: str) -> dict:
 async def store_session_turn(
     session_id: str, video_title: str, turn_index: int, prompt: str, response: str
 ) -> str | None:
-    """Store a session turn. Returns UUID or None."""
+    """Persist a video_continue_session turn to SessionTranscripts.
+
+    Called by tools/video.py after each successful session turn.
+
+    Args:
+        session_id: The active session ID.
+        video_title: Title of the video being discussed.
+        turn_index: One-based turn number in the session.
+        prompt: User's prompt for this turn.
+        response: Model's response text.
+
+    Returns:
+        Weaviate object UUID, or None if disabled/failed.
+    """
     if not _is_enabled():
         return None
     try:
@@ -253,7 +337,18 @@ async def store_session_turn(
 async def store_web_search(
     query: str, response: str, sources: list[dict]
 ) -> str | None:
-    """Store a web search result. Returns UUID or None."""
+    """Persist a web_search result to the WebSearchResults collection.
+
+    Called by tools/search.py after a successful web_search call.
+
+    Args:
+        query: The search query string.
+        response: Gemini's grounded response text.
+        sources: List of grounding source dicts (serialised to JSON).
+
+    Returns:
+        Weaviate object UUID, or None if disabled/failed.
+    """
     if not _is_enabled():
         return None
     try:

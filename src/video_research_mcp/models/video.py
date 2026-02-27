@@ -1,4 +1,8 @@
-"""Video analysis models — structured output schemas for Gemini."""
+"""Video analysis models — structured output schemas for Gemini.
+
+Defines output schemas for video_analyze, video_create_session, and
+video_continue_session tools. Used with GeminiClient.generate_structured().
+"""
 
 from __future__ import annotations
 
@@ -37,7 +41,11 @@ class VideoResult(BaseModel):
 
 
 class SessionInfo(BaseModel):
-    """Returned when creating a video session."""
+    """Output schema for video_create_session.
+
+    Returned directly (not via generate_structured) since session creation
+    is a local operation that doesn't involve Gemini.
+    """
 
     session_id: str
     status: str = "created"
@@ -46,7 +54,11 @@ class SessionInfo(BaseModel):
 
 
 class SessionResponse(BaseModel):
-    """Returned from continuing a video session."""
+    """Output schema for video_continue_session.
+
+    Built from the raw Gemini response text and the session's turn counter.
+    Not used with generate_structured — the response is free-form text.
+    """
 
     response: str
     turn_count: int

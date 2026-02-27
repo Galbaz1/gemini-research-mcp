@@ -1,4 +1,19 @@
-"""Research tool prompt templates — deep analysis phases + evidence assessment."""
+"""Research tool prompt templates — deep analysis phases + evidence assessment.
+
+Templates are used by tools/research.py in a multi-phase pipeline:
+
+1. DEEP_RESEARCH_SYSTEM — system prompt for all research_deep calls.
+2. SCOPE_DEFINITION — phase 1: defines research boundaries.
+   Variables: {topic}, {scope}.
+3. EVIDENCE_COLLECTION — phase 2: extracts findings with evidence tiers.
+   Variables: {topic}, {context} (scope definition output).
+4. SYNTHESIS — phase 3: merges findings into a coherent report.
+   Variables: {topic}, {findings_text} (serialised findings).
+5. RESEARCH_PLAN — used by research_plan tool (not research_deep).
+   Variables: {topic}, {scope}, {available_agents}.
+6. EVIDENCE_ASSESSMENT — used by research_assess_evidence tool.
+   Variables: {claim}, {sources_text}, {context}.
+"""
 
 from __future__ import annotations
 

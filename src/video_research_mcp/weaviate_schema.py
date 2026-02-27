@@ -1,4 +1,9 @@
-"""Weaviate collection definitions — 7 collections for knowledge storage."""
+"""Weaviate collection definitions — 7 collections for knowledge storage.
+
+Each CollectionDef maps to a Weaviate class. Collections are created
+idempotently by WeaviateClient.ensure_collections() on first connection.
+ALL_COLLECTIONS is the canonical list consumed by the client and tests.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +21,11 @@ class PropertyDef:
     skip_vectorization: bool = False
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize to Weaviate REST API property format.
+
+        Returns:
+            Dict with name, dataType, and optional description/moduleConfig.
+        """
         result: dict[str, Any] = {
             "name": self.name,
             "dataType": self.data_type,
@@ -38,6 +48,11 @@ class CollectionDef:
     properties: list[PropertyDef] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize to Weaviate REST API collection (class) format.
+
+        Returns:
+            Dict with class, description, and properties list.
+        """
         return {
             "class": self.name,
             "description": self.description,
@@ -48,6 +63,7 @@ class CollectionDef:
 # ── Common properties (included in every collection) ───────────────────────
 
 def _common_properties() -> list[PropertyDef]:
+    """Return properties shared by all collections (created_at, source_tool)."""
     return [
         PropertyDef("created_at", ["date"], "Timestamp of creation", skip_vectorization=True),
         PropertyDef("source_tool", ["text"], "Tool that generated this data", skip_vectorization=True),
