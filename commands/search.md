@@ -1,7 +1,7 @@
 ---
 description: Web search via Gemini grounding
 argument-hint: <query>
-allowed-tools: mcp__plugin_gr_gemini-research__web_search
+allowed-tools: mcp__gemini-research__web_search
 model: sonnet
 ---
 
