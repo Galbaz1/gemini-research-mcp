@@ -1,6 +1,6 @@
 # gemini-research-mcp
 
-Gemini 3.1 Pro as a research partner for Claude Code — video analysis, deep research, content extraction, and web search.
+Gemini 3.1 Pro as a research partner for Claude Code — video analysis, deep research, content extraction, and web search. With progressive memory and automatic visualizations.
 
 ## The Problem
 
@@ -9,6 +9,8 @@ Claude Code can't natively analyze YouTube videos, run multi-phase research with
 ## The Solution
 
 11 instruction-driven tools powered by Gemini 3.1 Pro. Write a natural language instruction, get structured JSON back. No fixed modes — the LLM writes the instruction, Gemini executes it.
+
+Every analysis automatically saves progressively to memory, generates an interactive visualization (concept map, evidence network, or knowledge graph), and captures a screenshot — no manual steps.
 
 ## Quickstart
 
@@ -31,17 +33,40 @@ claude plugin add /path/to/gemini-research-mcp
 | Component | Count | Description |
 |-----------|-------|-------------|
 | **Tools** | 11 | Auto-start MCP server with video, research, content, search, infra tools |
-| **Commands** | 3 | `/research`, `/video`, `/analyze` — quick-access workflows |
+| **Commands** | 6 | `/gr:video`, `/gr:research`, `/gr:analyze`, `/gr:video-chat`, `/gr:search`, `/gr:recall` |
 | **Agents** | 2 | `researcher`, `video-analyst` — specialized subagents for complex tasks |
-| **Skill** | 1 | Tool usage guide auto-loaded into Claude's context |
+| **Skills** | 2 | Tool usage guide + visualization template system |
 
 ## Commands
 
+All commands live under the `/gr:` namespace.
+
 | Command | Description | Example |
 |---------|-------------|---------|
-| `/research <topic>` | Multi-phase deep research with evidence tiers | `/research quantum computing breakthroughs 2026` |
-| `/video <url>` | Comprehensive YouTube video analysis | `/video https://youtube.com/watch?v=...` |
-| `/analyze <content>` | Analyze any URL, file, or text | `/analyze https://arxiv.org/abs/...` |
+| `/gr:video <url>` | Video analysis with concept map | `/gr:video https://youtube.com/watch?v=...` |
+| `/gr:video-chat <url>` | Multi-turn video Q&A session | `/gr:video-chat https://youtube.com/watch?v=...` |
+| `/gr:research <topic>` | Deep research with evidence network | `/gr:research quantum computing breakthroughs 2026` |
+| `/gr:analyze <content>` | Analyze any URL, file, or text with knowledge graph | `/gr:analyze https://arxiv.org/abs/...` |
+| `/gr:search <query>` | Web search via Gemini grounding | `/gr:search latest MCP protocol updates` |
+| `/gr:recall [topic]` | Browse past analyses with knowledge state filtering | `/gr:recall fuzzy` |
+
+### Memory & Visualization
+
+Every `/gr:video`, `/gr:research`, and `/gr:analyze` command automatically:
+
+1. **Saves progressively** — results are written immediately, then enriched in place with relationships and metadata
+2. **Generates an interactive visualization** — concept map, evidence network, or knowledge graph (single-file HTML)
+3. **Takes a Playwright screenshot** — static PNG capture of the visualization
+4. **Stores everything together** in `gr/<category>/<slug>/`:
+
+```
+gr/video/boris-cherny/
+├── analysis.md          # Timestamped analysis with YAML frontmatter
+├── concept-map.html     # Interactive visualization (drag, zoom, filter)
+└── screenshot.png       # Static capture
+```
+
+Each `analysis.md` includes YAML frontmatter with knowledge states per concept (`know`, `fuzzy`, `unknown`). Use `/gr:recall fuzzy` to find concepts you're fuzzy on across all analyses.
 
 ## Tool Selection Guide
 
@@ -104,7 +129,7 @@ claude plugin add /path/to/gemini-research-mcp
 claude plugin add /path/to/gemini-research-mcp
 ```
 
-The plugin auto-starts the MCP server, registers commands, agents, and the skill.
+The plugin auto-starts the MCP server, registers commands, agents, and skills. Playwright is bundled for screenshot capture (runs headless, no visible browser).
 
 ### Standalone MCP Server
 
@@ -123,6 +148,8 @@ Add to your project's `.mcp.json`:
   }
 }
 ```
+
+Note: Standalone mode provides the 11 tools but not the commands, agents, skills, or Playwright integration. Use the plugin install for the full experience.
 
 ### Claude Desktop
 
@@ -198,6 +225,8 @@ uv run ruff check src/ tests/
 | Cache permission errors | Check write access to `~/.cache/gemini-research-mcp/` or set `GEMINI_CACHE_DIR` |
 | Video analysis returns empty | Video may be private, age-restricted, or region-locked |
 | Plugin not loading | Verify `python >= 3.11` and `uv` are available on PATH |
+| Visualization not generated | Playwright runs via npx — ensure Node.js is available on PATH |
+| Screenshot capture fails | The HTML visualization is still saved; screenshot is a bonus artifact |
 
 ## License
 

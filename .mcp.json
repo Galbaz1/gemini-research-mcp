@@ -2,10 +2,18 @@
   "mcpServers": {
     "gemini-research": {
       "command": "uv",
-      "args": ["run", "--directory", ".", "gemini-research-mcp"],
+      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "gemini-research-mcp"],
       "env": {
         "GEMINI_API_KEY": "${GEMINI_API_KEY}"
       }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--headless",
+        "--caps=vision,pdf"
+      ]
     }
   }
 }
