@@ -40,6 +40,11 @@ class ServerConfig(BaseModel):
     max_sessions: int = Field(default=50)
     session_timeout_hours: int = Field(default=2)
     session_max_turns: int = Field(default=24)
+    retry_max_attempts: int = Field(default=3)
+    retry_base_delay: float = Field(default=1.0)
+    retry_max_delay: float = Field(default=60.0)
+    youtube_api_key: str = Field(default="")
+    session_db_path: str = Field(default="")
 
     @field_validator("default_thinking_level")
     @classmethod
@@ -55,6 +60,20 @@ class ServerConfig(BaseModel):
     def validate_positive_ints(cls, value: int) -> int:
         if value < 1:
             raise ValueError("Configuration values must be >= 1")
+        return value
+
+    @field_validator("retry_max_attempts")
+    @classmethod
+    def validate_retry_max_attempts(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("retry_max_attempts must be >= 1")
+        return value
+
+    @field_validator("retry_base_delay", "retry_max_delay")
+    @classmethod
+    def validate_retry_delays(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("Retry delay must be > 0")
         return value
 
     @classmethod
@@ -74,6 +93,11 @@ class ServerConfig(BaseModel):
             max_sessions=int(os.getenv("GEMINI_MAX_SESSIONS", "50")),
             session_timeout_hours=int(os.getenv("GEMINI_SESSION_TIMEOUT_HOURS", "2")),
             session_max_turns=int(os.getenv("GEMINI_SESSION_MAX_TURNS", "24")),
+            retry_max_attempts=int(os.getenv("GEMINI_RETRY_MAX_ATTEMPTS", "3")),
+            retry_base_delay=float(os.getenv("GEMINI_RETRY_BASE_DELAY", "1.0")),
+            retry_max_delay=float(os.getenv("GEMINI_RETRY_MAX_DELAY", "60.0")),
+            youtube_api_key=os.getenv("YOUTUBE_API_KEY", ""),
+            session_db_path=os.getenv("GEMINI_SESSION_DB", ""),
         )
 
 

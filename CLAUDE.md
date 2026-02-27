@@ -185,3 +185,8 @@ All env vars with defaults — see `config.py:ServerConfig.from_env()` for canon
 | `GEMINI_MAX_SESSIONS` | `50` |
 | `GEMINI_SESSION_TIMEOUT_HOURS` | `2` |
 | `GEMINI_SESSION_MAX_TURNS` | `24` |
+| `GEMINI_RETRY_MAX_ATTEMPTS` | `3` |
+| `GEMINI_RETRY_BASE_DELAY` | `1.0` |
+| `GEMINI_RETRY_MAX_DELAY` | `60.0` |
+| `YOUTUBE_API_KEY` | `""` (falls back to `GEMINI_API_KEY`) |
+| `GEMINI_SESSION_DB` | `""` (empty = in-memory only) |
