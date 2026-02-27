@@ -13,6 +13,7 @@ from weaviate.classes.query import MetadataQuery
 
 from ..config import get_config
 from ..errors import make_tool_error
+from .knowledge_filters import build_collection_filter
 from ..models.knowledge import (
     CollectionStats,
     KnowledgeHit,
@@ -57,17 +58,31 @@ async def knowledge_search(
     ] = None,
     limit: Annotated[int, Field(ge=1, le=100, description="Max results per collection")] = 10,
     alpha: Annotated[float, Field(ge=0.0, le=1.0, description="0=BM25, 1=vector, 0.5=hybrid")] = 0.5,
+    evidence_tier: Annotated[str | None, Field(description="Filter by evidence tier (e.g. CONFIRMED)")] = None,
+    source_tool: Annotated[str | None, Field(description="Filter by originating tool name")] = None,
+    date_from: Annotated[str | None, Field(description="Filter created_at >= ISO date")] = None,
+    date_to: Annotated[str | None, Field(description="Filter created_at <= ISO date")] = None,
+    category: Annotated[str | None, Field(description="Filter VideoMetadata by category")] = None,
+    video_id: Annotated[str | None, Field(description="Filter by video_id")] = None,
 ) -> dict:
-    """Hybrid search across knowledge collections.
+    """Hybrid search across knowledge collections with optional filters.
 
     Searches any/all 7 collections using Weaviate's hybrid search
     (BM25 + vector). Results are merged and sorted by score.
+    Filters are collection-aware: conditions are skipped for collections
+    that lack the relevant property.
 
     Args:
         query: Text to search for.
         collections: Which collections to search (default: all).
         limit: Maximum results per collection.
         alpha: Search balance — 0 for keyword, 1 for semantic, 0.5 for hybrid.
+        evidence_tier: Filter ResearchFindings by evidence tier.
+        source_tool: Filter any collection by originating tool.
+        date_from: Filter objects created on or after this ISO date.
+        date_to: Filter objects created on or before this ISO date.
+        category: Filter VideoMetadata by category label.
+        video_id: Filter by video_id field.
 
     Returns:
         Dict matching KnowledgeSearchResult schema.
@@ -77,6 +92,12 @@ async def knowledge_search(
 
     try:
         target = list(collections) if collections else ALL_COLLECTION_NAMES
+        filter_kwargs = dict(
+            evidence_tier=evidence_tier, source_tool=source_tool,
+            date_from=date_from, date_to=date_to,
+            category=category, video_id=video_id,
+        )
+        filters_applied = {k: v for k, v in filter_kwargs.items() if v is not None} or None
 
         def _search():
             client = WeaviateClient.get()
@@ -84,10 +105,14 @@ async def knowledge_search(
             for col_name in target:
                 try:
                     collection = client.collections.get(col_name)
+                    col_filter = build_collection_filter(
+                        col_name, _ALLOWED_PROPERTIES.get(col_name, set()), **filter_kwargs,
+                    )
                     response = collection.query.hybrid(
                         query=query,
                         limit=limit,
                         alpha=alpha,
+                        filters=col_filter,
                         return_metadata=MetadataQuery(score=True),
                     )
                     for obj in response.objects:
@@ -109,6 +134,7 @@ async def knowledge_search(
             query=query,
             total_results=len(hits),
             results=hits,
+            filters_applied=filters_applied,
         ).model_dump()
 
     except Exception as exc:
@@ -191,11 +217,16 @@ async def knowledge_stats(
         KnowledgeCollection | None,
         Field(description="Collection to count (all if omitted)"),
     ] = None,
+    group_by: Annotated[
+        str | None,
+        Field(description="Group counts by a text property (e.g. evidence_tier, source_tool)"),
+    ] = None,
 ) -> dict:
-    """Get object counts per collection.
+    """Get object counts per collection, optionally grouped by a property.
 
     Args:
         collection: Single collection name, or None for all collections.
+        group_by: Text property name to group counts by.
 
     Returns:
         Dict matching KnowledgeStatsResult schema.
@@ -213,9 +244,13 @@ async def knowledge_stats(
                 try:
                     col = client.collections.get(col_name)
                     agg = col.aggregate.over_all(total_count=True)
+                    groups = None
+                    if group_by and group_by in _ALLOWED_PROPERTIES.get(col_name, set()):
+                        groups = _aggregate_groups(col, group_by)
                     stats.append(CollectionStats(
                         name=col_name,
                         count=agg.total_count or 0,
+                        groups=groups,
                     ))
                 except Exception as exc:
                     logger.warning("Stats failed for %s: %s", col_name, exc)
@@ -231,6 +266,23 @@ async def knowledge_stats(
 
     except Exception as exc:
         return make_tool_error(exc)
+
+
+def _aggregate_groups(col, group_by: str) -> dict[str, int]:
+    """Aggregate counts grouped by a text property value."""
+    try:
+        from weaviate.classes.aggregate import GroupByAggregate
+        response = col.aggregate.over_all(
+            group_by=GroupByAggregate(prop=group_by),
+            total_count=True,
+        )
+        groups: dict[str, int] = {}
+        for group in response.groups:
+            key = str(group.grouped_by.value) if group.grouped_by else "(empty)"
+            groups[key] = group.total_count or 0
+        return groups
+    except Exception:
+        return {}
 
 
 @knowledge_server.tool(

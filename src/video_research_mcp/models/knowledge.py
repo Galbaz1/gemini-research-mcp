@@ -31,6 +31,7 @@ class KnowledgeSearchResult(BaseModel):
     query: str = Field(description="Original search query")
     total_results: int = Field(default=0, description="Total results returned")
     results: list[KnowledgeHit] = Field(default_factory=list)
+    filters_applied: dict[str, str] | None = Field(default=None, description="Active filters")
 
 
 class KnowledgeRelatedResult(BaseModel):
@@ -49,6 +50,7 @@ class CollectionStats(BaseModel):
 
     name: str = Field(description="Collection name")
     count: int = Field(default=0, description="Object count")
+    groups: dict[str, int] | None = Field(default=None, description="Counts grouped by property value")
 
 
 class KnowledgeStatsResult(BaseModel):
