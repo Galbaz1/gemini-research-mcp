@@ -1,6 +1,6 @@
 # Knowledge Store
 
-How the knowledge store works, how to set up Weaviate, and how to use the 4 knowledge tools for persistent semantic search across all tool results.
+How the knowledge store works, how to set up Weaviate, and how to use the 6 knowledge tools for persistent semantic search across all tool results.
 
 ## What It Is
 
@@ -34,7 +34,7 @@ Three modules implement the knowledge store:
 | `weaviate_schema.py` | 7 collection definitions (PropertyDef, CollectionDef dataclasses) |
 | `weaviate_store.py` | Write-through functions (one per collection) |
 
-The 4 knowledge query tools live in `tools/knowledge.py`.
+The 6 knowledge query tools live in `tools/knowledge.py`.
 
 ## Setup
 
@@ -175,19 +175,27 @@ Stores orchestration plans from `research_plan`.
 
 ## Using the Knowledge Tools
 
-### knowledge_search -- hybrid search across collections
+### knowledge_search -- search across collections
 
-Combines BM25 keyword search and vector similarity. The `alpha` parameter controls the balance.
+Supports three search modes: hybrid (default), semantic, and keyword.
 
 ```
-Use knowledge_search with query "transformer architecture" and alpha 0.7
+Use knowledge_search with query "transformer architecture"
+Use knowledge_search with query "RLHF" and search_type "semantic"
+Use knowledge_search with query "batch normalization" and search_type "keyword"
 ```
 
 Parameters:
 - `query` (required) -- search text
+- `search_type` (optional) -- `"hybrid"` (default), `"semantic"`, or `"keyword"`
 - `collections` (optional) -- list of collection names to search; defaults to all 7
 - `limit` (optional) -- max results per collection (default 10)
-- `alpha` (optional) -- 0.0 = pure keyword, 1.0 = pure vector, 0.5 = hybrid (default)
+- `alpha` (optional) -- hybrid balance: 0.0 = pure keyword, 1.0 = pure vector, 0.5 = balanced (hybrid mode only)
+
+Search modes:
+- **hybrid** -- fuses BM25 keyword scores with vector similarity via `collection.query.hybrid()`
+- **semantic** -- pure vector similarity via `collection.query.near_text()`; finds semantically similar content even without keyword overlap
+- **keyword** -- pure BM25 keyword matching via `collection.query.bm25()`; precise when you know the exact terms
 
 Results are merged across collections and sorted by score descending.
 
@@ -214,6 +222,20 @@ Use knowledge_stats with collection "ResearchFindings"
 ```
 
 Returns per-collection counts and total. Useful for monitoring knowledge base growth.
+
+### knowledge_fetch -- retrieve object by UUID
+
+Fetch a single object directly by its UUID. Useful for retrieving specific objects found in search results.
+
+```
+Use knowledge_fetch with object_id "uuid-from-search" and collection "ResearchFindings"
+```
+
+Parameters:
+- `object_id` (required) -- Weaviate UUID of the object
+- `collection` (required) -- which collection the object belongs to
+
+Returns `found: true` with the object's properties, or `found: false` if the UUID doesn't exist.
 
 ### knowledge_ingest -- manual data entry
 
@@ -305,7 +327,10 @@ MY_DATA = CollectionDef(
     description="Results from my_tool",
     properties=_common_properties() + [
         PropertyDef("field_a", ["text"], "Description of field A"),
-        PropertyDef("field_b", ["int"], "Description of field B", skip_vectorization=True),
+        PropertyDef("field_b", ["int"], "Description of field B",
+                    skip_vectorization=True, index_range_filters=True),
+        PropertyDef("raw_json", ["text"], "JSON blob",
+                    skip_vectorization=True, index_searchable=False),
     ],
 )
 ```
@@ -337,8 +362,14 @@ KnowledgeCollection = Literal[
 
 - `data_type` -- Weaviate types: `["text"]`, `["text[]"]`, `["int"]`, `["number"]`, `["date"]`, `["boolean"]`
 - `skip_vectorization=True` -- exclude from vector embedding (use for IDs, counts, JSON blobs)
-- Properties that carry semantic meaning (titles, summaries, claims) should be vectorized (default)
-- Properties that are structural (UUIDs, timestamps, raw JSON) should skip vectorization
+- `index_range_filters=True` -- enable B-tree index for range queries (`>`, `<`, `between`) on int/number/date fields
+- `index_searchable=False` -- disable BM25 keyword index on non-searchable text (JSON blobs, IDs, metadata)
+- `index_filterable=True` (default) -- roaring-bitmap index for equality/contains filters
+
+Guidelines:
+- Properties that carry semantic meaning (titles, summaries, claims) should be vectorized (default) and BM25-searchable (default)
+- Properties that are structural (UUIDs, timestamps, raw JSON) should skip vectorization and disable BM25
+- Numeric/date fields used in range filters should set `index_range_filters=True`
 
 ## Weaviate Client Singleton
 
@@ -353,6 +384,8 @@ Connection is automatic based on URL scheme:
 - `http://localhost:*` -- connects via `weaviate.connect_to_local`
 - `https://*.weaviate.network` -- connects via `weaviate.connect_to_weaviate_cloud`
 - Other URLs -- connects via `weaviate.connect_to_custom`
+
+All connections include `Timeout(init=30, query=60, insert=120)` for production reliability.
 
 ## Reference
 

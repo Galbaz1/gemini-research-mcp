@@ -7,7 +7,6 @@ from video_research_mcp.weaviate_schema import (
     CONTENT_ANALYSES,
     RESEARCH_FINDINGS,
     RESEARCH_PLANS,
-    SESSION_TRANSCRIPTS,
     VIDEO_ANALYSES,
     VIDEO_METADATA,
 )

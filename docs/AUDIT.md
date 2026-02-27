@@ -4,6 +4,8 @@
 **Auditor**: code-reviewer (Claude Opus 4.6)
 **Scope**: Full codebase vs CLAUDE.md claims, docstring coverage, undocumented patterns
 
+> **Update 2026-02-27**: Tool count is now **20** (was 18 at time of audit) after the Weaviate Agent Skills audit added `knowledge_fetch` and a `search_type` parameter. Test count is now **303**. CLAUDE.md, ARCHITECTURE.md, and KNOWLEDGE_STORE.md have been updated accordingly. The tool count references below reflect the state at time of original audit.
+
 ---
 
 ## 1. CLAUDE.md Accuracy vs Code

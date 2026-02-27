@@ -2,7 +2,7 @@
 
 ## What This Is
 
-An MCP server (stdio transport, FastMCP) exposing 18 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
+An MCP server (stdio transport, FastMCP) exposing 20 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
 
 ## Commands
 
@@ -26,7 +26,7 @@ GEMINI_API_KEY=... uv run video-research-mcp                         # run serve
 | content | `content_analyze`, `content_extract` | `tools/content.py` |
 | search | `web_search` | `tools/search.py` |
 | infra | `infra_cache`, `infra_configure` | `tools/infra.py` |
-| knowledge | `knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_ingest` | `tools/knowledge.py` |
+| knowledge | `knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_ingest`, `knowledge_fetch` | `tools/knowledge.py` |
 
 **Key patterns:**
 - **Instruction-driven tools** — tools accept free-text `instruction` + optional `output_schema` instead of fixed modes
@@ -72,7 +72,7 @@ Google-style. Required on every module, public class, public function/method, an
 
 ## Testing
 
-228 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
+303 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
 
 **Key fixtures** (`conftest.py`): `mock_gemini_client` (mocks `.get()`, `.generate()`, `.generate_structured()`), `clean_config` (isolates config), autouse `GEMINI_API_KEY=test-key-not-real`.
 
@@ -116,4 +116,4 @@ All other config (thinking level, temperature, cache dir/TTL, session limits, re
 | `docs/tutorials/GETTING_STARTED.md` | Install, configure, first tool call |
 | `docs/tutorials/ADDING_A_TOOL.md` | Step-by-step tool creation with checklist |
 | `docs/tutorials/WRITING_TESTS.md` | Fixtures, patterns, running tests |
-| `docs/tutorials/KNOWLEDGE_STORE.md` | Weaviate setup, 7 collections, 4 knowledge tools |
+| `docs/tutorials/KNOWLEDGE_STORE.md` | Weaviate setup, 7 collections, 6 knowledge tools |

@@ -8,7 +8,7 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 2. [Composite Server Pattern](#2-composite-server-pattern)
 3. [GeminiClient Pipeline](#3-geminiclient-pipeline)
 4. [Tool Conventions](#4-tool-conventions)
-5. [Tool Reference (18 tools)](#5-tool-reference-18-tools)
+5. [Tool Reference (20 tools)](#5-tool-reference-20-tools)
 6. [Singletons](#6-singletons)
 7. [Weaviate Integration](#7-weaviate-integration)
 8. [Session Management](#8-session-management)
@@ -22,7 +22,7 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 
 ## 1. System Overview
 
-`video-research-mcp` is an MCP (Model Context Protocol) server that exposes 18 tools for video analysis, deep research, content extraction, web search, and knowledge management. It communicates over **stdio transport** using **FastMCP** (`fastmcp>=2.0`) and is powered by **Gemini 3.1 Pro** via the `google-genai` SDK.
+`video-research-mcp` is an MCP (Model Context Protocol) server that exposes 20 tools for video analysis, deep research, content extraction, web search, and knowledge management. It communicates over **stdio transport** using **FastMCP** (`fastmcp>=2.0`) and is powered by **Gemini 3.1 Pro** via the `google-genai` SDK.
 
 ### Core Dependencies
 
@@ -79,10 +79,10 @@ src/video_research_mcp/
     content.py           content_server (2 tools)
     search.py            search_server (1 tool)
     infra.py             infra_server (2 tools)
-    knowledge.py         knowledge_server (4 tools)
+    knowledge.py         knowledge_server (6 tools)
 ```
 
-**Tool count**: 4 + 2 + 3 + 2 + 1 + 2 + 4 = **18 tools** across 7 sub-servers.
+**Tool count**: 4 + 2 + 3 + 2 + 1 + 2 + 6 = **20 tools** across 7 sub-servers.
 
 ---
 
@@ -101,8 +101,8 @@ app.mount(content_server)     # tools/content.py      2 tools
 app.mount(search_server)      # tools/search.py       1 tool
 app.mount(infra_server)       # tools/infra.py        2 tools
 app.mount(youtube_server)     # tools/youtube.py      2 tools
-app.mount(knowledge_server)   # tools/knowledge.py    4 tools
-#                                                     ── 18 tools total
+app.mount(knowledge_server)   # tools/knowledge.py    6 tools
+#                                                     ── 20 tools total
 ```
 
 ### Lifespan Hook
@@ -342,7 +342,7 @@ Tools not in this table (`content_extract`, `video_playlist`, `infra_cache`, `in
 
 ---
 
-## 5. Tool Reference (18 tools)
+## 5. Tool Reference (20 tools)
 
 ### Video Server (4 tools)
 
@@ -501,20 +501,21 @@ Returns: cache statistics, entry list, or removed count depending on action.
 
 Changes take effect immediately. Returns current config, active preset, and available presets.
 
-### Knowledge Server (4 tools)
+### Knowledge Server (6 tools)
 
 All knowledge tools gracefully degrade when Weaviate is not configured (return empty results, not errors).
 
-**`knowledge_search`** -- Hybrid search across knowledge collections.
+**`knowledge_search`** -- Search across knowledge collections (hybrid, semantic, or keyword).
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
 | `query` | `str` | (required) | Search query |
 | `collections` | `list[KnowledgeCollection] \| None` | `None` | Collections to search (all if omitted) |
+| `search_type` | `"hybrid" \| "semantic" \| "keyword"` | `"hybrid"` | Search algorithm |
 | `limit` | `int` | `10` | Max results per collection (1-100) |
-| `alpha` | `float` | `0.5` | 0=BM25, 1=vector, 0.5=hybrid |
+| `alpha` | `float` | `0.5` | Hybrid balance: 0=BM25, 1=vector (hybrid mode only) |
 
-Returns: `KnowledgeSearchResult` with merged, score-sorted results.
+Search types: `hybrid` fuses BM25 + vector scores; `semantic` uses `near_text` for pure vector similarity; `keyword` uses `bm25` for pure keyword matching. Returns: `KnowledgeSearchResult` with merged, score-sorted results.
 
 **`knowledge_related`** -- Find semantically related objects via near-object vector search.
 
@@ -542,6 +543,15 @@ Returns: `KnowledgeStatsResult` with per-collection counts and total.
 | `properties` | `dict` | (required) | Object properties |
 
 Validates properties against the collection schema -- unknown keys are rejected. Returns: `KnowledgeIngestResult` with object UUID.
+
+**`knowledge_fetch`** -- Retrieve a single object by UUID.
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `object_id` | `str` | (required) | Weaviate object UUID |
+| `collection` | `KnowledgeCollection` | (required) | Source collection |
+
+Returns: `KnowledgeFetchResult` with `found` boolean and object `properties`.
 
 ---
 
@@ -624,7 +634,9 @@ Tool produces result
 | `https://*.weaviate.network` | `connect_to_weaviate_cloud(url, auth)` |
 | Other | `connect_to_custom(host, port, grpc_host, grpc_port)` |
 
-On first connection, `ensure_collections()` iterates all 7 `CollectionDef` objects and creates any that don't exist. This is idempotent -- existing collections are skipped.
+All connection paths include `AdditionalConfig(timeout=Timeout(init=30, query=60, insert=120))` for production reliability.
+
+On first connection, `ensure_collections()` iterates all 7 `CollectionDef` objects and creates any that don't exist using the v4 `Property()` API (not `create_from_dict`). Existing collections are evolved by adding missing properties via `_evolve_collection()`.
 
 ### Schema (`weaviate_schema.py`)
 
@@ -641,8 +653,13 @@ Seven collections, each defined as a `CollectionDef` dataclass:
 | `ResearchPlans` | `research_plan` | topic, task_decomposition |
 
 Every collection includes common properties:
-- `created_at` (date, skip vectorization)
-- `source_tool` (text, skip vectorization)
+- `created_at` (date, skip vectorization, range-indexed)
+- `source_tool` (text, skip vectorization, BM25-disabled)
+
+`PropertyDef` supports three index configuration fields:
+- `index_filterable` (default `True`) -- roaring-bitmap index for equality/contains filters
+- `index_range_filters` (default `False`) -- B-tree index for `>`, `<`, `>=`, `<=`, `between` on int/number/date fields
+- `index_searchable` (default `None` = Weaviate default) -- inverted index for BM25 keyword search; set to `False` on JSON blobs, IDs, and metadata text fields
 
 Fields marked `skip_vectorization=True` are stored but not included in the vector embedding (IDs, timestamps, raw JSON blobs).
 
@@ -673,11 +690,17 @@ Key design decisions:
 
 ### Knowledge Tools (`tools/knowledge.py`)
 
-Four tools provide read/write access to the knowledge store:
-- `knowledge_search` -- hybrid search (BM25 + vector) across any/all collections
+Six tools provide read/write access to the knowledge store:
+- `knowledge_search` -- search across collections (hybrid, semantic, or keyword mode)
 - `knowledge_related` -- near-object vector search for semantic similarity
-- `knowledge_stats` -- object counts per collection
+- `knowledge_stats` -- object counts per collection with optional group_by
 - `knowledge_ingest` -- manual insert with property validation
+- `knowledge_fetch` -- retrieve a single object by UUID
+
+`knowledge_search` supports three search modes via the `search_type` parameter:
+- `"hybrid"` (default) -- fuses BM25 keyword + vector similarity via `collection.query.hybrid()`
+- `"semantic"` -- pure vector similarity via `collection.query.near_text()`
+- `"keyword"` -- pure BM25 keyword matching via `collection.query.bm25()`
 
 All tools gracefully degrade when `weaviate_enabled` is `False` (return empty result models, not errors).
 
