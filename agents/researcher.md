@@ -24,7 +24,7 @@ For any research request:
 1. **Plan**: Use `research_plan` to design the research strategy
 2. **Gather**: Use `web_search` to find current sources and context
 3. **Analyze**: Use `research_deep` with appropriate scope
-4. **Verify**: Use `research_assess_evidence` on key claims against gathered sources
+4. **Verify**: For each key claim, call `research_assess_evidence` — these are independent and should run IN PARALLEL (multiple tool calls in one turn). Assess at least the top 3-5 claims simultaneously
 5. **Synthesize**: Combine findings into a coherent narrative with evidence tiers
 
 ## Evidence Tiers

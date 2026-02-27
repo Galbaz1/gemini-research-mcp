@@ -1,7 +1,7 @@
 ---
 description: Analyze any content — URL, file, or pasted text
 argument-hint: <url|file-path|text>
-allowed-tools: mcp__video-research__content_analyze, mcp__video-research__content_extract, mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_wait_for, Write, Glob, Read, Bash
+allowed-tools: mcp__video-research__content_analyze, mcp__video-research__content_extract, Write, Glob, Read, Bash
 model: sonnet
 ---
 
@@ -102,76 +102,25 @@ entities:
 
 3. Update the `updated` timestamp in frontmatter.
 
-## Phase 4: Generate Visualization
+## Phase 4: Background Visualization (optional)
 
-1. Read `skills/gemini-visualize/SKILL.md`
-2. Read `skills/gemini-visualize/templates/content-knowledge-graph.md`
-3. Generate a **single self-contained HTML file** (`knowledge-graph.html`) following the template:
-   - Map entities to nodes colored by type (Person=teal, Org=blue, Concept=purple, Tech=green)
-   - Map relationships to edges with labels
-   - Key points as wider pill-shaped nodes
-   - Central content anchor node
-   - Entity type filter checkboxes
-   - Radial layout from center
-   - Prompt generation for extraction refinement
-4. Use `Write` to save at `<memory-dir>/gr/analysis/<slug>/knowledge-graph.html`
+Ask the user with `AskUserQuestion`:
+- Question: "Generate interactive knowledge graph visualization? (runs in background)"
+- Option 1: "Yes (Recommended)" — description: "HTML visualization + screenshot + workspace copy, runs asynchronously"
+- Option 2: "Skip" — description: "Finish now with analysis only"
 
-**User override**: If the user said "skip visualization" or "no viz", skip Phases 4 and 5.
-
-## Phase 5: Screenshot Capture
-
-1. Start HTTP server:
-   ```
-   Bash: lsof -ti:18923 | xargs kill -9 2>/dev/null; python3 -m http.server 18923 --directory <memory-dir>/gr/analysis/<slug>/ &
-   ```
-
-2. Navigate: `mcp__playwright__browser_navigate` → `http://localhost:18923/knowledge-graph.html`
-
-3. Wait: `mcp__playwright__browser_wait_for` (2 seconds for render)
-
-4. Screenshot: `mcp__playwright__browser_take_screenshot` → save to `screenshot.png`
-
-5. Cleanup: kill server, `mcp__playwright__browser_close`
-
-If Playwright fails, skip gracefully.
-
-## Phase 6: Finalize & Link
-
-1. Append to `analysis.md`:
-
-```markdown
-## Visualization  <!-- <YYYY-MM-DD HH:MM> -->
-
-![Knowledge Graph](screenshot.png)
-Interactive: [Open knowledge graph](knowledge-graph.html)
+**If yes**: Spawn the `visualizer` agent in the background with this prompt:
+```
+analysis_path: <memory-dir>/gr/analysis/<slug>/analysis.md
+template_name: content-knowledge-graph
+slug: <slug>
+content_type: analysis
 ```
 
-2. Update the `updated` timestamp.
+**Do NOT wait** for the visualizer. Continue immediately to Deeper Exploration below. The user will be notified when visualization is done.
 
-3. Confirm: **Analysis complete — saved to `gr/analysis/<slug>/`**
-   - `analysis.md` — timestamped analysis with entity graph
-   - `knowledge-graph.html` — interactive knowledge graph
-   - `screenshot.png` — static capture
-
-## Phase 7: Workspace Output
-
-Copy all artifacts to the user's workspace. Use Python `shutil` (bash `cp` may be sandboxed):
-
-```
-Bash: python3 -c "
-import shutil, os
-src = '<memory-dir>/gr/analysis/<slug>'
-dst = os.path.join(os.getcwd(), 'output', '<slug>')
-if os.path.exists(dst):
-    shutil.rmtree(dst)
-shutil.copytree(src, dst)
-print(f'Copied to output/<slug>/')
-"
-```
-
-Tell the user: **Output also saved to `output/<slug>/`** in your workspace.
-
-If the workspace copy fails, it's non-critical — the memory copy is authoritative.
+**If skip**: Confirm: **Analysis complete — saved to `gr/analysis/<slug>/`**
+- `analysis.md` — timestamped analysis with entity graph
 
 ## Deeper Exploration
 

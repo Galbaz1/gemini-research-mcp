@@ -1,7 +1,7 @@
 ---
 description: Deep research on any topic with evidence-tier labeling
 argument-hint: <topic>
-allowed-tools: mcp__video-research__web_search, mcp__video-research__research_deep, mcp__video-research__research_plan, mcp__video-research__research_assess_evidence, mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_wait_for, Write, Glob, Read, Bash
+allowed-tools: mcp__video-research__web_search, mcp__video-research__research_deep, mcp__video-research__research_plan, mcp__video-research__research_assess_evidence, Write, Glob, Read, Bash
 model: sonnet
 ---
 
@@ -9,10 +9,14 @@ model: sonnet
 
 Run a multi-phase deep research analysis with progressive memory saving and automatic evidence-network visualization.
 
-## Phase 1: Research
+## Phase 1: Research (run BOTH in parallel)
 
-1. Use `web_search` to gather current sources on "$ARGUMENTS"
-2. Use `research_deep` with topic="$ARGUMENTS", scope="moderate", thinking_level="high"
+These two calls are independent — they hit different models with separate quotas. Issue both tool calls in a single turn:
+
+1. `web_search(query="$ARGUMENTS")` — uses Gemini Flash with Google Search grounding
+2. `research_deep(topic="$ARGUMENTS", scope="moderate", thinking_level="high")` — uses Gemini Pro
+
+Do NOT wait for one to finish before starting the other.
 
 ## Phase 2: Present & Save Initial Results
 
@@ -112,75 +116,25 @@ evidence_tiers:
 
 3. Update the `updated` timestamp in frontmatter.
 
-## Phase 4: Generate Visualization
+## Phase 4: Background Visualization (optional)
 
-1. Read `skills/gemini-visualize/SKILL.md`
-2. Read `skills/gemini-visualize/templates/research-evidence-net.md`
-3. Generate a **single self-contained HTML file** (`evidence-net.html`) following the template:
-   - Map findings to nodes colored by evidence tier
-   - Map relationships to edges (supports=green, contradicts=red, related=gray)
-   - Open questions as purple dashed-border nodes
-   - Evidence tier filter checkboxes
-   - Hierarchical layout (CONFIRMED at top, UNKNOWN at bottom)
-   - Prompt generation for follow-up research
-4. Use `Write` to save at `<memory-dir>/gr/research/<slug>/evidence-net.html`
+Ask the user with `AskUserQuestion`:
+- Question: "Generate interactive evidence network visualization? (runs in background)"
+- Option 1: "Yes (Recommended)" — description: "HTML visualization + screenshot + workspace copy, runs asynchronously"
+- Option 2: "Skip" — description: "Finish now with research only"
 
-**User override**: If the user said "skip visualization" or "no viz", skip Phases 4 and 5.
-
-## Phase 5: Screenshot Capture
-
-1. Start HTTP server:
-   ```
-   Bash: lsof -ti:18923 | xargs kill -9 2>/dev/null; python3 -m http.server 18923 --directory <memory-dir>/gr/research/<slug>/ &
-   ```
-
-2. Navigate: `mcp__playwright__browser_navigate` → `http://localhost:18923/evidence-net.html`
-
-3. Wait: `mcp__playwright__browser_wait_for` (2 seconds for render)
-
-4. Screenshot: `mcp__playwright__browser_take_screenshot` → save to `screenshot.png`
-
-5. Cleanup: kill server, `mcp__playwright__browser_close`
-
-If Playwright fails, skip gracefully.
-
-## Phase 6: Finalize & Link
-
-1. Append to `analysis.md`:
-
-```markdown
-## Visualization  <!-- <YYYY-MM-DD HH:MM> -->
-
-![Evidence Network](screenshot.png)
-Interactive: [Open evidence network](evidence-net.html)
+**If yes**: Spawn the `visualizer` agent in the background with this prompt:
+```
+analysis_path: <memory-dir>/gr/research/<slug>/analysis.md
+template_name: research-evidence-net
+slug: <slug>
+content_type: research
 ```
 
-2. Update the `updated` timestamp.
+**Do NOT wait** for the visualizer. Continue immediately to Deeper Analysis below. The user will be notified when visualization is done.
 
-3. Confirm: **Research complete — saved to `gr/research/<slug>/`**
-   - `analysis.md` — timestamped findings with evidence tiers
-   - `evidence-net.html` — interactive evidence network
-   - `screenshot.png` — static capture
-
-## Phase 7: Workspace Output
-
-Copy all artifacts to the user's workspace. Use Python `shutil` (bash `cp` may be sandboxed):
-
-```
-Bash: python3 -c "
-import shutil, os
-src = '<memory-dir>/gr/research/<slug>'
-dst = os.path.join(os.getcwd(), 'output', '<slug>')
-if os.path.exists(dst):
-    shutil.rmtree(dst)
-shutil.copytree(src, dst)
-print(f'Copied to output/<slug>/')
-"
-```
-
-Tell the user: **Output also saved to `output/<slug>/`** in your workspace.
-
-If the workspace copy fails, it's non-critical — the memory copy is authoritative.
+**If skip**: Confirm: **Research complete — saved to `gr/research/<slug>/`**
+- `analysis.md` — timestamped findings with evidence tiers
 
 ## Deeper Analysis
 
