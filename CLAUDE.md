@@ -1,208 +1,119 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## What This Is
 
-An MCP server (stdio transport, FastMCP) exposing 18 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3 (`google-api-python-client`). Built with Pydantic v2, hatchling build backend. Requires Python >= 3.11.
+An MCP server (stdio transport, FastMCP) exposing 18 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
 
 ## Commands
 
 ```bash
-# Install for development
-uv venv && source .venv/bin/activate && uv pip install -e ".[dev]"
-
-# Run all tests (asyncio_mode=auto, no real API calls)
-uv run pytest tests/ -v
-
-# Run a single test file or test
-uv run pytest tests/test_video_tools.py -v
-uv run pytest tests/test_video_tools.py::test_name -v
-
-# Run tests matching a keyword
-uv run pytest tests/ -k "video_analyze" -v
-
-# Lint (line-length=100, target py311)
-uv run ruff check src/ tests/
-
-# Run the MCP server locally
-GEMINI_API_KEY=... uv run video-research-mcp
+uv venv && source .venv/bin/activate && uv pip install -e ".[dev]"  # install
+uv run pytest tests/ -v                                              # all tests
+uv run pytest tests/ -k "video_analyze" -v                           # filtered
+uv run ruff check src/ tests/                                        # lint
+GEMINI_API_KEY=... uv run video-research-mcp                         # run server
 ```
 
 ## Architecture
 
-**Composite FastMCP server** — `server.py` creates a root `FastMCP("video-research")` and mounts 7 sub-servers:
+`server.py` mounts 7 sub-servers onto a root `FastMCP("video-research")`:
 
-```
-server.py (root, lifespan hook for cleanup)
-├── types.py                → shared Literal types + Annotated aliases
-├── youtube.py              → YouTubeClient singleton (Data API v3, async wrapper)
-├── tools/video.py          → video_server    (4 tools)
-├── tools/video_url.py      → URL validation helpers
-├── tools/youtube.py        → youtube_server  (2 tools: metadata + playlist)
-├── tools/research.py       → research_server (3 tools)
-├── tools/content.py        → content_server  (2 tools)
-├── tools/search.py         → search_server   (1 tool)
-├── tools/infra.py          → infra_server    (2 tools)
-├── tools/knowledge.py      → knowledge_server(4 tools)
-├── tools/video_file.py     → local file helpers (MIME, hash, File API upload)
-├── retry.py                → exponential backoff for Gemini API errors
-├── persistence.py          → SQLite WAL-mode session persistence
-├── weaviate_client.py      → WeaviateClient singleton (thread-safe, multi-deployment)
-├── weaviate_schema.py      → 7 collection definitions
-└── weaviate_store.py       → write-through store functions (one per collection)
-```
+| Sub-server | Tools | File |
+|------------|-------|------|
+| video | `video_analyze`, `video_create_session`, `video_continue_session`, `video_batch_analyze` | `tools/video.py` |
+| youtube | `video_metadata`, `video_playlist` | `tools/youtube.py` |
+| research | `research_deep`, `research_plan`, `research_assess_evidence` | `tools/research.py` |
+| content | `content_analyze`, `content_extract` | `tools/content.py` |
+| search | `web_search` | `tools/search.py` |
+| infra | `infra_cache`, `infra_configure` | `tools/infra.py` |
+| knowledge | `knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_ingest` | `tools/knowledge.py` |
 
-**Instruction-driven tools:** Tools accept an `instruction` parameter (free text) instead of fixed modes. The LLM client writes the instruction, Gemini returns structured JSON via `response_json_schema`. Tools also accept an optional `output_schema` dict for caller-defined response shapes.
+**Key patterns:**
+- **Instruction-driven tools** — tools accept free-text `instruction` + optional `output_schema` instead of fixed modes
+- **Structured output** — `GeminiClient.generate_structured(contents, schema=ModelClass)` returns validated Pydantic models
+- **Error handling** — tools never raise; return `make_tool_error()` dicts with `error`, `category`, `hint`, `retryable`
+- **Write-through storage** — every tool auto-stores results to Weaviate when configured; store calls are non-fatal
 
-**Structured output pattern:** Most tools use `GeminiClient.generate_structured(contents, schema=ModelClass)` which calls `generate()` with the model's JSON schema, then validates via `schema.model_validate_json(raw)`. This replaces all regex/line-scanning parsers from the previous architecture.
+**Key singletons:** `GeminiClient` (client.py), `get_config()` (config.py), `session_store` (sessions.py, optional SQLite via persistence.py), `cache` (cache.py), `WeaviateClient` (weaviate_client.py).
 
-**Key singletons:**
-- `GeminiClient` (`client.py`) — process-wide client pool keyed by API key. Two entry points: `generate()` returns raw text, `generate_structured()` returns a validated Pydantic model.
-- `get_config()` (`config.py`) — lazy-init `ServerConfig` from env vars with Pydantic `field_validator`. Mutable at runtime via `update_config()` / the `infra_configure` tool.
-- `session_store` (`sessions.py`) — in-memory `SessionStore` with optional SQLite persistence (`persistence.py`, WAL mode, enabled by `GEMINI_SESSION_DB`). TTL eviction and bounded history trimming for multi-turn video sessions.
-- `cache` module (`cache.py`) — file-based JSON cache keyed by `{content_id}_{tool}_{instruction_hash}_{model_hash}`. The instruction hash differentiates results for the same content analysed with different instructions.
-- `WeaviateClient` (`weaviate_client.py`) — process-wide Weaviate client (single cluster, thread-safe). Lazy-connects on first `.get()`, auto-creates collections from `weaviate_schema.py`. Disabled when `WEAVIATE_URL` is empty.
+> Deep dive: `docs/ARCHITECTURE.md` (13 sections) | `docs/DIAGRAMS.md` (4 Mermaid diagrams)
 
-**Input validation:** Tool params use `Literal` types (`ThinkingLevel`, `Scope`, `CacheAction`) from `types.py` for schema-level validation. `Annotated[type, Field(...)]` adds constraints and descriptions. YouTube URLs are validated against actual youtube.com/youtu.be hosts (rejects spoofed domains).
+## Conventions
 
-**Tool annotations:** All 18 tools carry `ToolAnnotations` (from `mcp.types`) declaring `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint`.
+### New Tools
 
-**Error handling:** Tools catch exceptions and return `make_tool_error()` dicts (from `errors.py`) with `error`, `category`, `hint`, and `retryable` fields. Convention is to never raise — always return a dict.
-
-**URL-context grounding:** `content_analyze` (URL path) uses `UrlContext()` tool wiring with a fallback to two-step (fetch unstructured, then reshape with structured output) if `response_json_schema` and `UrlContext` don't compose.
-
-**Prompt templates** live in `prompts/` — `prompts/research.py` has research phase prompts, `prompts/content.py` has the `STRUCTURED_EXTRACT` template. Video and content tools use instruction params directly.
-
-**Pydantic models** live in `models/` — one file per domain. These serve as both output schemas for Gemini structured output and response types for tool returns.
-
-**Write-through knowledge storage:** When Weaviate is configured (`WEAVIATE_URL`), every tool automatically stores its results via `weaviate_store.py` functions. Store calls are non-fatal — tools succeed even if Weaviate write fails. Pattern: import `store_*` inside the tool function, call after result is ready. See `weaviate_store.py` for per-collection store functions.
-
-## Tool Surface (18 tools)
-
-| Tool | Server | Input | Output Schema |
-|------|--------|-------|---------------|
-| `video_analyze` | video | url + instruction + optional schema | `VideoResult` or custom |
-| `video_create_session` | video | url + description | `SessionInfo` |
-| `video_continue_session` | video | session_id + prompt | `SessionResponse` |
-| `video_batch_analyze` | video | directory + instruction | `BatchVideoResult` |
-| `video_metadata` | youtube | url | `VideoMetadata` |
-| `video_playlist` | youtube | url + max_items | `PlaylistInfo` |
-| `research_deep` | research | topic + scope | `ResearchReport` |
-| `research_plan` | research | topic + scope + agents | `ResearchPlan` |
-| `research_assess_evidence` | research | claim + sources | `EvidenceAssessment` |
-| `content_analyze` | content | instruction + file/url/text + optional schema | `ContentResult` or custom |
-| `content_extract` | content | content + schema | caller-provided schema |
-| `web_search` | search | query + num_results | grounded sources dict |
-| `infra_cache` | infra | action + content_id | cache stats/entries/removed |
-| `infra_configure` | infra | preset/model/thinking/temp overrides | current config + active preset |
-| `knowledge_search` | knowledge | query + collections + alpha | `KnowledgeSearchResult` |
-| `knowledge_related` | knowledge | object_id + collection | `KnowledgeRelatedResult` |
-| `knowledge_stats` | knowledge | collection (optional) | `KnowledgeStatsResult` |
-| `knowledge_ingest` | knowledge | collection + properties | `KnowledgeIngestResult` |
-
-### Instruction Examples
+Every tool MUST have: (1) `ToolAnnotations` decorator, (2) `Annotated` params with `Field`, (3) Google-style docstring with Args/Returns, (4) structured output via `GeminiClient.generate_structured()`. Shared types live in `types.py`.
 
 ```python
-# Video: flexible analysis
-video_analyze(url="...", instruction="List all recipes and ingredients shown")
-video_analyze(url="...", instruction="Extract every CLI command demonstrated")
-video_analyze(url="...", instruction="Transcribe this video with timestamps")
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
+async def my_tool(
+    instruction: Annotated[str, Field(description="What to extract")],
+    thinking_level: ThinkingLevel = "medium",
+) -> dict:
+    """One-line summary of what this tool does.
 
-# Content: absorbs old summarize + analyze + web_analyze
-content_analyze(url="https://arxiv.org/...", instruction="Extract the methodology section")
-content_analyze(text="...", instruction="Summarize in 2 sentences")
-content_analyze(file_path="paper.pdf", instruction="List all citations")
+    Args:
+        instruction: Free-text analysis instruction.
 
-# Custom output schemas
-video_analyze(url="...", instruction="List recipes", output_schema={"type": "object", "properties": {"recipes": {"type": "array"}}})
+    Returns:
+        Dict with structured results or error via make_tool_error().
+    """
 ```
 
-## File Size Guidelines
+> Full walkthrough: `docs/tutorials/ADDING_A_TOOL.md`
 
-Aim for **~300 lines of code per production file** (`src/`). This is a guideline, not a hard rule. Docstrings, comments, and blank lines do NOT count; only executable code lines matter.
+### Docstrings
 
-When a file grows past 300 code lines, treat it as a signal to look for natural seams to split on (see `video.py` / `video_url.py` split as reference). Always split by concern, never by line number. Test files may go up to 500 lines.
+Google-style. Required on every module, public class, public function/method, and non-obvious private helpers. Be concise and factual — one-liner is enough when name + signature are self-explanatory. Args/Returns/Raises only when non-obvious. Pydantic models: document purpose and which tool uses them; don't duplicate `Field(description=...)`. Docstrings do NOT count toward file size limits.
 
-## Tool Conventions
+### File Size
 
-Every tool MUST have:
-
-1. **`ToolAnnotations`** in the decorator:
-   ```python
-   from mcp.types import ToolAnnotations
-   @server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
-   ```
-2. **`Annotated` params** with `Field` constraints for schema-level validation:
-   ```python
-   from typing import Annotated
-   from pydantic import Field
-   async def my_tool(
-       instruction: Annotated[str, Field(description="...")],
-       thinking_level: ThinkingLevel = "medium",
-   ) -> dict:
-   ```
-3. **Docstring** with Args/Returns sections.
-4. **Structured output** via `GeminiClient.generate_structured(schema=MyModel)` for default schemas, or `GeminiClient.generate(response_schema=custom_dict)` for caller-provided schemas.
-
-Shared `Literal` types and `Annotated` aliases live in `types.py`.
+~300 lines of executable code per production file (docstrings/comments/blanks excluded). Split by concern, not by line count. Test files may go to 500. Reference: `video.py` / `video_url.py` split.
 
 ## Testing
 
-Tests mock `GeminiClient.get()`, `.generate()`, and `.generate_structured()` via the `mock_gemini_client` fixture in `conftest.py`. An autouse fixture sets `GEMINI_API_KEY=test-key-not-real` — no test should ever hit the real API. Use `clean_config` fixture when testing config behavior.
+228 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
 
-228 tests, all unit-level with mocked Gemini. No pytest markers. `asyncio_mode=auto` is pre-configured.
+**Key fixtures** (`conftest.py`): `mock_gemini_client` (mocks `.get()`, `.generate()`, `.generate_structured()`), `clean_config` (isolates config), autouse `GEMINI_API_KEY=test-key-not-real`.
 
-### Writing Tests for New Tools
+**File naming:** `test_<domain>_tools.py` for tools, `test_<module>.py` for non-tool modules.
 
-1. **Test tool functions** using `mock_gemini_client` — set `mock_gemini_client["generate_structured"].return_value` to a Pydantic model instance, or `mock_gemini_client["generate"].return_value` to a JSON string. Call the tool, assert on the returned dict.
-2. **Test models** in `tests/test_models.py` — validate defaults, roundtrip serialization.
-3. **Test helpers** (URL validation, content part building) as pure function tests.
-4. **File naming**: `test_<domain>_tools.py` for tool tests, `test_<module>.py` for non-tool modules.
+> Full guide: `docs/tutorials/WRITING_TESTS.md`
 
-## Plugin Installer (npx)
+## Plugin Installer
 
-This project is also a **Claude Code plugin** distributed via npm. The installer (`bin/install.js`) copies commands, skills, and agents from this repo to `~/.claude/` (global) or `.claude/` (local).
+Claude Code plugin distributed via npm. `bin/install.js` copies commands/skills/agents to `~/.claude/`. File map in `bin/lib/copy.js`, manifest tracking in `bin/lib/manifest.js`.
 
-**How it works:**
-- `bin/lib/copy.js` defines a `FILE_MAP` — source paths (relative to repo root) → destination paths (relative to `~/.claude/`).
-- Commands in `commands/` map to `commands/gr/` at the destination, giving them the `/gr:` namespace.
-- `bin/lib/manifest.js` tracks SHA-256 hashes of installed files in `~/.claude/gr-file-manifest.json`. This enables idempotent reinstalls and preserves user modifications.
-- `bin/lib/config.js` merges MCP server entries into `~/.claude/.mcp.json`.
-
-**Adding a new command/skill/agent:**
-1. Create the file in the appropriate source directory (`commands/`, `skills/`, `agents/`).
-2. Add an entry to `FILE_MAP` in `bin/lib/copy.js` (e.g. `'commands/models.md': 'commands/gr/models.md'`).
-3. Reinstall locally: `node bin/install.js --global` — only the new file gets copied.
-4. New sessions in any workspace will pick it up.
-
-**Install/update/uninstall:**
 ```bash
-npx video-research-mcp@latest            # install (global by default)
-npx video-research-mcp@latest --check    # dry-run, show what would change
-npx video-research-mcp@latest --uninstall # remove all installed files
+npx video-research-mcp@latest              # install
+npx video-research-mcp@latest --check      # dry-run
+npx video-research-mcp@latest --uninstall  # remove
 ```
+
+To add a command/skill/agent: create file, add to `FILE_MAP` in `bin/lib/copy.js`, run `node bin/install.js --global`.
 
 ## Env Vars
 
-All env vars with defaults — see `config.py:ServerConfig.from_env()` for canonical source:
+Canonical source: `config.py:ServerConfig`. Key variables:
 
-| Variable | Default |
-|----------|---------|
-| `GEMINI_API_KEY` | (required) |
-| `GEMINI_MODEL` | `gemini-3.1-pro-preview` |
-| `GEMINI_FLASH_MODEL` | `gemini-3-flash-preview` |
-| `GEMINI_THINKING_LEVEL` | `high` |
-| `GEMINI_TEMPERATURE` | `1.0` |
-| `GEMINI_CACHE_DIR` | `~/.cache/video-research-mcp/` |
-| `GEMINI_CACHE_TTL_DAYS` | `30` |
-| `GEMINI_MAX_SESSIONS` | `50` |
-| `GEMINI_SESSION_TIMEOUT_HOURS` | `2` |
-| `GEMINI_SESSION_MAX_TURNS` | `24` |
-| `GEMINI_RETRY_MAX_ATTEMPTS` | `3` |
-| `GEMINI_RETRY_BASE_DELAY` | `1.0` |
-| `GEMINI_RETRY_MAX_DELAY` | `60.0` |
-| `YOUTUBE_API_KEY` | `""` (falls back to `GEMINI_API_KEY`) |
-| `GEMINI_SESSION_DB` | `""` (empty = in-memory only) |
-| `WEAVIATE_URL` | `""` (empty = knowledge store disabled) |
-| `WEAVIATE_API_KEY` | `""` (required for Weaviate Cloud) |
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `GEMINI_API_KEY` | (required) | Also used as YouTube fallback |
+| `GEMINI_MODEL` | `gemini-3.1-pro-preview` | |
+| `GEMINI_FLASH_MODEL` | `gemini-3-flash-preview` | |
+| `WEAVIATE_URL` | `""` | Empty = knowledge store disabled |
+| `WEAVIATE_API_KEY` | `""` | Required for Weaviate Cloud |
+| `GEMINI_SESSION_DB` | `""` | Empty = in-memory only |
+
+All other config (thinking level, temperature, cache dir/TTL, session limits, retry params, YouTube API key) has sensible defaults — see `config.py` or `docs/ARCHITECTURE.md` §10.
+
+## Developer Docs
+
+| Document | Contents |
+|----------|----------|
+| `docs/ARCHITECTURE.md` | Full technical manual — 13 sections covering every pattern and module |
+| `docs/DIAGRAMS.md` | Server hierarchy, GeminiClient flow, session lifecycle, Weaviate data flow |
+| `docs/tutorials/GETTING_STARTED.md` | Install, configure, first tool call |
+| `docs/tutorials/ADDING_A_TOOL.md` | Step-by-step tool creation with checklist |
+| `docs/tutorials/WRITING_TESTS.md` | Fixtures, patterns, running tests |
+| `docs/tutorials/KNOWLEDGE_STORE.md` | Weaviate setup, 7 collections, 4 knowledge tools |
