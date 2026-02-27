@@ -14,10 +14,10 @@ from urllib.parse import urlparse
 
 import weaviate
 from weaviate.classes.config import DataType, Property, ReferenceProperty
-from weaviate.classes.init import Auth
+from weaviate.classes.init import AdditionalConfig, Auth, Timeout
 
 from .config import get_config
-from .weaviate_schema import CollectionDef
+from .weaviate_schema import CollectionDef, PropertyDef
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,25 @@ def _resolve_data_type(type_str: str) -> DataType:
     return dt
 
 
+def _to_property(prop_def: PropertyDef) -> Property:
+    """Convert a PropertyDef to a v4 Property object with full index config."""
+    kwargs: dict = {
+        "name": prop_def.name,
+        "data_type": _resolve_data_type(prop_def.data_type[0]),
+        "description": prop_def.description or None,
+        "skip_vectorization": prop_def.skip_vectorization,
+        "index_filterable": prop_def.index_filterable,
+        "index_range_filters": prop_def.index_range_filters,
+    }
+    if prop_def.index_searchable is not None:
+        kwargs["index_searchable"] = prop_def.index_searchable
+    return Property(**kwargs)
+
+
+_TIMEOUT = Timeout(init=30, query=60, insert=120)
+_ADDITIONAL_CONFIG = AdditionalConfig(timeout=_TIMEOUT)
+
+
 def _connect(url: str, api_key: str) -> weaviate.WeaviateClient:
     """Connect to Weaviate using the appropriate method for the URL scheme.
 
@@ -62,12 +81,14 @@ def _connect(url: str, api_key: str) -> weaviate.WeaviateClient:
             host=host,
             port=port,
             grpc_port=grpc_port,
+            additional_config=_ADDITIONAL_CONFIG,
         )
 
     if parsed.scheme == "https":
         return weaviate.connect_to_weaviate_cloud(
             cluster_url=url,
             auth_credentials=Auth.api_key(api_key) if api_key else None,
+            additional_config=_ADDITIONAL_CONFIG,
         )
 
     # Custom deployment (non-local, non-WCS)
@@ -79,6 +100,7 @@ def _connect(url: str, api_key: str) -> weaviate.WeaviateClient:
         grpc_port=(parsed.port or 8080) + 1,
         grpc_secure=parsed.scheme == "https",
         auth_credentials=Auth.api_key(api_key) if api_key else None,
+        additional_config=_ADDITIONAL_CONFIG,
     )
 
 
@@ -130,7 +152,11 @@ class WeaviateClient:
         existing = set(_client.collections.list_all().keys())
         for col_def in ALL_COLLECTIONS:
             if col_def.name not in existing:
-                _client.collections.create_from_dict(col_def.to_dict())
+                _client.collections.create(
+                    name=col_def.name,
+                    description=col_def.description,
+                    properties=[_to_property(p) for p in col_def.properties],
+                )
                 logger.info("Created Weaviate collection: %s", col_def.name)
             else:
                 cls._evolve_collection(col_def)
@@ -147,12 +173,7 @@ class WeaviateClient:
             if prop_def.name in existing_props:
                 continue
             try:
-                col.config.add_property(Property(
-                    name=prop_def.name,
-                    data_type=_resolve_data_type(prop_def.data_type[0]),
-                    description=prop_def.description,
-                    skip_vectorization=prop_def.skip_vectorization,
-                ))
+                col.config.add_property(_to_property(prop_def))
                 logger.info("Added property %s.%s", col_def.name, prop_def.name)
             except Exception as exc:
                 logger.debug("Property %s.%s already exists or failed: %s", col_def.name, prop_def.name, exc)
