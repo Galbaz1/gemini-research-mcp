@@ -7,6 +7,7 @@ from video_research_mcp.weaviate_schema import (
     CONTENT_ANALYSES,
     RESEARCH_FINDINGS,
     RESEARCH_PLANS,
+    SESSION_TRANSCRIPTS,
     VIDEO_ANALYSES,
     VIDEO_METADATA,
 )
@@ -187,3 +188,82 @@ class TestVectorizeFlags:
         prop = next(p for p in RESEARCH_FINDINGS.properties if p.name == "claim")
         d = prop.to_dict()
         assert "moduleConfig" not in d
+
+
+class TestIndexFlags:
+    """Verify index_filterable, index_range_filters, index_searchable flags."""
+
+    def test_created_at_has_range_index(self):
+        """created_at should have index_range_filters=True in all collections."""
+        for col in ALL_COLLECTIONS:
+            prop = next(p for p in col.properties if p.name == "created_at")
+            assert prop.index_range_filters is True, f"{col.name}.created_at needs range index"
+
+    def test_numeric_fields_have_range_index(self):
+        """All int/number fields that are filterable should have range indexes."""
+        expected_range = {
+            "VideoMetadata": {"view_count", "like_count", "comment_count", "duration_seconds"},
+            "ResearchFindings": {"confidence"},
+            "SessionTranscripts": {"turn_index"},
+        }
+        for col in ALL_COLLECTIONS:
+            range_props = expected_range.get(col.name, set())
+            for prop in col.properties:
+                if prop.name in range_props:
+                    assert prop.index_range_filters is True, (
+                        f"{col.name}.{prop.name} should have range index"
+                    )
+
+    def test_json_fields_not_searchable(self):
+        """JSON blob text fields should have index_searchable=False."""
+        json_fields = {
+            "VideoAnalyses": {"raw_result", "timestamps_json"},
+            "ContentAnalyses": {"raw_result"},
+            "WebSearchResults": {"sources_json"},
+            "ResearchPlans": {"phases_json", "recommended_models_json"},
+        }
+        for col in ALL_COLLECTIONS:
+            field_names = json_fields.get(col.name, set())
+            for prop in col.properties:
+                if prop.name in field_names:
+                    assert prop.index_searchable is False, (
+                        f"{col.name}.{prop.name} should not be BM25 searchable"
+                    )
+
+    def test_id_fields_not_searchable(self):
+        """ID and metadata text fields should have index_searchable=False."""
+        id_fields = {
+            "VideoAnalyses": {"video_id", "source_url", "sentiment"},
+            "VideoMetadata": {"video_id", "channel_id", "duration", "published_at", "definition", "default_language"},
+            "ContentAnalyses": {"source"},
+            "SessionTranscripts": {"session_id"},
+            "ResearchFindings": {"scope", "evidence_tier", "report_uuid"},
+            "ResearchPlans": {"scope"},
+        }
+        for col in ALL_COLLECTIONS:
+            field_names = id_fields.get(col.name, set())
+            for prop in col.properties:
+                if prop.name in field_names:
+                    assert prop.index_searchable is False, (
+                        f"{col.name}.{prop.name} should not be BM25 searchable"
+                    )
+
+    def test_source_tool_not_searchable_everywhere(self):
+        """source_tool should have index_searchable=False in all collections."""
+        for col in ALL_COLLECTIONS:
+            prop = next(p for p in col.properties if p.name == "source_tool")
+            assert prop.index_searchable is False, f"{col.name}.source_tool should not be searchable"
+
+    def test_semantic_fields_use_default_searchable(self):
+        """Vectorized text fields should have index_searchable=None (Weaviate default)."""
+        for prop in RESEARCH_FINDINGS.properties:
+            if prop.name in ("topic", "claim", "reasoning", "executive_summary"):
+                assert prop.index_searchable is None, f"{prop.name} should use default searchable"
+
+    def test_all_properties_are_filterable(self):
+        """All properties should have index_filterable=True (default)."""
+        for col in ALL_COLLECTIONS:
+            for prop in col.properties:
+                assert prop.index_filterable is True, (
+                    f"{col.name}.{prop.name} should be filterable"
+                )

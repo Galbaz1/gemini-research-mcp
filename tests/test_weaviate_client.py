@@ -121,7 +121,7 @@ class TestEnsureCollections:
         mock_connect.return_value = mock_client
 
         WeaviateClient.get()
-        mock_client.collections.create_from_dict.assert_not_called()
+        mock_client.collections.create.assert_not_called()
 
 
 class TestEvolveCollection:
@@ -253,3 +253,124 @@ class TestResolveDataType:
 
         with pytest.raises(ValueError, match="Unknown data type"):
             _resolve_data_type("blob")
+
+
+class TestToProperty:
+    """Tests for _to_property() helper."""
+
+    def test_converts_basic_property(self):
+        """_to_property creates Property with correct data type and name."""
+        from weaviate.classes.config import DataType
+        from video_research_mcp.weaviate_client import _to_property
+        from video_research_mcp.weaviate_schema import PropertyDef
+
+        prop = _to_property(PropertyDef("title", ["text"], "A title"))
+        assert prop.name == "title"
+        assert prop.dataType == DataType.TEXT
+
+    def test_carries_index_range_filters(self):
+        """_to_property passes index_range_filters to Property."""
+        from video_research_mcp.weaviate_client import _to_property
+        from video_research_mcp.weaviate_schema import PropertyDef
+
+        prop = _to_property(PropertyDef(
+            "view_count", ["int"], "Views", index_range_filters=True,
+        ))
+        assert prop.indexRangeFilters is True
+
+    def test_carries_index_searchable_false(self):
+        """_to_property passes index_searchable=False to Property."""
+        from video_research_mcp.weaviate_client import _to_property
+        from video_research_mcp.weaviate_schema import PropertyDef
+
+        prop = _to_property(PropertyDef(
+            "raw_json", ["text"], "JSON", index_searchable=False,
+        ))
+        assert prop.indexSearchable is False
+
+    def test_omits_index_searchable_when_none(self):
+        """_to_property leaves indexSearchable as None when not explicitly set."""
+        from video_research_mcp.weaviate_client import _to_property
+        from video_research_mcp.weaviate_schema import PropertyDef
+
+        prop = _to_property(PropertyDef("title", ["text"], "Title"))
+        # None = Weaviate server applies its default (True for text)
+        assert prop.indexSearchable is None
+
+
+class TestTimeoutConfig:
+    """Tests for timeout configuration in _connect()."""
+
+    @patch("video_research_mcp.weaviate_client.weaviate.connect_to_weaviate_cloud")
+    def test_cloud_connection_passes_timeout(self, mock_connect, clean_config, monkeypatch):
+        """Cloud connection includes AdditionalConfig with timeouts."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        monkeypatch.setenv("WEAVIATE_API_KEY", "test-key")
+        from video_research_mcp.weaviate_client import WeaviateClient, _ADDITIONAL_CONFIG
+        WeaviateClient.reset()
+
+        mock_client = MagicMock()
+        mock_client.collections.list_all.return_value = {}
+        mock_connect.return_value = mock_client
+
+        WeaviateClient.get()
+        call_kwargs = mock_connect.call_args[1]
+        assert call_kwargs["additional_config"] is _ADDITIONAL_CONFIG
+
+    @patch("video_research_mcp.weaviate_client.weaviate.connect_to_local")
+    def test_local_connection_passes_timeout(self, mock_connect, clean_config, monkeypatch):
+        """Local connection includes AdditionalConfig with timeouts."""
+        monkeypatch.setenv("WEAVIATE_URL", "http://localhost:8080")
+        from video_research_mcp.weaviate_client import WeaviateClient, _ADDITIONAL_CONFIG
+        WeaviateClient.reset()
+
+        mock_client = MagicMock()
+        mock_client.collections.list_all.return_value = {}
+        mock_connect.return_value = mock_client
+
+        WeaviateClient.get()
+        call_kwargs = mock_connect.call_args[1]
+        assert call_kwargs["additional_config"] is _ADDITIONAL_CONFIG
+
+    def test_timeout_values(self):
+        """Timeout is configured with init=30, query=60, insert=120."""
+        from video_research_mcp.weaviate_client import _TIMEOUT
+        assert _TIMEOUT.init == 30
+        assert _TIMEOUT.query == 60
+        assert _TIMEOUT.insert == 120
+
+
+class TestV4PropertyAPI:
+    """Tests for v4 Property API migration in ensure_collections."""
+
+    @patch("video_research_mcp.weaviate_client.weaviate.connect_to_weaviate_cloud")
+    def test_uses_create_not_create_from_dict(self, mock_connect, clean_config, monkeypatch):
+        """ensure_collections uses client.collections.create() not create_from_dict()."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.weaviate_client import WeaviateClient
+        WeaviateClient.reset()
+
+        mock_client = MagicMock()
+        mock_client.collections.list_all.return_value = {}  # no existing collections
+        mock_connect.return_value = mock_client
+
+        WeaviateClient.get()
+        assert mock_client.collections.create.call_count == 7
+        mock_client.collections.create_from_dict.assert_not_called()
+
+    @patch("video_research_mcp.weaviate_client.weaviate.connect_to_weaviate_cloud")
+    def test_create_passes_property_objects(self, mock_connect, clean_config, monkeypatch):
+        """ensure_collections passes Property objects (not dicts) to create()."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from weaviate.classes.config import Property
+        from video_research_mcp.weaviate_client import WeaviateClient
+        WeaviateClient.reset()
+
+        mock_client = MagicMock()
+        mock_client.collections.list_all.return_value = {}
+        mock_connect.return_value = mock_client
+
+        WeaviateClient.get()
+        first_call = mock_client.collections.create.call_args_list[0]
+        props = first_call[1]["properties"]
+        assert all(isinstance(p, Property) for p in props)
