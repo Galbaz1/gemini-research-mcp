@@ -66,10 +66,13 @@ This lets users cycle knowledge states, then generate a targeted prompt to paste
 
 After generating and saving the HTML file:
 
-1. **Start HTTP server**: `python3 -m http.server 18923 --directory <artifact-dir> &`
+1. **Start HTTP server**: `lsof -ti:18923 | xargs kill -9 2>/dev/null; python3 -m http.server 18923 --directory <artifact-dir> &`
    - Use the specific artifact directory (e.g., `gr/video/<slug>/`)
-   - Port 18923 (unlikely to conflict)
-2. **Navigate**: `mcp__playwright__browser_navigate` to `http://localhost:18923/concept-map.html`
+   - Port 18923 — kill any prior instance first to avoid address-in-use errors
+2. **Navigate**: `mcp__playwright__browser_navigate` to `http://localhost:18923/<viz-filename>`
+   - `concept-map.html` for video/video-chat
+   - `evidence-net.html` for research
+   - `knowledge-graph.html` for analyze
 3. **Wait**: `mcp__playwright__browser_wait_for` with 2-second timeout for canvas/SVG render
 4. **Screenshot**: `mcp__playwright__browser_take_screenshot` — save raw bytes
 5. **Save PNG**: Write screenshot data to `<artifact-dir>/screenshot.png`

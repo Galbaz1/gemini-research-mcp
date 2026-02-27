@@ -131,7 +131,7 @@ evidence_tiers:
 
 1. Start HTTP server:
    ```
-   Bash: python3 -m http.server 18923 --directory <memory-dir>/gr/research/<slug>/ &
+   Bash: lsof -ti:18923 | xargs kill -9 2>/dev/null; python3 -m http.server 18923 --directory <memory-dir>/gr/research/<slug>/ &
    ```
 
 2. Navigate: `mcp__playwright__browser_navigate` → `http://localhost:18923/evidence-net.html`
@@ -171,12 +171,9 @@ Bash: python3 -c "
 import shutil, os
 src = '<memory-dir>/gr/research/<slug>'
 dst = os.path.join(os.getcwd(), 'output', '<slug>')
-os.makedirs(dst, exist_ok=True)
-for f in os.listdir(src):
-    fp = os.path.join(src, f)
-    if os.path.isfile(fp):
-        shutil.copy2(fp, dst)
-        print(f'  {f}')
+if os.path.exists(dst):
+    shutil.rmtree(dst)
+shutil.copytree(src, dst)
 print(f'Copied to output/<slug>/')
 "
 ```

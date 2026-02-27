@@ -80,7 +80,7 @@ For each follow-up question:
 1. Use `video_continue_session` with the session_id and the user's prompt
 2. Present the answer conversationally, citing timestamps when available
 3. **Extract frames** if the answer references visual moments (local files only, see above)
-4. **Append to analysis.md** using `Edit` — add a timestamped Q&A entry:
+4. **Append to analysis.md** using `Edit` — add a timestamped Q&A entry (include frame embeds if extracted):
 
 ```markdown
 
@@ -89,11 +89,11 @@ For each follow-up question:
 <Summarized answer with key timestamps>
 ```
 
-4. **Track new concepts**: If the answer introduces new concepts not already in the YAML frontmatter:
+5. **Track new concepts**: If the answer introduces new concepts not already in the YAML frontmatter:
    - Add them to the `concepts` array with `state: unknown`
    - Update the `updated` timestamp
 
-5. After every 3-5 Q&A exchanges, briefly note if new concepts have accumulated that would enrich a visualization update. Don't generate the viz mid-conversation — just track.
+6. After every 3-5 Q&A exchanges, briefly note if new concepts have accumulated that would enrich a visualization update. Don't generate the viz mid-conversation — just track.
 
 ## Session End
 
@@ -134,7 +134,7 @@ Add a summary section to analysis.md:
 
 ### 4. Screenshot Capture
 
-1. Start HTTP server: `python3 -m http.server 18923 --directory <memory-dir>/gr/video-chat/<slug>/ &`
+1. Start HTTP server: `lsof -ti:18923 | xargs kill -9 2>/dev/null; python3 -m http.server 18923 --directory <memory-dir>/gr/video-chat/<slug>/ &`
 2. Navigate: `mcp__playwright__browser_navigate` → `http://localhost:18923/concept-map.html`
 3. Wait: `mcp__playwright__browser_wait_for` (2 seconds for render)
 4. Screenshot: `mcp__playwright__browser_take_screenshot` → save to `screenshot.png`
@@ -162,12 +162,9 @@ Bash: python3 -c "
 import shutil, os
 src = '<memory-dir>/gr/video-chat/<slug>'
 dst = os.path.join(os.getcwd(), 'output', '<slug>')
-os.makedirs(dst, exist_ok=True)
-for f in os.listdir(src):
-    fp = os.path.join(src, f)
-    if os.path.isfile(fp):
-        shutil.copy2(fp, dst)
-        print(f'  {f}')
+if os.path.exists(dst):
+    shutil.rmtree(dst)
+shutil.copytree(src, dst)
 print(f'Copied to output/<slug>/')
 "
 ```

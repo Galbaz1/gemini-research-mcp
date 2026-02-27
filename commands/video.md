@@ -97,11 +97,16 @@ frames_dir = '<memory-dir>/gr/video/<slug>/frames'
 os.makedirs(frames_dir, exist_ok=True)
 
 analysis = open('<memory-dir>/gr/video/<slug>/analysis.md').read()
-markers = re.findall(r'\[SCREENSHOT:(\d{1,2}:\d{2}):(.*?)\]', analysis)
+markers = re.findall(r'\[SCREENSHOT:([\d:]+):(.*?)\]', analysis)
 
 for ts, desc in markers:
     parts = ts.split(':')
-    ffmpeg_ts = f'00:{parts[0].zfill(2)}:{parts[1]}'
+    if len(parts) == 2:
+        ffmpeg_ts = f'00:{parts[0].zfill(2)}:{parts[1]}'
+    elif len(parts) == 3:
+        ffmpeg_ts = f'{parts[0].zfill(2)}:{parts[1]}:{parts[2]}'
+    else:
+        continue
     safe_ts = ts.replace(':', '')
     out = os.path.join(frames_dir, f'frame_{safe_ts}.png')
     subprocess.run(['ffmpeg', '-y', '-ss', ffmpeg_ts, '-i', video_path, '-frames:v', '1', '-q:v', '2', out], capture_output=True)
@@ -175,7 +180,7 @@ concepts:
 
 1. Start a background HTTP server:
    ```
-   Bash: python3 -m http.server 18923 --directory <memory-dir>/gr/video/<slug>/ &
+   Bash: lsof -ti:18923 | xargs kill -9 2>/dev/null; python3 -m http.server 18923 --directory <memory-dir>/gr/video/<slug>/ &
    ```
    Capture the PID from output.
 
@@ -230,12 +235,9 @@ Bash: python3 -c "
 import shutil, os
 src = '<memory-dir>/gr/video/<slug>'
 dst = os.path.join(os.getcwd(), 'output', '<slug>')
-os.makedirs(dst, exist_ok=True)
-for f in os.listdir(src):
-    fp = os.path.join(src, f)
-    if os.path.isfile(fp):
-        shutil.copy2(fp, dst)
-        print(f'  {f}')
+if os.path.exists(dst):
+    shutil.rmtree(dst)
+shutil.copytree(src, dst)
 print(f'Copied to output/<slug>/')
 "
 ```
