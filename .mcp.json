@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "gemini-research": {
+      "command": "uv",
+      "args": ["run", "--directory", ".", "gemini-research-mcp"],
+      "env": {
+        "GEMINI_API_KEY": "${GEMINI_API_KEY}"
+      }
+    }
+  }
+}
