@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_thinking_level(value: str) -> str:
+    """Normalize and validate a thinking level string.
+
+    Raises:
+        ValueError: If the level is not in VALID_THINKING_LEVELS.
+    """
     level = value.strip().lower()
     if level not in VALID_THINKING_LEVELS:
         allowed = ", ".join(sorted(VALID_THINKING_LEVELS))
@@ -53,9 +58,24 @@ class GeminiClient:
         tools: list[types.Tool] | None = None,
         **kwargs: Any,
     ) -> str:
-        """Unified async generate with thinking + optional structured output.
+        """Generate text via Gemini with thinking support and optional structured output.
 
-        Returns the model's text response (thinking parts stripped).
+        Builds a GenerateContentConfig from resolved model/thinking/temperature
+        defaults, delegates to the async API with retry, and strips thinking
+        parts from the response.
+
+        Args:
+            contents: Prompt contents (text, multimodal parts, or conversation history).
+            model: Override model ID (defaults to config's default_model).
+            thinking_level: Override thinking level (defaults to config's default).
+            response_schema: JSON schema dict to constrain output format.
+            temperature: Override temperature (defaults to config's default).
+            system_instruction: System-level instruction prepended to the prompt.
+            tools: Gemini tool wiring (e.g. GoogleSearch, UrlContext).
+            **kwargs: Forwarded to the underlying generate_content call.
+
+        Returns:
+            The model's text response with thinking parts stripped.
         """
         cfg = get_config()
         resolved_model = model or cfg.default_model

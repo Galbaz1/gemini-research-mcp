@@ -29,6 +29,11 @@ class SessionStore:
     """Process-wide session registry with TTL eviction."""
 
     def __init__(self, db_path: str = "") -> None:
+        """Initialize the store with optional SQLite persistence.
+
+        Args:
+            db_path: Path to SQLite DB file. Empty string = in-memory only.
+        """
         from .persistence import SessionDB
 
         self._sessions: dict[str, VideoSession] = {}
@@ -55,6 +60,7 @@ class SessionStore:
         return session
 
     def get(self, session_id: str) -> VideoSession | None:
+        """Look up a session by ID, falling back to SQLite if configured."""
         self._evict_expired()
         session = self._sessions.get(session_id)
         if session is None and self._db:
@@ -86,6 +92,7 @@ class SessionStore:
         return session.turn_count
 
     def _evict_expired(self) -> int:
+        """Remove sessions that have exceeded the configured timeout. Returns count evicted."""
         timeout = timedelta(hours=get_config().session_timeout_hours)
         now = datetime.now()
         expired = [sid for sid, s in self._sessions.items() if now - s.last_active > timeout]
@@ -95,6 +102,7 @@ class SessionStore:
 
     @property
     def count(self) -> int:
+        """Number of active in-memory sessions."""
         return len(self._sessions)
 
 

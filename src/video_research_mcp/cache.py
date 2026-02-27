@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def _cache_dir() -> Path:
+    """Return the cache directory path, creating it if needed."""
     d = Path(get_config().cache_dir)
     d.mkdir(parents=True, exist_ok=True)
     return d
@@ -33,6 +34,7 @@ def cache_key(content_id: str, tool_name: str, model: str, instruction: str = ""
 def cache_path(
     content_id: str, tool_name: str, model: str, instruction: str = "",
 ) -> Path:
+    """Return the full filesystem path for a cache entry's JSON file."""
     return _cache_dir() / f"{cache_key(content_id, tool_name, model, instruction)}.json"
 
 
