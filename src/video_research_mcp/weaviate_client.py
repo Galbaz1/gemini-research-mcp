@@ -13,15 +13,34 @@ import threading
 from urllib.parse import urlparse
 
 import weaviate
+from weaviate.classes.config import DataType, Property, ReferenceProperty
 from weaviate.classes.init import Auth
 
 from .config import get_config
+from .weaviate_schema import CollectionDef
 
 logger = logging.getLogger(__name__)
 
 _client: weaviate.WeaviateClient | None = None
 _schema_ensured = False
 _lock = threading.Lock()
+
+_DATA_TYPE_MAP: dict[str, DataType] = {
+    "text": DataType.TEXT,
+    "text[]": DataType.TEXT_ARRAY,
+    "int": DataType.INT,
+    "number": DataType.NUMBER,
+    "boolean": DataType.BOOL,
+    "date": DataType.DATE,
+}
+
+
+def _resolve_data_type(type_str: str) -> DataType:
+    """Map a schema string type name to a Weaviate DataType enum value."""
+    dt = _DATA_TYPE_MAP.get(type_str)
+    if dt is None:
+        raise ValueError(f"Unknown data type: {type_str!r}")
+    return dt
 
 
 def _connect(url: str, api_key: str) -> weaviate.WeaviateClient:
@@ -98,7 +117,11 @@ class WeaviateClient:
 
     @classmethod
     def ensure_collections(cls) -> None:
-        """Idempotent schema creation — skips existing collections."""
+        """Idempotent schema creation + evolution for existing deployments.
+
+        Pass 1: create missing collections, evolve existing ones.
+        Pass 2: add cross-references (targets must exist first).
+        """
         from .weaviate_schema import ALL_COLLECTIONS
 
         if _client is None:
@@ -110,7 +133,46 @@ class WeaviateClient:
                 _client.collections.create_from_dict(col_def.to_dict())
                 logger.info("Created Weaviate collection: %s", col_def.name)
             else:
-                logger.debug("Collection already exists: %s", col_def.name)
+                cls._evolve_collection(col_def)
+
+        cls._ensure_references(ALL_COLLECTIONS)
+
+    @classmethod
+    def _evolve_collection(cls, col_def: CollectionDef) -> None:
+        """Add missing properties to an existing collection (additive only)."""
+        col = _client.collections.get(col_def.name)
+        existing_props = {p.name for p in col.config.get().properties}
+
+        for prop_def in col_def.properties:
+            if prop_def.name in existing_props:
+                continue
+            try:
+                col.config.add_property(Property(
+                    name=prop_def.name,
+                    data_type=_resolve_data_type(prop_def.data_type[0]),
+                    description=prop_def.description,
+                    skip_vectorization=prop_def.skip_vectorization,
+                ))
+                logger.info("Added property %s.%s", col_def.name, prop_def.name)
+            except Exception as exc:
+                logger.debug("Property %s.%s already exists or failed: %s", col_def.name, prop_def.name, exc)
+
+    @classmethod
+    def _ensure_references(cls, collections: list[CollectionDef]) -> None:
+        """Add missing cross-references (second pass, targets must exist)."""
+        for col_def in collections:
+            if not col_def.references:
+                continue
+            col = _client.collections.get(col_def.name)
+            for ref_def in col_def.references:
+                try:
+                    col.config.add_reference(ReferenceProperty(
+                        name=ref_def.name,
+                        target_collection=ref_def.target_collection,
+                    ))
+                    logger.info("Added reference %s.%s → %s", col_def.name, ref_def.name, ref_def.target_collection)
+                except Exception as exc:
+                    logger.debug("Reference %s.%s already exists or failed: %s", col_def.name, ref_def.name, exc)
 
     @classmethod
     def is_available(cls) -> bool:
