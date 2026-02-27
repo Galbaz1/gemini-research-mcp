@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-An MCP server (stdio transport, FastMCP 3.0.2) exposing 17 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3 (`google-api-python-client`). Built with Pydantic v2, hatchling build backend. Requires Python >= 3.11.
+An MCP server (stdio transport, FastMCP) exposing 18 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3 (`google-api-python-client`). Built with Pydantic v2, hatchling build backend. Requires Python >= 3.11.
 
 ## Commands
 
@@ -45,6 +45,9 @@ server.py (root, lifespan hook for cleanup)
 ├── tools/search.py         → search_server   (1 tool)
 ├── tools/infra.py          → infra_server    (2 tools)
 ├── tools/knowledge.py      → knowledge_server(4 tools)
+├── tools/video_file.py     → local file helpers (MIME, hash, File API upload)
+├── retry.py                → exponential backoff for Gemini API errors
+├── persistence.py          → SQLite WAL-mode session persistence
 ├── weaviate_client.py      → WeaviateClient singleton (thread-safe, multi-deployment)
 ├── weaviate_schema.py      → 7 collection definitions
 └── weaviate_store.py       → write-through store functions (one per collection)
@@ -57,12 +60,13 @@ server.py (root, lifespan hook for cleanup)
 **Key singletons:**
 - `GeminiClient` (`client.py`) — process-wide client pool keyed by API key. Two entry points: `generate()` returns raw text, `generate_structured()` returns a validated Pydantic model.
 - `get_config()` (`config.py`) — lazy-init `ServerConfig` from env vars with Pydantic `field_validator`. Mutable at runtime via `update_config()` / the `infra_configure` tool.
-- `session_store` (`sessions.py`) — in-memory `SessionStore` for multi-turn video sessions with TTL eviction and bounded history trimming.
+- `session_store` (`sessions.py`) — in-memory `SessionStore` with optional SQLite persistence (`persistence.py`, WAL mode, enabled by `GEMINI_SESSION_DB`). TTL eviction and bounded history trimming for multi-turn video sessions.
 - `cache` module (`cache.py`) — file-based JSON cache keyed by `{content_id}_{tool}_{instruction_hash}_{model_hash}`. The instruction hash differentiates results for the same content analysed with different instructions.
+- `WeaviateClient` (`weaviate_client.py`) — process-wide Weaviate client (single cluster, thread-safe). Lazy-connects on first `.get()`, auto-creates collections from `weaviate_schema.py`. Disabled when `WEAVIATE_URL` is empty.
 
 **Input validation:** Tool params use `Literal` types (`ThinkingLevel`, `Scope`, `CacheAction`) from `types.py` for schema-level validation. `Annotated[type, Field(...)]` adds constraints and descriptions. YouTube URLs are validated against actual youtube.com/youtu.be hosts (rejects spoofed domains).
 
-**Tool annotations:** All 11 tools carry `ToolAnnotations` (from `mcp.types`) declaring `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint`.
+**Tool annotations:** All 18 tools carry `ToolAnnotations` (from `mcp.types`) declaring `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint`.
 
 **Error handling:** Tools catch exceptions and return `make_tool_error()` dicts (from `errors.py`) with `error`, `category`, `hint`, and `retryable` fields. Convention is to never raise — always return a dict.
 
@@ -72,7 +76,9 @@ server.py (root, lifespan hook for cleanup)
 
 **Pydantic models** live in `models/` — one file per domain. These serve as both output schemas for Gemini structured output and response types for tool returns.
 
-## Tool Surface (17 tools)
+**Write-through knowledge storage:** When Weaviate is configured (`WEAVIATE_URL`), every tool automatically stores its results via `weaviate_store.py` functions. Store calls are non-fatal — tools succeed even if Weaviate write fails. Pattern: import `store_*` inside the tool function, call after result is ready. See `weaviate_store.py` for per-collection store functions.
+
+## Tool Surface (18 tools)
 
 | Tool | Server | Input | Output Schema |
 |------|--------|-------|---------------|
@@ -145,7 +151,7 @@ Shared `Literal` types and `Annotated` aliases live in `types.py`.
 
 Tests mock `GeminiClient.get()`, `.generate()`, and `.generate_structured()` via the `mock_gemini_client` fixture in `conftest.py`. An autouse fixture sets `GEMINI_API_KEY=test-key-not-real` — no test should ever hit the real API. Use `clean_config` fixture when testing config behavior.
 
-72 tests, all unit-level with mocked Gemini. No pytest markers. `asyncio_mode=auto` is pre-configured.
+228 tests, all unit-level with mocked Gemini. No pytest markers. `asyncio_mode=auto` is pre-configured.
 
 ### Writing Tests for New Tools
 
