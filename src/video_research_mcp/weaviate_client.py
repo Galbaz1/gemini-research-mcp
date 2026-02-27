@@ -13,7 +13,7 @@ import threading
 from urllib.parse import urlparse
 
 import weaviate
-from weaviate.classes.config import DataType, Property, ReferenceProperty
+from weaviate.classes.config import Configure, DataType, Property, ReferenceProperty
 from weaviate.classes.init import AdditionalConfig, Auth, Timeout
 
 from .config import get_config
@@ -156,6 +156,7 @@ class WeaviateClient:
                     name=col_def.name,
                     description=col_def.description,
                     properties=[_to_property(p) for p in col_def.properties],
+                    vector_config=Configure.Vectors.text2vec_weaviate(),
                 )
                 logger.info("Created Weaviate collection: %s", col_def.name)
             else:
