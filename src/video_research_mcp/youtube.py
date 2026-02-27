@@ -54,7 +54,8 @@ class YouTubeClient:
         if cls._service is None:
             from googleapiclient.discovery import build
 
-            api_key = get_config().gemini_api_key
+            cfg = get_config()
+            api_key = cfg.youtube_api_key or cfg.gemini_api_key
             cls._service = build(
                 "youtube", "v3", developerKey=api_key, cache_discovery=False,
             )

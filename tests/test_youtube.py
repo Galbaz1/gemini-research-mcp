@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import video_research_mcp.config as cfg_mod
+
 import pytest
 
 from video_research_mcp.models.youtube import (
@@ -433,3 +435,47 @@ class TestYouTubeCategories:
 
     def test_science_tech_category(self):
         assert YOUTUBE_CATEGORIES["28"] == "Science & Technology"
+
+
+# ── API key fallback ───────────────────────────────────────────────────────
+
+
+class TestYouTubeApiKeyFallback:
+    """YouTube API key selection logic."""
+
+    def test_uses_dedicated_key_when_set(self, monkeypatch):
+        """GIVEN youtube_api_key is set WHEN get() is called THEN uses youtube_api_key."""
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
+        monkeypatch.setenv("YOUTUBE_API_KEY", "yt-key")
+        cfg_mod._config = None
+        YouTubeClient.reset()
+        with patch("video_research_mcp.youtube.get_config") as mock_cfg:
+            from video_research_mcp.config import ServerConfig
+            mock_cfg.return_value = ServerConfig(
+                gemini_api_key="gemini-key",
+                youtube_api_key="yt-key",
+            )
+            with patch("googleapiclient.discovery.build") as mock_build:
+                YouTubeClient.get()
+                mock_build.assert_called_once_with(
+                    "youtube", "v3", developerKey="yt-key", cache_discovery=False,
+                )
+        YouTubeClient.reset()
+
+    def test_falls_back_to_gemini_key_when_empty(self, monkeypatch):
+        """GIVEN youtube_api_key is empty WHEN get() is called THEN uses gemini_api_key."""
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
+        cfg_mod._config = None
+        YouTubeClient.reset()
+        with patch("video_research_mcp.youtube.get_config") as mock_cfg:
+            from video_research_mcp.config import ServerConfig
+            mock_cfg.return_value = ServerConfig(
+                gemini_api_key="gemini-key",
+                youtube_api_key="",
+            )
+            with patch("googleapiclient.discovery.build") as mock_build:
+                YouTubeClient.get()
+                mock_build.assert_called_once_with(
+                    "youtube", "v3", developerKey="gemini-key", cache_discovery=False,
+                )
+        YouTubeClient.reset()
