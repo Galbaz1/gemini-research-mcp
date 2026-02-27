@@ -1,7 +1,7 @@
 ---
 description: Deep research on any topic with evidence-tier labeling
 argument-hint: <topic>
-allowed-tools: mcp__gemini-research__web_search, mcp__gemini-research__research_deep, mcp__gemini-research__research_plan, mcp__gemini-research__research_assess_evidence, mcp__plugin_serena_serena__write_memory, mcp__plugin_serena_serena__list_memories
+allowed-tools: mcp__gemini-research__web_search, mcp__gemini-research__research_deep, mcp__gemini-research__research_plan, mcp__gemini-research__research_assess_evidence, Write, Glob, Read
 model: sonnet
 ---
 
@@ -32,12 +32,11 @@ Present as a structured research briefing with:
 
 ## Save to Memory
 
-After presenting results, check if `write_memory` is in your available tools.
+After presenting results, auto-save to the project's memory directory for future reference.
 
-### If `write_memory` IS available:
-
-1. Generate a slug from the topic: lowercase, hyphens, max 50 chars (e.g., "impact of mcp on ai agents" → `impact-of-mcp-on-ai-agents`)
-2. Use `write_memory` with memory_name=`gr/research/<slug>` and content:
+1. Determine the memory directory: find the `.claude/` project memory path for the current working directory. The standard location is `~/.claude/projects/<project-key>/memory/gr/research/`. Use `Glob` on `~/.claude/projects/*/memory/` to find the active project memory path if needed.
+2. Generate a slug from the topic: lowercase, hyphens, no special chars, max 50 chars (e.g., "impact of mcp on ai agents" → `impact-of-mcp-on-ai-agents`)
+3. Use `Write` to save the file at `<memory-dir>/gr/research/<slug>.md`:
 
 ```markdown
 # <Topic>
@@ -61,14 +60,4 @@ After presenting results, check if `write_memory` is in your available tools.
 <Unresolved questions for future investigation>
 ```
 
-3. Confirm: **Saved to `gr/research/<slug>`** — browse past research with `/gr:recall research`
-
-### If `write_memory` is NOT available:
-
-Show this tip once, after the results:
-
-> **Tip:** Want to save research results across sessions? Install the Serena plugin:
-> ```
-> claude plugin install serena@claude-plugins-official
-> ```
-> Then restart Claude Code. Your future `/gr:research` results will be auto-saved and browsable via `/gr:recall`.
+4. Confirm: **Saved to `gr/research/<slug>`** — browse past research with `/gr:recall research`

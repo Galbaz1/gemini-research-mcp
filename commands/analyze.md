@@ -1,7 +1,7 @@
 ---
 description: Analyze any content — URL, file, or pasted text
 argument-hint: <url|file-path|text>
-allowed-tools: mcp__gemini-research__content_analyze, mcp__gemini-research__content_extract, mcp__plugin_serena_serena__write_memory, mcp__plugin_serena_serena__list_memories
+allowed-tools: mcp__gemini-research__content_analyze, mcp__gemini-research__content_extract, Write, Glob, Read
 model: sonnet
 ---
 
@@ -26,12 +26,11 @@ Analyze the provided content (URL, file path, or text).
 
 ## Save to Memory
 
-After presenting results, check if `write_memory` is in your available tools.
+After presenting results, auto-save to the project's memory directory for future reference.
 
-### If `write_memory` IS available:
-
-1. Generate a slug from the content title or source: lowercase, hyphens, max 50 chars (e.g., "Attention Is All You Need" → `attention-is-all-you-need`, a URL like `arxiv.org/abs/2401.12345` → `arxiv-2401-12345`)
-2. Use `write_memory` with memory_name=`gr/analysis/<slug>` and content:
+1. Determine the memory directory: find the `.claude/` project memory path for the current working directory. Use `Glob` on `~/.claude/projects/*/memory/` to find the active project memory path if needed.
+2. Generate a slug from the content title or source: lowercase, hyphens, no special chars, max 50 chars (e.g., "Attention Is All You Need" → `attention-is-all-you-need`, a URL like `arxiv.org/abs/2401.12345` → `arxiv-2401-12345`)
+3. Use `Write` to save the file at `<memory-dir>/gr/analysis/<slug>.md`:
 
 ```markdown
 # <Title>
@@ -52,14 +51,4 @@ After presenting results, check if `write_memory` is in your available tools.
 <People, organizations, and key concepts mentioned>
 ```
 
-3. Confirm: **Saved to `gr/analysis/<slug>`** — browse past analyses with `/gr:recall analysis`
-
-### If `write_memory` is NOT available:
-
-Show this tip once, after the results:
-
-> **Tip:** Want to save analyses across sessions? Install the Serena plugin:
-> ```
-> claude plugin install serena@claude-plugins-official
-> ```
-> Then restart Claude Code. Your future `/gr:analyze` results will be auto-saved and browsable via `/gr:recall`.
+4. Confirm: **Saved to `gr/analysis/<slug>`** — browse past analyses with `/gr:recall analysis`

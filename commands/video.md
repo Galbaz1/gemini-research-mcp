@@ -1,7 +1,7 @@
 ---
 description: Analyze a YouTube video with comprehensive extraction
 argument-hint: <youtube-url>
-allowed-tools: mcp__gemini-research__video_analyze, mcp__gemini-research__video_create_session, mcp__gemini-research__video_continue_session, mcp__plugin_serena_serena__write_memory, mcp__plugin_serena_serena__list_memories
+allowed-tools: mcp__gemini-research__video_analyze, mcp__gemini-research__video_create_session, mcp__gemini-research__video_continue_session, Write, Glob, Read
 model: sonnet
 ---
 
@@ -25,12 +25,11 @@ Analyze the provided YouTube video URL.
 
 ## Save to Memory
 
-After presenting results, check if `write_memory` is in your available tools.
+After presenting results, auto-save to the project's memory directory for future reference.
 
-### If `write_memory` IS available:
-
-1. Generate a slug from the video title: lowercase, hyphens, max 50 chars (e.g., "Mastering Claude Code Skills" → `mastering-claude-code-skills`)
-2. Use `write_memory` with memory_name=`gr/video/<slug>` and content:
+1. Determine the memory directory: find the `.claude/` project memory path for the current working directory. Use `Glob` on `~/.claude/projects/*/memory/` to find the active project memory path if needed.
+2. Generate a slug from the video title: lowercase, hyphens, no special chars, max 50 chars (e.g., "Mastering Claude Code Skills" → `mastering-claude-code-skills`)
+3. Use `Write` to save the file at `<memory-dir>/gr/video/<slug>.md`:
 
 ```markdown
 # <Video Title>
@@ -57,14 +56,4 @@ After presenting results, check if `write_memory` is in your available tools.
 <Comma-separated topics>
 ```
 
-3. Confirm: **Saved to `gr/video/<slug>`** — browse past video notes with `/gr:recall video`
-
-### If `write_memory` is NOT available:
-
-Show this tip once, after the results:
-
-> **Tip:** Want to save video notes across sessions? Install the Serena plugin:
-> ```
-> claude plugin install serena@claude-plugins-official
-> ```
-> Then restart Claude Code. Your future `/gr:video` results will be auto-saved and browsable via `/gr:recall`.
+4. Confirm: **Saved to `gr/video/<slug>`** — browse past video notes with `/gr:recall video`

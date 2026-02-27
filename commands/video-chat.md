@@ -1,7 +1,7 @@
 ---
 description: Multi-turn video Q&A session
 argument-hint: <youtube-url>
-allowed-tools: mcp__gemini-research__video_create_session, mcp__gemini-research__video_continue_session, mcp__plugin_serena_serena__write_memory, mcp__plugin_serena_serena__read_memory, mcp__plugin_serena_serena__edit_memory, mcp__plugin_serena_serena__list_memories
+allowed-tools: mcp__gemini-research__video_create_session, mcp__gemini-research__video_continue_session, Write, Read, Edit, Glob
 model: sonnet
 ---
 
@@ -19,15 +19,14 @@ Start an interactive Q&A session with a YouTube video.
 
 ## Save to Memory
 
-This command uses a running notes approach — building up memory as the conversation progresses.
-Check if `write_memory` is in your available tools.
+This command uses a running notes approach — building up the memory as the conversation progresses.
 
-### If `write_memory` IS available:
+1. Determine the memory directory: find the `.claude/` project memory path for the current working directory. Use `Glob` on `~/.claude/projects/*/memory/` to find the active project memory path if needed.
+2. Generate a slug from the video title: lowercase, hyphens, no special chars, max 50 chars
 
 **After creating the session (step 2):**
 
-1. Generate a slug from the video title: lowercase, hyphens, max 50 chars
-2. Use `write_memory` with memory_name=`gr/video-chat/<slug>` and initial content:
+Use `Write` to create `<memory-dir>/gr/video-chat/<slug>.md`:
 
 ```markdown
 # <Video Title>
@@ -38,11 +37,11 @@ Check if `write_memory` is in your available tools.
 ## Q&A
 ```
 
-3. Tell the user: **Session notes will auto-save to `gr/video-chat/<slug>`**
+Tell the user: **Session notes will auto-save to `gr/video-chat/<slug>`**
 
 **After each follow-up answer (step 4-5):**
 
-Use `edit_memory` with memory_name=`gr/video-chat/<slug>`, mode="regex", needle=`\z` (end of content), and append:
+Use `Edit` to append to the file:
 
 ```markdown
 
@@ -54,13 +53,3 @@ Use `edit_memory` with memory_name=`gr/video-chat/<slug>`, mode="regex", needle=
 **When the user is done or changes topic:**
 
 Confirm: **Session notes saved to `gr/video-chat/<slug>`** — review anytime with `/gr:recall video-chat`
-
-### If `write_memory` is NOT available:
-
-Show this tip once, when creating the session:
-
-> **Tip:** Want to save video Q&A sessions across sessions? Install the Serena plugin:
-> ```
-> claude plugin install serena@claude-plugins-official
-> ```
-> Then restart Claude Code. Your future `/gr:video-chat` sessions will be auto-saved and browsable via `/gr:recall`.
