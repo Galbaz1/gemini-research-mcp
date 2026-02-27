@@ -88,14 +88,21 @@ async def content_analyze(
         Dict matching ContentResult schema (default) or the custom output_schema.
     """
     try:
-        if url and not file_path and not text:
+        sources = sum(x is not None for x in (file_path, url, text))
+        if sources == 0:
+            raise ValueError("Provide exactly one of: file_path, url, or text")
+        if sources > 1:
+            provided = ", ".join(
+                k for k, v in [("file_path", file_path), ("url", url), ("text", text)] if v is not None
+            )
+            raise ValueError(f"Provide exactly one of: file_path, url, or text — got {provided}")
+
+        if url:
             use_url_context = True
             prompt_text = f"{instruction}\n\nAnalyze this exact URL:\n{url}"
-        elif file_path or text:
+        else:
             use_url_context = False
             parts, desc = _build_content_parts(file_path=file_path, text=text)
-        else:
-            raise ValueError("Provide at least one of: file_path, url, or text")
     except (FileNotFoundError, ValueError) as exc:
         return make_tool_error(exc)
 

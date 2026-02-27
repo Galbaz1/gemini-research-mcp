@@ -73,6 +73,14 @@ class TestContentAnalyze:
         assert "error" in result
 
     @pytest.mark.asyncio
+    async def test_multiple_sources_returns_error(self):
+        """Multiple content sources rejected with descriptive error."""
+        result = await content_analyze(url="https://example.com", text="some text")
+        assert "error" in result
+        assert "url" in result["error"]
+        assert "text" in result["error"]
+
+    @pytest.mark.asyncio
     async def test_custom_schema(self, mock_gemini_client):
         """content_analyze with custom output_schema uses generate()."""
         mock_gemini_client["generate"].return_value = '{"citations": ["Ref A"]}'
