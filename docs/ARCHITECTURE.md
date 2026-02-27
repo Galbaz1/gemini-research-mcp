@@ -8,7 +8,7 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 2. [Composite Server Pattern](#2-composite-server-pattern)
 3. [GeminiClient Pipeline](#3-geminiclient-pipeline)
 4. [Tool Conventions](#4-tool-conventions)
-5. [Tool Reference (20 tools)](#5-tool-reference-20-tools)
+5. [Tool Reference (22 tools)](#5-tool-reference-22-tools)
 6. [Singletons](#6-singletons)
 7. [Weaviate Integration](#7-weaviate-integration)
 8. [Session Management](#8-session-management)
@@ -22,7 +22,7 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 
 ## 1. System Overview
 
-`video-research-mcp` is an MCP (Model Context Protocol) server that exposes 20 tools for video analysis, deep research, content extraction, web search, and knowledge management. It communicates over **stdio transport** using **FastMCP** (`fastmcp>=2.0`) and is powered by **Gemini 3.1 Pro** via the `google-genai` SDK.
+`video-research-mcp` is an MCP (Model Context Protocol) server that exposes 22 tools for video analysis, deep research, content extraction, web search, and knowledge management. It communicates over **stdio transport** using **FastMCP** (`fastmcp>=2.0`) and is powered by **Gemini 3.1 Pro** via the `google-genai` SDK.
 
 ### Core Dependencies
 
@@ -33,6 +33,7 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 | `google-api-python-client>=2.100` | YouTube Data API v3 |
 | `pydantic>=2.0` | Schema validation, structured output models |
 | `weaviate-client>=4.19.2` | Vector database for knowledge persistence |
+| `weaviate-agents>=1.2.0` | *(optional)* QueryAgent for AI-powered knowledge Q&A |
 
 ### Build & Runtime
 
@@ -65,7 +66,7 @@ src/video_research_mcp/
     research.py          Finding, ResearchReport, ResearchPlan, EvidenceAssessment
     content.py           ContentResult
     youtube.py           VideoMetadata, PlaylistInfo
-    knowledge.py         KnowledgeHit, KnowledgeSearchResult, KnowledgeStatsResult
+    knowledge.py         KnowledgeHit, KnowledgeSearchResult, KnowledgeStatsResult, KnowledgeAskResult, KnowledgeQueryResult
   prompts/
     research.py          Deep research system prompt + phase templates
     content.py           STRUCTURED_EXTRACT template
@@ -79,10 +80,10 @@ src/video_research_mcp/
     content.py           content_server (2 tools)
     search.py            search_server (1 tool)
     infra.py             infra_server (2 tools)
-    knowledge.py         knowledge_server (6 tools)
+    knowledge/           knowledge_server (8 tools: search, retrieval, ingest, QueryAgent)
 ```
 
-**Tool count**: 4 + 2 + 3 + 2 + 1 + 2 + 6 = **20 tools** across 7 sub-servers.
+**Tool count**: 4 + 2 + 3 + 2 + 1 + 2 + 8 = **22 tools** across 7 sub-servers.
 
 ---
 
@@ -101,8 +102,8 @@ app.mount(content_server)     # tools/content.py      2 tools
 app.mount(search_server)      # tools/search.py       1 tool
 app.mount(infra_server)       # tools/infra.py        2 tools
 app.mount(youtube_server)     # tools/youtube.py      2 tools
-app.mount(knowledge_server)   # tools/knowledge.py    6 tools
-#                                                     ── 20 tools total
+app.mount(knowledge_server)   # tools/knowledge/       8 tools
+#                                                     ── 22 tools total
 ```
 
 ### Lifespan Hook
@@ -333,7 +334,7 @@ return result
 | `content_analyze` | `store_content_analysis` | `ContentAnalyses` |
 | `web_search` | `store_web_search` | `WebSearchResults` |
 
-Tools not in this table (`content_extract`, `video_playlist`, `infra_cache`, `infra_configure`, and the 4 knowledge tools) do not write through.
+Tools not in this table (`content_extract`, `video_playlist`, `infra_cache`, `infra_configure`, and the knowledge tools) do not write through.
 
 **Key guarantees**:
 - **Non-fatal**: All store functions catch exceptions and log warnings. Tool results are never lost due to Weaviate failures.
@@ -342,7 +343,7 @@ Tools not in this table (`content_extract`, `video_playlist`, `infra_cache`, `in
 
 ---
 
-## 5. Tool Reference (20 tools)
+## 5. Tool Reference (22 tools)
 
 ### Video Server (4 tools)
 
@@ -501,9 +502,9 @@ Returns: cache statistics, entry list, or removed count depending on action.
 
 Changes take effect immediately. Returns current config, active preset, and available presets.
 
-### Knowledge Server (6 tools)
+### Knowledge Server (8 tools)
 
-All knowledge tools gracefully degrade when Weaviate is not configured (return empty results, not errors).
+All knowledge tools gracefully degrade when Weaviate is not configured (return empty results, not errors). The last two tools (`knowledge_ask`, `knowledge_query`) require the optional `weaviate-agents` package.
 
 **`knowledge_search`** -- Search across knowledge collections (hybrid, semantic, or keyword).
 
@@ -552,6 +553,27 @@ Validates properties against the collection schema -- unknown keys are rejected.
 | `collection` | `KnowledgeCollection` | (required) | Source collection |
 
 Returns: `KnowledgeFetchResult` with `found` boolean and object `properties`.
+
+**`knowledge_ask`** -- Ask a natural-language question and get an AI-generated answer with source citations.
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `query` | `str` | (required) | Natural-language question |
+| `collections` | `list[KnowledgeCollection] \| None` | `None` | Collections to query (all if omitted) |
+
+Requires the optional `weaviate-agents` package (`pip install video-research-mcp[agents]`). Uses Weaviate's QueryAgent to search across collections and synthesize an answer. Returns: `KnowledgeAskResult` with `answer` text and `sources` list (collection + object UUID per source). Returns a clear error hint when `weaviate-agents` is not installed.
+
+**`knowledge_query`** -- Retrieve objects using natural-language queries via QueryAgent.
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `query` | `str` | (required) | Natural-language search query |
+| `collections` | `list[KnowledgeCollection] \| None` | `None` | Collections to search (all if omitted) |
+| `limit` | `int` | `10` | Max results (1-100) |
+
+Requires the optional `weaviate-agents` package. Unlike `knowledge_search` (which uses explicit search modes), this tool translates the natural-language query into optimized Weaviate queries via QueryAgent. Returns: `KnowledgeQueryResult` with matched objects.
+
+**QueryAgent lifecycle**: The QueryAgent instance is lazily created on first call and cached as a module-level singleton, keyed by the frozenset of target collection names. If the collection set changes between calls, a new QueryAgent is created.
 
 ---
 
@@ -688,21 +710,25 @@ Key design decisions:
 - **Thread offloading**: Weaviate's sync client is wrapped in `asyncio.to_thread()` to avoid blocking the event loop.
 - **Deterministic UUIDs**: `store_video_metadata` uses `weaviate.util.generate_uuid5(video_id)` for deduplication -- repeated metadata fetches for the same video update rather than duplicate.
 
-### Knowledge Tools (`tools/knowledge.py`)
+### Knowledge Tools (`tools/knowledge/`)
 
-Six tools provide read/write access to the knowledge store:
+Eight tools provide read/write/query access to the knowledge store:
 - `knowledge_search` -- search across collections (hybrid, semantic, or keyword mode)
 - `knowledge_related` -- near-object vector search for semantic similarity
 - `knowledge_stats` -- object counts per collection with optional group_by
 - `knowledge_ingest` -- manual insert with property validation
 - `knowledge_fetch` -- retrieve a single object by UUID
+- `knowledge_ask` -- AI-generated answer with source citations (requires `weaviate-agents`)
+- `knowledge_query` -- natural-language object retrieval via QueryAgent (requires `weaviate-agents`)
 
 `knowledge_search` supports three search modes via the `search_type` parameter:
 - `"hybrid"` (default) -- fuses BM25 keyword + vector similarity via `collection.query.hybrid()`
 - `"semantic"` -- pure vector similarity via `collection.query.near_text()`
 - `"keyword"` -- pure BM25 keyword matching via `collection.query.bm25()`
 
-All tools gracefully degrade when `weaviate_enabled` is `False` (return empty result models, not errors).
+`knowledge_ask` and `knowledge_query` use the Weaviate `QueryAgent` from the optional `weaviate-agents` package. The QueryAgent translates natural-language queries into optimized Weaviate operations and can synthesize answers from multiple collections. The agent instance is lazily created and cached by collection set.
+
+All tools gracefully degrade when `weaviate_enabled` is `False` (return empty result models, not errors). The QueryAgent tools additionally return an error hint when `weaviate-agents` is not installed.
 
 ---
 

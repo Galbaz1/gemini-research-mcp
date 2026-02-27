@@ -2,7 +2,7 @@
 
 ## What This Is
 
-An MCP server (stdio transport, FastMCP) exposing 20 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
+An MCP server (stdio transport, FastMCP) exposing 22 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
 
 ## Commands
 
@@ -26,7 +26,7 @@ GEMINI_API_KEY=... uv run video-research-mcp                         # run serve
 | content | `content_analyze`, `content_extract` | `tools/content.py` |
 | search | `web_search` | `tools/search.py` |
 | infra | `infra_cache`, `infra_configure` | `tools/infra.py` |
-| knowledge | `knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_ingest`, `knowledge_fetch` | `tools/knowledge.py` |
+| knowledge | `knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_ingest`, `knowledge_fetch`, `knowledge_ask`, `knowledge_query` | `tools/knowledge/` |
 
 **Key patterns:**
 - **Instruction-driven tools** — tools accept free-text `instruction` + optional `output_schema` instead of fixed modes
@@ -35,6 +35,8 @@ GEMINI_API_KEY=... uv run video-research-mcp                         # run serve
 - **Write-through storage** — every tool auto-stores results to Weaviate when configured; store calls are non-fatal
 
 **Key singletons:** `GeminiClient` (client.py), `get_config()` (config.py), `session_store` (sessions.py, optional SQLite via persistence.py), `cache` (cache.py), `WeaviateClient` (weaviate_client.py).
+
+**Optional dependency:** `weaviate-agents>=1.2.0` (install via `pip install video-research-mcp[agents]`) enables `knowledge_ask` and `knowledge_query` tools powered by Weaviate's QueryAgent.
 
 > Deep dive: `docs/ARCHITECTURE.md` (13 sections) | `docs/DIAGRAMS.md` (4 Mermaid diagrams)
 
@@ -82,15 +84,17 @@ Google-style. Required on every module, public class, public function/method, an
 
 ## Plugin Installer
 
-Claude Code plugin distributed via npm. `bin/install.js` copies commands/skills/agents to `~/.claude/`. File map in `bin/lib/copy.js`, manifest tracking in `bin/lib/manifest.js`.
+Two-package architecture: npm (installer) copies commands/skills/agents to `~/.claude/`, PyPI (server) runs via `uvx`. Same package name, different registries.
 
 ```bash
-npx video-research-mcp@latest              # install
+npx video-research-mcp@latest              # install plugin (copies 17 markdown files + .mcp.json)
 npx video-research-mcp@latest --check      # dry-run
 npx video-research-mcp@latest --uninstall  # remove
 ```
 
 To add a command/skill/agent: create file, add to `FILE_MAP` in `bin/lib/copy.js`, run `node bin/install.js --global`.
+
+> Deep dive: `docs/PLUGIN_DISTRIBUTION.md` (FILE_MAP, manifest tracking, discovery mechanism, complete inventory)
 
 ## Env Vars
 
@@ -116,4 +120,6 @@ All other config (thinking level, temperature, cache dir/TTL, session limits, re
 | `docs/tutorials/GETTING_STARTED.md` | Install, configure, first tool call |
 | `docs/tutorials/ADDING_A_TOOL.md` | Step-by-step tool creation with checklist |
 | `docs/tutorials/WRITING_TESTS.md` | Fixtures, patterns, running tests |
-| `docs/tutorials/KNOWLEDGE_STORE.md` | Weaviate setup, 7 collections, 6 knowledge tools |
+| `docs/tutorials/KNOWLEDGE_STORE.md` | Weaviate setup, 7 collections, 8 knowledge tools |
+| `docs/PLUGIN_DISTRIBUTION.md` | Two-package architecture, FILE_MAP, discovery, full inventory |
+| `docs/WEAVIATE_PLUGIN_RECOMMENDATION.md` | Gap analysis and roadmap for knowledge store plugin assets |

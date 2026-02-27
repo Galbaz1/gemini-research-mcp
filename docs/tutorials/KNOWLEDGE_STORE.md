@@ -1,6 +1,6 @@
 # Knowledge Store
 
-How the knowledge store works, how to set up Weaviate, and how to use the 6 knowledge tools for persistent semantic search across all tool results.
+How the knowledge store works, how to set up Weaviate, and how to use the 8 knowledge tools for persistent semantic search across all tool results.
 
 ## What It Is
 
@@ -19,7 +19,7 @@ Tool call (e.g., video_analyze)
        |
        +-- VideoAnalyses collection
 
-Knowledge tools (knowledge_search, knowledge_related, etc.)
+Knowledge tools (knowledge_search, knowledge_related, knowledge_ask, etc.)
   |
   +-- Query Weaviate collections
   |
@@ -34,7 +34,7 @@ Three modules implement the knowledge store:
 | `weaviate_schema.py` | 7 collection definitions (PropertyDef, CollectionDef dataclasses) |
 | `weaviate_store.py` | Write-through functions (one per collection) |
 
-The 6 knowledge query tools live in `tools/knowledge.py`.
+The 8 knowledge tools live in `tools/knowledge/` (split into `search.py`, `retrieval.py`, `ingest.py`, and `query_agent.py`).
 
 ## Setup
 
@@ -248,6 +248,53 @@ Use knowledge_ingest with collection "ResearchFindings" and properties:
 
 Unknown properties are rejected with an error listing the allowed fields.
 
+### knowledge_ask -- AI-generated answers (QueryAgent)
+
+Ask a natural-language question and get a synthesized answer with source citations. Powered by Weaviate's QueryAgent.
+
+```
+Use knowledge_ask with query "What were the key findings about transformer architectures?"
+Use knowledge_ask with query "How does RLHF work?" and collections ["ResearchFindings"]
+```
+
+Parameters:
+- `query` (required) -- natural-language question
+- `collections` (optional) -- list of collection names to query; defaults to all 7
+
+Returns an AI-generated `answer` string plus a `sources` list with collection name and object UUID for each cited source.
+
+**Requires**: `pip install video-research-mcp[agents]` (installs `weaviate-agents>=1.2.0`). Returns a clear error hint if the package is not installed.
+
+### knowledge_query -- natural language object retrieval (QueryAgent)
+
+Retrieve objects using a natural-language query. Unlike `knowledge_search` (where you choose the search mode), QueryAgent automatically translates your query into optimized Weaviate operations.
+
+```
+Use knowledge_query with query "videos about machine learning published this week"
+Use knowledge_query with query "research findings with high confidence about LLMs" and limit 5
+```
+
+Parameters:
+- `query` (required) -- natural-language search description
+- `collections` (optional) -- list of collection names to search; defaults to all 7
+- `limit` (optional) -- max results (default 10)
+
+Returns matched objects with collection, UUID, score, and properties -- the same `KnowledgeHit` format as `knowledge_search`.
+
+**Requires**: `pip install video-research-mcp[agents]` (installs `weaviate-agents>=1.2.0`).
+
+### How QueryAgent differs from knowledge_search
+
+| Feature | `knowledge_search` | `knowledge_ask` / `knowledge_query` |
+|---------|--------------------|------------------------------------|
+| Search mode | Explicit (hybrid/semantic/keyword) | Automatic (QueryAgent decides) |
+| Filters | Manual (evidence_tier, date_from, etc.) | Inferred from natural language |
+| Output | Raw objects with scores | `ask`: synthesized answer + sources; `query`: objects |
+| Dependency | `weaviate-client` only | `weaviate-agents` (optional) |
+| Best for | Precise, repeatable queries | Exploratory questions, complex multi-collection queries |
+
+The QueryAgent instance is lazily created on first use and cached by the frozenset of target collection names. If the collection set changes between calls, a new agent is created.
+
 ## Write-Through Store Pattern
 
 Every tool that produces results automatically writes them to Weaviate via functions in `weaviate_store.py`. This is the biggest architectural pattern to understand when adding new tools.
@@ -396,4 +443,4 @@ All connections include `Timeout(init=30, query=60, insert=120)` for production 
 - Source: `src/video_research_mcp/weaviate_schema.py` -- collection definitions
 - Source: `src/video_research_mcp/weaviate_store.py` -- write-through functions
 - Source: `src/video_research_mcp/weaviate_client.py` -- client singleton
-- Source: `src/video_research_mcp/tools/knowledge.py` -- query tools
+- Source: `src/video_research_mcp/tools/knowledge/` -- query tools (8 tools across 4 modules)
