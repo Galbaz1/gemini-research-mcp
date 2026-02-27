@@ -1,3 +1,3 @@
-"""Gemini Research MCP — unified research partner server."""
+"""Video Research MCP — unified research partner server."""
 
 __version__ = "0.1.0"
