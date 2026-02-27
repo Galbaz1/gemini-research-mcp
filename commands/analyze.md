@@ -1,7 +1,7 @@
 ---
 description: Analyze any content — URL, file, or pasted text
 argument-hint: <url|file-path|text>
-allowed-tools: mcp__gemini-research__content_analyze, mcp__gemini-research__content_extract, mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_wait_for, Write, Glob, Read, Bash
+allowed-tools: mcp__video-research__content_analyze, mcp__video-research__content_extract, mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_wait_for, Write, Glob, Read, Bash
 model: sonnet
 ---
 

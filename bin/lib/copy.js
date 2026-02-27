@@ -17,7 +17,7 @@ const FILE_MAP = {
   'commands/search.md':     'commands/gr/search.md',
   'commands/recall.md':     'commands/gr/recall.md',
 
-  'skills/gemini-research/SKILL.md':                              'skills/gemini-research/SKILL.md',
+  'skills/video-research/SKILL.md':                              'skills/video-research/SKILL.md',
   'skills/gemini-visualize/SKILL.md':                             'skills/gemini-visualize/SKILL.md',
   'skills/gemini-visualize/templates/video-concept-map.md':       'skills/gemini-visualize/templates/video-concept-map.md',
   'skills/gemini-visualize/templates/research-evidence-net.md':   'skills/gemini-visualize/templates/research-evidence-net.md',
@@ -31,7 +31,7 @@ const FILE_MAP = {
 const CLEANUP_DIRS = [
   'skills/gemini-visualize/templates',
   'skills/gemini-visualize',
-  'skills/gemini-research',
+  'skills/video-research',
   'commands/gr',
 ];
 

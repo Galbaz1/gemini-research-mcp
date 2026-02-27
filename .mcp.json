@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "gemini-research": {
+    "video-research": {
       "command": "uvx",
-      "args": ["gemini-research-mcp"],
+      "args": ["video-research-mcp"],
       "env": {
         "GEMINI_API_KEY": "${GEMINI_API_KEY}"
       }

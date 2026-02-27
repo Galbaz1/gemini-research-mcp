@@ -1,4 +1,4 @@
-# Contributing to gemini-research-mcp
+# Contributing to video-research-mcp
 
 Thanks for your interest in contributing! This project is open source under the MIT license.
 
@@ -6,8 +6,8 @@ Thanks for your interest in contributing! This project is open source under the 
 
 ```bash
 # Clone and install
-git clone https://github.com/Galbaz1/gemini-research-mcp
-cd gemini-research-mcp
+git clone https://github.com/Galbaz1/video-research-mcp
+cd video-research-mcp
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
 
@@ -45,7 +45,7 @@ All tests mock the Gemini API via the `mock_gemini_client` fixture. No test shou
 
 ### Before You Start
 
-1. Check [existing issues](https://github.com/Galbaz1/gemini-research-mcp/issues) to avoid duplicate work
+1. Check [existing issues](https://github.com/Galbaz1/video-research-mcp/issues) to avoid duplicate work
 2. For larger changes, open an issue first to discuss the approach
 
 ### Pull Request Process

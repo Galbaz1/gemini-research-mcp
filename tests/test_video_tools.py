@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gemini_research_mcp.models.video import VideoResult
-from gemini_research_mcp.tools.video import (
+from video_research_mcp.models.video import VideoResult
+from video_research_mcp.tools.video import (
     video_analyze,
     video_batch_analyze,
     video_create_session,
 )
-from gemini_research_mcp.tools.video_url import (
+from video_research_mcp.tools.video_url import (
     _extract_video_id,
     _normalize_youtube_url,
 )

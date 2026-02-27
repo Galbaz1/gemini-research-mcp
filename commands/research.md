@@ -1,7 +1,7 @@
 ---
 description: Deep research on any topic with evidence-tier labeling
 argument-hint: <topic>
-allowed-tools: mcp__gemini-research__web_search, mcp__gemini-research__research_deep, mcp__gemini-research__research_plan, mcp__gemini-research__research_assess_evidence, mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_wait_for, Write, Glob, Read, Bash
+allowed-tools: mcp__video-research__web_search, mcp__video-research__research_deep, mcp__video-research__research_plan, mcp__video-research__research_assess_evidence, mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_wait_for, Write, Glob, Read, Bash
 model: sonnet
 ---
 

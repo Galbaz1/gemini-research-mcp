@@ -1,12 +1,12 @@
 {
   "name": "gr",
   "version": "0.2.0",
-  "description": "Gemini 3.1 Pro research partner — video analysis, deep research, content extraction, and web search via 11 instruction-driven tools.",
+  "description": "Claude Code plugin for video analysis, deep research, content extraction, and web search — powered by Gemini 3.1 Pro.",
   "author": {
-    "name": "Fausto"
+    "name": "Fausto Albers"
   },
-  "homepage": "https://github.com/YOUR_ORG/gemini-research-mcp",
-  "repository": "https://github.com/YOUR_ORG/gemini-research-mcp",
+  "homepage": "https://github.com/Galbaz1/video-research-mcp",
+  "repository": "https://github.com/Galbaz1/video-research-mcp",
   "license": "MIT",
   "keywords": ["gemini", "research", "video-analysis", "content-extraction", "web-search", "mcp", "claude-code-plugin"]
 }

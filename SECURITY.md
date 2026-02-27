@@ -2,9 +2,9 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in gemini-research-mcp, please report it responsibly.
+If you discover a security vulnerability in video-research-mcp, please report it responsibly.
 
-**Do not open a public issue.** Instead, email security concerns to the maintainer or use [GitHub's private vulnerability reporting](https://github.com/Galbaz1/gemini-research-mcp/security/advisories/new).
+**Do not open a public issue.** Instead, email security concerns to the maintainer or use [GitHub's private vulnerability reporting](https://github.com/Galbaz1/video-research-mcp/security/advisories/new).
 
 We will respond within 72 hours and work with you on a fix before public disclosure.
 
@@ -21,7 +21,7 @@ This project is an MCP server that proxies requests to the Google Gemini API. Se
 
 - Never commit your `GEMINI_API_KEY` to version control (`.env` is gitignored by default)
 - Use `${GEMINI_API_KEY}` environment variable references in `.mcp.json` instead of hardcoded keys
-- Review files before running `npx gemini-research-mcp@latest --force` (the `--force` flag overwrites your customizations)
+- Review files before running `npx video-research-mcp@latest --force` (the `--force` flag overwrites your customizations)
 
 ## Supported Versions
 

@@ -1,11 +1,11 @@
 ---
-name: gemini-research
-description: Teaches Claude how to effectively use the 11 Gemini research tools. Activates when working with video analysis, deep research, content extraction, or web search via the gemini-research MCP server.
+name: video-research
+description: Teaches Claude how to effectively use the 11 Gemini research tools. Activates when working with video analysis, deep research, content extraction, or web search via the video-research MCP server.
 ---
 
 # Gemini Research MCP — Tool Usage Guide
 
-You have access to the `gemini-research-mcp` MCP server, which exposes 11 tools powered by Gemini 3.1 Pro. These tools are **instruction-driven** — you write the instruction, Gemini returns structured JSON.
+You have access to the `video-research-mcp` MCP server, which exposes 11 tools powered by Gemini 3.1 Pro. These tools are **instruction-driven** — you write the instruction, Gemini returns structured JSON.
 
 ## Core Principle
 

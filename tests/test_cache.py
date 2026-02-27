@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import pytest
 
-import gemini_research_mcp.config as cfg_mod
-from gemini_research_mcp import cache
+import video_research_mcp.config as cfg_mod
+from video_research_mcp import cache
 
 
 @pytest.fixture(autouse=True)

@@ -441,7 +441,7 @@ wheels = [
 ]
 
 [[package]]
-name = "gemini-research-mcp"
+name = "video-research-mcp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

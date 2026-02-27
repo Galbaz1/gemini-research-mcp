@@ -6,8 +6,8 @@ from google.genai import types
 
 import pytest
 
-from gemini_research_mcp.models.video import VideoResult
-from gemini_research_mcp.tools.video_core import analyze_video
+from video_research_mcp.models.video import VideoResult
+from video_research_mcp.tools.video_core import analyze_video
 
 
 def _make_content(text: str = "test") -> types.Content:
@@ -57,17 +57,17 @@ class TestAnalyzeVideo:
     @pytest.mark.asyncio
     async def test_cache_hit(self, mock_gemini_client, tmp_path, monkeypatch):
         """Returns cached result without calling Gemini."""
-        from gemini_research_mcp import cache
+        from video_research_mcp import cache
 
         monkeypatch.setattr(cache, "_cache_dir", lambda: tmp_path)
         cache.save("cached_id", "video_analyze", "test-model", {"title": "Cached"}, instruction="test")
 
         # Patch get_config to return matching model
-        from gemini_research_mcp.config import ServerConfig
+        from video_research_mcp.config import ServerConfig
         from unittest.mock import patch
 
         cfg = ServerConfig(gemini_api_key="test-key-not-real", default_model="test-model")
-        with patch("gemini_research_mcp.tools.video_core.get_config", return_value=cfg):
+        with patch("video_research_mcp.tools.video_core.get_config", return_value=cfg):
             result = await analyze_video(
                 _make_content(),
                 instruction="test",

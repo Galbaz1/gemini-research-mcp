@@ -1,7 +1,7 @@
 ---
 name: researcher
 description: Multi-phase research specialist that chains Gemini research tools for comprehensive topic analysis. Use when you need thorough investigation with evidence tiers, source verification, and orchestrated research workflows.
-tools: mcp__plugin_gemini-research_gemini-research__web_search, mcp__plugin_gemini-research_gemini-research__research_deep, mcp__plugin_gemini-research_gemini-research__research_plan, mcp__plugin_gemini-research_gemini-research__research_assess_evidence
+tools: mcp__plugin_video-research_video-research__web_search, mcp__plugin_video-research_video-research__research_deep, mcp__plugin_video-research_video-research__research_plan, mcp__plugin_video-research_video-research__research_assess_evidence
 model: sonnet
 color: blue
 ---

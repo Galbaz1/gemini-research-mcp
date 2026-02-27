@@ -26,7 +26,7 @@ async def _lifespan(server: FastMCP):
 
 
 app = FastMCP(
-    "gemini-research",
+    "video-research",
     instructions=(
         "Unified Gemini research partner — video analysis, deep research, "
         "content extraction. Powered by Gemini 3.1 Pro with thinking support."
@@ -42,7 +42,7 @@ app.mount(infra_server)
 
 
 def main() -> None:
-    """Entry-point for ``gemini-research-mcp`` console script."""
+    """Entry-point for ``video-research-mcp`` console script."""
     app.run()
 
 

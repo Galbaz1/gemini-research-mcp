@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-import gemini_research_mcp.config as cfg_mod
-from gemini_research_mcp.tools.infra import infra_cache, infra_configure
+import video_research_mcp.config as cfg_mod
+from video_research_mcp.tools.infra import infra_cache, infra_configure
 
 
 @pytest.fixture(autouse=True)

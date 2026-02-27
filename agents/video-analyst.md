@@ -1,7 +1,7 @@
 ---
 name: video-analyst
 description: Video analysis specialist that extracts comprehensive insights from YouTube videos. Use for detailed breakdowns, command extraction, workflow analysis, and iterative video Q&A sessions.
-tools: mcp__plugin_gemini-research_gemini-research__video_analyze, mcp__plugin_gemini-research_gemini-research__video_create_session, mcp__plugin_gemini-research_gemini-research__video_continue_session
+tools: mcp__plugin_video-research_video-research__video_analyze, mcp__plugin_video-research_video-research__video_create_session, mcp__plugin_video-research_video-research__video_continue_session
 model: sonnet
 color: green
 ---

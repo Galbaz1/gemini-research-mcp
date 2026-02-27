@@ -6,9 +6,9 @@ const ui = require('./ui');
 
 /** MCP server entries to install. */
 const MCP_SERVERS = {
-  'gemini-research': {
+  'video-research': {
     command: 'uvx',
-    args: ['gemini-research-mcp'],
+    args: ['video-research-mcp'],
     env: { GEMINI_API_KEY: '${GEMINI_API_KEY}' },
   },
   playwright: {

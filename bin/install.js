@@ -37,9 +37,9 @@ function parseArgs(argv) {
 
 function showHelp() {
   process.stderr.write(`
-gemini-research-mcp installer v${VERSION}
+video-research-mcp installer v${VERSION}
 
-Usage: npx gemini-research-mcp@latest [options]
+Usage: npx video-research-mcp@latest [options]
 
 Options:
   --global      Install globally to ~/.claude/
@@ -157,7 +157,7 @@ async function install(mode, force) {
   const targetDir = getTargetDir(mode);
   const configPath = getConfigPath(mode);
 
-  ui.header(`gemini-research-mcp v${VERSION}`);
+  ui.header(`video-research-mcp v${VERSION}`);
 
   // Prerequisites
   const prereqs = checkPrereqs();
@@ -264,7 +264,7 @@ async function uninstall(mode) {
     return;
   }
 
-  ui.header(`Uninstalling gemini-research-mcp (${mode})`);
+  ui.header(`Uninstalling video-research-mcp (${mode})`);
 
   let removed = 0;
   let skipped = 0;

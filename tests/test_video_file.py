@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gemini_research_mcp.tools.video_file import (
+from video_research_mcp.tools.video_file import (
     LARGE_FILE_THRESHOLD,
     SUPPORTED_VIDEO_EXTENSIONS,
     _file_content_hash,

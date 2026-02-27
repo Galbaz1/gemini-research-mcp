@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from gemini_research_mcp.models.content import ContentResult
-from gemini_research_mcp.tools.content import (
+from video_research_mcp.models.content import ContentResult
+from video_research_mcp.tools.content import (
     _build_content_parts,
     content_analyze,
     content_extract,

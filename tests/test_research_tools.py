@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from gemini_research_mcp.models.research import (
+from video_research_mcp.models.research import (
     EvidenceAssessment,
     Finding,
     FindingsContainer,
@@ -12,7 +12,7 @@ from gemini_research_mcp.models.research import (
     ResearchPlan,
     ResearchSynthesis,
 )
-from gemini_research_mcp.tools.research import (
+from video_research_mcp.tools.research import (
     research_assess_evidence,
     research_deep,
     research_plan,

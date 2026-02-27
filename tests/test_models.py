@@ -1,12 +1,12 @@
 """Tests for Pydantic models."""
 
-from gemini_research_mcp.models.video import (
+from video_research_mcp.models.video import (
     SessionInfo,
     SessionResponse,
     Timestamp,
     VideoResult,
 )
-from gemini_research_mcp.models.research import (
+from video_research_mcp.models.research import (
     EvidenceAssessment,
     Finding,
     FindingsContainer,
@@ -15,8 +15,8 @@ from gemini_research_mcp.models.research import (
     ResearchReport,
     ResearchSynthesis,
 )
-from gemini_research_mcp.models.content import ContentResult
-from gemini_research_mcp.models.video_batch import BatchVideoItem, BatchVideoResult
+from video_research_mcp.models.content import ContentResult
+from video_research_mcp.models.video_batch import BatchVideoItem, BatchVideoResult
 
 
 class TestVideoModels:

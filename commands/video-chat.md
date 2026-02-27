@@ -1,7 +1,7 @@
 ---
 description: Multi-turn video Q&A session
 argument-hint: <youtube-url-or-file-path>
-allowed-tools: mcp__gemini-research__video_create_session, mcp__gemini-research__video_continue_session, mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_wait_for, Write, Read, Edit, Glob, Bash
+allowed-tools: mcp__video-research__video_create_session, mcp__video-research__video_continue_session, mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_wait_for, Write, Read, Edit, Glob, Bash
 model: sonnet
 ---
 

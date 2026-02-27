@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
-import gemini_research_mcp.config as cfg_mod
-from gemini_research_mcp.sessions import SessionStore
+import video_research_mcp.config as cfg_mod
+from video_research_mcp.sessions import SessionStore
 
 from google.genai import types
 

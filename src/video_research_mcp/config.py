@@ -44,7 +44,7 @@ class ServerConfig(BaseModel):
         """Build config from environment variables."""
         from pathlib import Path
 
-        cache_default = str(Path.home() / ".cache" / "gemini-research-mcp")
+        cache_default = str(Path.home() / ".cache" / "video-research-mcp")
         return cls(
             gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
             default_model=os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview"),

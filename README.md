@@ -1,6 +1,6 @@
-# gemini-research-mcp
+# video-research-mcp
 
-Gemini 3.1 Pro as a research partner for Claude Code — video analysis, deep research, content extraction, and web search. With progressive memory, automatic visualizations, and video frame extraction.
+A Claude Code plugin for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro. With progressive memory, automatic visualizations, and video frame extraction.
 
 ## The Problem
 
@@ -59,7 +59,7 @@ Find gaps across all your past analyses:
 
 ```bash
 # Install (one command)
-npx gemini-research-mcp@latest
+npx video-research-mcp@latest
 
 # Set your API key
 export GEMINI_API_KEY="your-key-here"
@@ -74,9 +74,9 @@ The installer copies commands, skills, and agents to `~/.claude/` and configures
 
 ```bash
 # Other install options
-npx gemini-research-mcp@latest --local     # Install to ./.claude/ (this project only)
-npx gemini-research-mcp@latest --check     # Show install status
-npx gemini-research-mcp@latest --uninstall # Clean removal
+npx video-research-mcp@latest --local     # Install to ./.claude/ (this project only)
+npx video-research-mcp@latest --check     # Show install status
+npx video-research-mcp@latest --uninstall # Clean removal
 ```
 
 **Prerequisites**: Python >= 3.11, [uv](https://docs.astral.sh/uv/), [Node.js](https://nodejs.org/) >= 16, a [Google AI API key](https://aistudio.google.com/apikey)
@@ -212,10 +212,10 @@ Use `/gr:recall fuzzy` to find concepts you're unsure about across all analyses.
 ### npx Installer (recommended)
 
 ```bash
-npx gemini-research-mcp@latest
+npx video-research-mcp@latest
 ```
 
-Installs commands, skills, agents, and MCP config. The server runs via `uvx gemini-research-mcp` from PyPI — no local clone needed.
+Installs commands, skills, agents, and MCP config. The server runs via `uvx video-research-mcp` from PyPI — no local clone needed.
 
 ### Standalone MCP Server
 
@@ -224,9 +224,9 @@ If you only need the 11 tools (no commands/skills/agents), add to your project's
 ```json
 {
   "mcpServers": {
-    "gemini-research": {
+    "video-research": {
       "command": "uvx",
-      "args": ["gemini-research-mcp"],
+      "args": ["video-research-mcp"],
       "env": {
         "GEMINI_API_KEY": "${GEMINI_API_KEY}"
       }
@@ -242,9 +242,9 @@ Tools only (no commands, skills, agents, or Playwright integration). Add to `cla
 ```json
 {
   "mcpServers": {
-    "gemini-research": {
+    "video-research": {
       "command": "uvx",
-      "args": ["gemini-research-mcp"],
+      "args": ["video-research-mcp"],
       "env": {
         "GEMINI_API_KEY": "your-key-here"
       }
@@ -256,8 +256,8 @@ Tools only (no commands, skills, agents, or Playwright integration). Add to `cla
 ### From Source (development)
 
 ```bash
-git clone https://github.com/Galbaz1/gemini-research-mcp
-cd gemini-research-mcp
+git clone https://github.com/Galbaz1/video-research-mcp
+cd video-research-mcp
 uv venv && source .venv/bin/activate && uv pip install -e ".[dev]"
 node bin/install.js --global
 ```
@@ -271,7 +271,7 @@ node bin/install.js --global
 | `GEMINI_FLASH_MODEL` | `gemini-3-flash-preview` | Flash model for search |
 | `GEMINI_THINKING_LEVEL` | `high` | Default thinking level (minimal/low/medium/high) |
 | `GEMINI_TEMPERATURE` | `1.0` | Default temperature |
-| `GEMINI_CACHE_DIR` | `~/.cache/gemini-research-mcp/` | Cache location |
+| `GEMINI_CACHE_DIR` | `~/.cache/video-research-mcp/` | Cache location |
 | `GEMINI_CACHE_TTL_DAYS` | `30` | Cache expiry in days |
 | `GEMINI_MAX_SESSIONS` | `50` | Max concurrent video sessions |
 | `GEMINI_SESSION_TIMEOUT_HOURS` | `2` | Session TTL |
@@ -297,7 +297,7 @@ uv run ruff check src/ tests/
 |-------|-----|
 | `No Gemini API key` error | Set `GEMINI_API_KEY` env var |
 | `429` / quota exceeded | Wait 60s or upgrade your Google AI plan |
-| Cache permission errors | Check write access to `~/.cache/gemini-research-mcp/` or set `GEMINI_CACHE_DIR` |
+| Cache permission errors | Check write access to `~/.cache/video-research-mcp/` or set `GEMINI_CACHE_DIR` |
 | Video analysis returns empty | Video may be private, age-restricted, or region-locked |
 | Plugin not loading | Verify `python >= 3.11` and `uv` are available on PATH |
 | No frames extracted | Install ffmpeg: `brew install ffmpeg` (macOS) or `apt install ffmpeg` (Linux) |

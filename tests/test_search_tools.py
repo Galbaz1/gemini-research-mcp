@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gemini_research_mcp.tools.search import web_search
+from video_research_mcp.tools.search import web_search
 
 
 class TestSearchTools:
@@ -33,7 +33,7 @@ class TestSearchTools:
         client = MagicMock()
         client.aio.models.generate_content = AsyncMock(return_value=response)
 
-        with patch("gemini_research_mcp.tools.search.GeminiClient.get", return_value=client):
+        with patch("video_research_mcp.tools.search.GeminiClient.get", return_value=client):
             out = await web_search("query", num_results=2)
 
         assert out["query"] == "query"
@@ -54,7 +54,7 @@ class TestSearchTools:
         client = MagicMock()
         client.aio.models.generate_content = AsyncMock(return_value=response)
 
-        with patch("gemini_research_mcp.tools.search.GeminiClient.get", return_value=client):
+        with patch("video_research_mcp.tools.search.GeminiClient.get", return_value=client):
             out = await web_search("test query")
 
         assert out["query"] == "test query"
@@ -70,7 +70,7 @@ class TestSearchTools:
         client = MagicMock()
         client.aio.models.generate_content = AsyncMock(side_effect=RuntimeError("timeout"))
 
-        with patch("gemini_research_mcp.tools.search.GeminiClient.get", return_value=client):
+        with patch("video_research_mcp.tools.search.GeminiClient.get", return_value=client):
             out = await web_search("failing query")
 
         assert "error" in out

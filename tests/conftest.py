@@ -1,4 +1,4 @@
-"""Shared test fixtures for gemini-research-mcp."""
+"""Shared test fixtures for video-research-mcp."""
 
 from __future__ import annotations
 
@@ -17,12 +17,12 @@ def _set_dummy_api_key(monkeypatch):
 def mock_gemini_client():
     """Patch GeminiClient.get(), .generate(), and .generate_structured() for unit tests."""
     with (
-        patch("gemini_research_mcp.client.GeminiClient.get") as mock_get,
+        patch("video_research_mcp.client.GeminiClient.get") as mock_get,
         patch(
-            "gemini_research_mcp.client.GeminiClient.generate", new_callable=AsyncMock
+            "video_research_mcp.client.GeminiClient.generate", new_callable=AsyncMock
         ) as mock_gen,
         patch(
-            "gemini_research_mcp.client.GeminiClient.generate_structured",
+            "video_research_mcp.client.GeminiClient.generate_structured",
             new_callable=AsyncMock,
         ) as mock_structured,
     ):
@@ -39,7 +39,7 @@ def mock_gemini_client():
 @pytest.fixture()
 def clean_config():
     """Reset the config singleton between tests."""
-    import gemini_research_mcp.config as cfg_mod
+    import video_research_mcp.config as cfg_mod
 
     cfg_mod._config = None
     yield

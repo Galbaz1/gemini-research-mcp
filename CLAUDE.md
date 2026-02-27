@@ -26,12 +26,12 @@ uv run pytest tests/ -k "video_analyze" -v
 uv run ruff check src/ tests/
 
 # Run the MCP server locally
-GEMINI_API_KEY=... uv run gemini-research-mcp
+GEMINI_API_KEY=... uv run video-research-mcp
 ```
 
 ## Architecture
 
-**Composite FastMCP server** — `server.py` creates a root `FastMCP("gemini-research")` and mounts 5 sub-servers:
+**Composite FastMCP server** — `server.py` creates a root `FastMCP("video-research")` and mounts 5 sub-servers:
 
 ```
 server.py (root, lifespan hook for cleanup)
@@ -152,7 +152,7 @@ All env vars with defaults — see `config.py:ServerConfig.from_env()` for canon
 | `GEMINI_FLASH_MODEL` | `gemini-3-flash-preview` |
 | `GEMINI_THINKING_LEVEL` | `high` |
 | `GEMINI_TEMPERATURE` | `1.0` |
-| `GEMINI_CACHE_DIR` | `~/.cache/gemini-research-mcp/` |
+| `GEMINI_CACHE_DIR` | `~/.cache/video-research-mcp/` |
 | `GEMINI_CACHE_TTL_DAYS` | `30` |
 | `GEMINI_MAX_SESSIONS` | `50` |
 | `GEMINI_SESSION_TIMEOUT_HOURS` | `2` |
