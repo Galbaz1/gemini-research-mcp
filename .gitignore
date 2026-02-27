@@ -6,4 +6,5 @@ dist/
 .pytest_cache/
 .ruff_cache/
 .env
+.envrc
 .claude/*.local.md
