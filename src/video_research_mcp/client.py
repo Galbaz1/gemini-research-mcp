@@ -11,6 +11,7 @@ from google.genai import types
 from pydantic import BaseModel
 
 from .config import VALID_THINKING_LEVELS, get_config
+from .retry import with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +74,13 @@ class GeminiClient:
             config.tools = tools
 
         client = cls.get()
-        response = await client.aio.models.generate_content(
-            model=resolved_model,
-            contents=contents,
-            config=config,
-            **kwargs,
+        response = await with_retry(
+            lambda: client.aio.models.generate_content(
+                model=resolved_model,
+                contents=contents,
+                config=config,
+                **kwargs,
+            )
         )
 
         # Strip thinking parts — only return user-visible text

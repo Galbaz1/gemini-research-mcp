@@ -13,6 +13,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from ..client import GeminiClient
+from ..retry import with_retry
 from ..config import get_config
 from ..errors import make_tool_error
 from ..models.video import SessionInfo, SessionResponse
@@ -221,12 +222,14 @@ async def video_continue_session(
     try:
         client = GeminiClient.get()
         cfg = get_config()
-        response = await client.aio.models.generate_content(
-            model=cfg.default_model,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_level="medium"),
-            ),
+        response = await with_retry(
+            lambda: client.aio.models.generate_content(
+                model=cfg.default_model,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    thinking_config=types.ThinkingConfig(thinking_level="medium"),
+                ),
+            )
         )
         parts = response.candidates[0].content.parts if response.candidates else []
         text = "\n".join(p.text for p in parts if p.text and not getattr(p, "thought", False))

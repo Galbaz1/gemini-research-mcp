@@ -11,6 +11,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from ..client import GeminiClient
+from ..retry import with_retry
 from ..config import get_config
 from ..errors import make_tool_error
 
@@ -38,10 +39,12 @@ async def web_search(
         )
         client = GeminiClient.get()
         cfg = get_config()
-        response = await client.aio.models.generate_content(
-            model=cfg.flash_model,
-            contents=f"Search for: {query}\n\nReturn the top {num_results} most relevant results with title, URL, and a brief snippet for each.",
-            config=config,
+        response = await with_retry(
+            lambda: client.aio.models.generate_content(
+                model=cfg.flash_model,
+                contents=f"Search for: {query}\n\nReturn the top {num_results} most relevant results with title, URL, and a brief snippet for each.",
+                config=config,
+            )
         )
         text = response.text or ""
 
