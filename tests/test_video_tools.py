@@ -274,6 +274,75 @@ class TestVideoBatchAnalyze:
         assert "clip.webm" not in names
 
 
+class TestVideoAnalyzeStrictMode:
+    @pytest.mark.asyncio
+    async def test_strict_with_output_schema_rejected(self):
+        """strict_contract=True + output_schema → API_INVALID_ARGUMENT error."""
+        result = await video_analyze(
+            url="https://www.youtube.com/watch?v=abc123",
+            strict_contract=True,
+            output_schema={"type": "object"},
+        )
+        assert "error" in result
+        assert result["category"] == "API_INVALID_ARGUMENT"
+
+    @pytest.mark.asyncio
+    async def test_strict_calls_pipeline(self, mock_gemini_client):
+        """strict_contract=True delegates to run_strict_pipeline."""
+        mock_pipeline = AsyncMock(
+            return_value={"analysis": {}, "quality_report": {"status": "pass"}},
+        )
+        with patch(
+            "video_research_mcp.contract.run_strict_pipeline", mock_pipeline,
+        ):
+            result = await video_analyze(
+                url="https://www.youtube.com/watch?v=abc123",
+                strict_contract=True,
+                use_cache=False,
+            )
+
+        assert "error" not in result
+        mock_pipeline.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_strict_false_unchanged(self, mock_gemini_client):
+        """strict_contract=False (default) uses normal analyze_video path."""
+        mock_gemini_client["generate_structured"].return_value = VideoResult(
+            title="Normal", summary="Normal analysis",
+        )
+        result = await video_analyze(
+            url="https://www.youtube.com/watch?v=abc123",
+            strict_contract=False,
+            use_cache=False,
+        )
+        assert result["title"] == "Normal"
+        mock_gemini_client["generate_structured"].assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_strict_no_source_still_errors(self):
+        """strict_contract=True without url/file_path still returns source error."""
+        result = await video_analyze(strict_contract=True)
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_strict_local_file(self, tmp_path, mock_gemini_client):
+        """strict_contract=True works with local file path."""
+        f = tmp_path / "clip.mp4"
+        f.write_bytes(b"\x00" * 100)
+
+        with patch(
+            "video_research_mcp.contract.run_strict_pipeline",
+            new_callable=AsyncMock,
+            return_value={"analysis": {"title": "Local"}, "quality_report": {"status": "pass"}},
+        ):
+            result = await video_analyze(
+                file_path=str(f),
+                strict_contract=True,
+                use_cache=False,
+            )
+        assert "error" not in result
+
+
 def _make_yt_metadata(
     video_id="abc123", title="Test Video", duration_seconds=600, **kwargs
 ):

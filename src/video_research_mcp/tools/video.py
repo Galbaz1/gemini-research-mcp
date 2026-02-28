@@ -12,7 +12,7 @@ from pydantic import Field
 
 from ..client import GeminiClient
 from ..config import get_config
-from ..errors import make_tool_error
+from ..errors import ErrorCategory, ToolError, make_tool_error
 from ..models.video_batch import BatchVideoItem, BatchVideoResult
 from ..prompts.video import METADATA_OPTIMIZER, METADATA_PREAMBLE
 from ..types import ThinkingLevel, VideoDirectoryPath, VideoFilePath, YouTubeUrl
@@ -114,12 +114,23 @@ async def video_analyze(
     )] = None,
     thinking_level: ThinkingLevel = "high",
     use_cache: Annotated[bool, Field(description="Use cached results")] = True,
+    strict_contract: Annotated[bool, Field(
+        description="Enable server-side contract enforcement with quality gates"
+    )] = False,
+    report_language: Annotated[str | None, Field(
+        description="Language for generated reports (ISO 639-1, e.g. 'en', 'nl', 'de')"
+    )] = None,
+    coverage_min_ratio: Annotated[float, Field(
+        ge=0.01, le=1.0,
+        description="Minimum video coverage ratio for quality gate"
+    )] = 0.90,
 ) -> dict:
     """Analyze a video (YouTube URL or local file) with any instruction.
 
     Provide exactly one of url or file_path. Uses Gemini's structured output
     for reliable JSON responses. Pass a custom output_schema to control the
-    response shape, or use the default VideoResult schema.
+    response shape, or use the default VideoResult schema. Set
+    strict_contract=True for server-side quality enforcement with artifacts.
 
     Args:
         url: YouTube video URL.
@@ -128,9 +139,13 @@ async def video_analyze(
         output_schema: Optional JSON Schema dict for custom output shape.
         thinking_level: Gemini thinking depth.
         use_cache: Whether to use cached results.
+        strict_contract: Enable strict contract pipeline with quality gates.
+        report_language: ISO 639-1 language code for strict-mode reports.
+        coverage_min_ratio: Minimum coverage ratio for quality gate (0.01-1.0).
 
     Returns:
-        Dict matching VideoResult schema (default) or the custom output_schema.
+        Dict matching VideoResult schema (default), custom output_schema,
+        or strict pipeline result with artifacts and quality report.
     """
     try:
         sources = sum(x is not None for x in (url, file_path))
@@ -140,6 +155,13 @@ async def video_analyze(
             raise ValueError("Provide exactly one of: url or file_path — got both")
     except ValueError as exc:
         return make_tool_error(exc)
+
+    if strict_contract and output_schema:
+        return ToolError(
+            error="strict_contract=True cannot be combined with output_schema",
+            category=ErrorCategory.API_INVALID_ARGUMENT.value,
+            hint="Remove output_schema or disable strict_contract.",
+        ).model_dump()
 
     try:
         metadata_context = None
@@ -161,6 +183,19 @@ async def video_analyze(
         else:
             contents, content_id = await _video_file_content(file_path, instruction)
             source_label = file_path
+
+        if strict_contract:
+            from ..contract import run_strict_pipeline
+            return await run_strict_pipeline(
+                contents,
+                instruction=instruction,
+                content_id=content_id,
+                source_label=source_label,
+                thinking_level=thinking_level,
+                report_language=report_language or "en",
+                coverage_min_ratio=coverage_min_ratio,
+                metadata_context=metadata_context,
+            )
 
         return await analyze_video(
             contents,
