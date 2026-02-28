@@ -5,7 +5,6 @@ Batch analysis lives in video_batch.py, registered via side-effect import.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from pathlib import Path
 from typing import Annotated
@@ -24,9 +23,9 @@ from ..prompts.video import METADATA_OPTIMIZER, METADATA_PREAMBLE
 from ..sessions import session_store
 from ..types import ThinkingLevel, VideoFilePath, YouTubeUrl
 from ..youtube import YouTubeClient
+from .video_cache import prewarm_cache, resolve_session_cache, prepare_cached_request
 from .video_core import analyze_video
 from .video_file import _video_file_content, _video_file_uri
-from .. import context_cache
 from .video_url import (
     _extract_video_id,
     _normalize_youtube_url,
@@ -39,8 +38,6 @@ video_server = FastMCP("video")
 
 _SHORT_VIDEO_THRESHOLD = 5 * 60  # 5 minutes
 _LONG_VIDEO_THRESHOLD = 30 * 60  # 30 minutes
-_background_tasks: set[asyncio.Task] = set()  # prevent GC of fire-and-forget tasks
-
 
 async def _youtube_metadata_pipeline(
     video_id: str, instruction: str
@@ -184,13 +181,7 @@ async def video_analyze(
 
         # Pre-warm context cache for future session reuse (YouTube only)
         if url and content_id:
-            cfg = get_config()
-            warm_parts = [types.Part(file_data=types.FileData(file_uri=clean_url))]
-            task = asyncio.create_task(
-                context_cache.get_or_create(content_id, warm_parts, cfg.default_model)
-            )
-            _background_tasks.add(task)
-            task.add_done_callback(_background_tasks.discard)
+            prewarm_cache(content_id, clean_url)
 
         return result
 
@@ -265,18 +256,10 @@ async def video_create_session(
         except Exception:
             title = Path(file_path).stem if file_path else ""
 
-    # Look up pre-warmed context cache (YouTube only)
-    cache_name = ""
-    cache_model = ""
+    # Look up pre-warmed context cache, awaiting pending prewarm if needed
+    cache_name, cache_model = "", ""
     if source_type == "youtube":
-        try:
-            vid = _extract_video_id(url)
-            cfg = get_config()
-            cache_name = context_cache.lookup(vid, cfg.default_model) or ""
-            if cache_name:
-                cache_model = cfg.default_model
-        except Exception:
-            pass
+        cache_name, cache_model = await resolve_session_cache(_extract_video_id(url))
 
     session = session_store.create(
         clean_url, "general",
@@ -322,39 +305,13 @@ async def video_continue_session(
             "hint": "Create a new session with video_create_session",
         }
 
-    # When cached content is available, omit the video Part from user messages
-    # (the video is already in the Gemini cache prefix).
-    # If TTL refresh fails, the cache is likely expired — fall back to inline video.
-    use_cache = False
-    if session.cache_name:
-        cache_alive = await context_cache.refresh_ttl(session.cache_name)
-        if cache_alive:
-            use_cache = True
-        else:
-            session.cache_name = ""
-
-    if use_cache:
-        user_parts = [types.Part(text=prompt)]
-    else:
-        user_parts = [
-            types.Part(file_data=types.FileData(file_uri=session.url)),
-            types.Part(text=prompt),
-        ]
-    user_content = types.Content(role="user", parts=user_parts)
-    contents = list(session.history) + [user_content]
+    use_cache, contents, config_kwargs = await prepare_cached_request(session, prompt)
+    user_content = contents[-1]  # last entry is the user message we just built
+    model = config_kwargs.pop("_model")
 
     try:
         client = GeminiClient.get()
-        cfg = get_config()
 
-        config_kwargs: dict = {
-            "thinking_config": types.ThinkingConfig(thinking_level="medium"),
-        }
-        if use_cache:
-            config_kwargs["cached_content"] = session.cache_name
-
-        # Use the model the cache was created for, or default
-        model = session.model if use_cache and session.model else cfg.default_model
         response = await with_retry(
             lambda: client.aio.models.generate_content(
                 model=model,
