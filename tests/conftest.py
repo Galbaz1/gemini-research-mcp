@@ -13,6 +13,17 @@ def _set_dummy_api_key(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key-not-real")
 
 
+@pytest.fixture(autouse=True)
+def _isolate_upload_cache(tmp_path, monkeypatch):
+    """Point upload cache to a temp directory so tests never share filesystem state."""
+    cache_dir = tmp_path / "upload_cache"
+    cache_dir.mkdir()
+    monkeypatch.setattr(
+        "video_research_mcp.tools.video_file._upload_cache_dir",
+        lambda: cache_dir,
+    )
+
+
 @pytest.fixture()
 def mock_gemini_client():
     """Patch GeminiClient.get(), .generate(), and .generate_structured() for unit tests."""

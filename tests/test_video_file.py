@@ -1,7 +1,8 @@
-"""Tests for video file helpers — MIME detection, hashing, content building."""
+"""Tests for video file helpers — MIME detection, hashing, content building, upload cache."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -11,6 +12,7 @@ from video_research_mcp.tools.video_file import (
     LARGE_FILE_THRESHOLD,
     SUPPORTED_VIDEO_EXTENSIONS,
     _file_content_hash,
+    _upload_large_file,
     _validate_video_path,
     _video_file_content,
     _video_file_uri,
@@ -192,3 +194,100 @@ class TestWaitForActive:
 
         with pytest.raises(TimeoutError, match="not active after"):
             await _wait_for_active(client, "files/abc123", timeout=0.05, interval=0.01)
+
+
+class TestUploadCache:
+    @pytest.fixture(autouse=True)
+    def _capture_cache_dir(self, tmp_path):
+        """Capture the isolated cache dir (provided by conftest) for assertions."""
+        self.cache_dir = tmp_path / "upload_cache"
+
+    @pytest.mark.asyncio
+    async def test_cache_miss_uploads_and_saves(self, tmp_path, mock_gemini_client):
+        """Fresh upload writes cache entry to disk."""
+        f = tmp_path / "video.mp4"
+        f.write_bytes(b"\x00" * 100)
+
+        uploaded = _mock_upload_result(uri="https://api.example/files/new", name="files/new")
+        mock_gemini_client["client"].aio.files.upload = AsyncMock(return_value=uploaded)
+        mock_gemini_client["client"].aio.files.get = AsyncMock(
+            return_value=MagicMock(state="ACTIVE")
+        )
+
+        uri = await _upload_large_file(f, "video/mp4", content_hash="abc123hash")
+
+        assert uri == "https://api.example/files/new"
+        cache_file = self.cache_dir / "abc123hash.json"
+        assert cache_file.exists()
+        data = json.loads(cache_file.read_text())
+        assert data["file_uri"] == "https://api.example/files/new"
+        assert data["file_name"] == "files/new"
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_skips_upload(self, tmp_path, mock_gemini_client):
+        """ACTIVE cached file is reused without re-uploading."""
+        f = tmp_path / "video.mp4"
+        f.write_bytes(b"\x00" * 100)
+
+        cache_file = self.cache_dir / "cached_hash.json"
+        cache_file.write_text(json.dumps({
+            "file_uri": "https://api.example/files/cached",
+            "file_name": "files/cached",
+            "uploaded_at": "2026-01-01T00:00:00+00:00",
+        }))
+
+        mock_gemini_client["client"].aio.files.get = AsyncMock(
+            return_value=MagicMock(state="ACTIVE")
+        )
+
+        uri = await _upload_large_file(f, "video/mp4", content_hash="cached_hash")
+
+        assert uri == "https://api.example/files/cached"
+        mock_gemini_client["client"].aio.files.upload.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_stale_cache_triggers_reupload(self, tmp_path, mock_gemini_client):
+        """FAILED cached file triggers a fresh upload."""
+        f = tmp_path / "video.mp4"
+        f.write_bytes(b"\x00" * 100)
+
+        cache_file = self.cache_dir / "stale_hash.json"
+        cache_file.write_text(json.dumps({
+            "file_uri": "https://api.example/files/old",
+            "file_name": "files/old",
+            "uploaded_at": "2026-01-01T00:00:00+00:00",
+        }))
+
+        # First call (cache check) → FAILED, subsequent calls → ACTIVE for new upload
+        mock_gemini_client["client"].aio.files.get = AsyncMock(
+            side_effect=[
+                MagicMock(state="FAILED"),
+                MagicMock(state="ACTIVE"),
+            ]
+        )
+        uploaded = _mock_upload_result(uri="https://api.example/files/fresh", name="files/fresh")
+        mock_gemini_client["client"].aio.files.upload = AsyncMock(return_value=uploaded)
+
+        uri = await _upload_large_file(f, "video/mp4", content_hash="stale_hash")
+
+        assert uri == "https://api.example/files/fresh"
+        mock_gemini_client["client"].aio.files.upload.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_no_hash_skips_cache(self, tmp_path, mock_gemini_client):
+        """Empty content_hash bypasses cache entirely."""
+        f = tmp_path / "video.mp4"
+        f.write_bytes(b"\x00" * 100)
+
+        uploaded = _mock_upload_result()
+        mock_gemini_client["client"].aio.files.upload = AsyncMock(return_value=uploaded)
+        mock_gemini_client["client"].aio.files.get = AsyncMock(
+            return_value=MagicMock(state="ACTIVE")
+        )
+
+        uri = await _upload_large_file(f, "video/mp4", content_hash="")
+
+        assert uri == uploaded.uri
+        mock_gemini_client["client"].aio.files.upload.assert_called_once()
+        # No cache file should exist
+        assert list(self.cache_dir.glob("*.json")) == []

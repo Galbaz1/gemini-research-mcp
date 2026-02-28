@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 from google.genai import types
 
 from ..client import GeminiClient
+from ..config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -91,15 +94,64 @@ async def _wait_for_active(
         await asyncio.sleep(interval)
 
 
-async def _upload_large_file(path: Path, mime_type: str) -> str:
-    """Upload via Gemini File API, wait for ACTIVE state, return the file URI."""
+def _upload_cache_dir() -> Path:
+    """Return the upload cache directory, creating it if needed."""
+    cfg = get_config()
+    d = Path(cfg.cache_dir) / "uploads"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _load_upload_cache(content_hash: str) -> dict | None:
+    """Load a cached upload entry by content hash, or None if missing."""
+    cache_file = _upload_cache_dir() / f"{content_hash}.json"
+    if not cache_file.exists():
+        return None
+    try:
+        return json.loads(cache_file.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _save_upload_cache(content_hash: str, file_uri: str, file_name: str) -> None:
+    """Persist an upload cache entry keyed by content hash."""
+    cache_file = _upload_cache_dir() / f"{content_hash}.json"
+    cache_file.write_text(json.dumps({
+        "file_uri": file_uri,
+        "file_name": file_name,
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+    }))
+
+
+async def _upload_large_file(path: Path, mime_type: str, content_hash: str = "") -> str:
+    """Upload via Gemini File API, wait for ACTIVE state, return the file URI.
+
+    When ``content_hash`` is provided, checks an on-disk cache first. If the
+    cached file is still ACTIVE on the server, the upload is skipped entirely.
+    This prevents re-upload loops when MCP clients retry after a timeout.
+    """
     client = GeminiClient.get()
+
+    if content_hash:
+        cached = _load_upload_cache(content_hash)
+        if cached:
+            try:
+                await _wait_for_active(client, cached["file_name"], timeout=10)
+                logger.info("Upload cache hit for %s → %s", path.name, cached["file_uri"])
+                return cached["file_uri"]
+            except (RuntimeError, TimeoutError, KeyError):
+                logger.debug("Stale upload cache for %s, re-uploading", path.name)
+
     uploaded = await client.aio.files.upload(
         file=path,
         config=types.UploadFileConfig(mime_type=mime_type),
     )
     logger.info("Uploaded %s → %s (state=%s)", path.name, uploaded.uri, uploaded.state)
     await _wait_for_active(client, uploaded.name)
+
+    if content_hash:
+        _save_upload_cache(content_hash, uploaded.uri, uploaded.name)
+
     return uploaded.uri
 
 
@@ -117,7 +169,7 @@ async def _video_file_content(file_path: str, prompt: str) -> tuple[types.Conten
     size = p.stat().st_size
 
     if size >= LARGE_FILE_THRESHOLD:
-        uri = await _upload_large_file(p, mime)
+        uri = await _upload_large_file(p, mime, content_hash=content_id)
         parts = [types.Part(file_data=types.FileData(file_uri=uri))]
     else:
         data = await asyncio.to_thread(p.read_bytes)
@@ -134,5 +186,5 @@ async def _video_file_uri(file_path: str) -> tuple[str, str]:
     """
     p, mime = _validate_video_path(file_path)
     content_id = _file_content_hash(p)
-    uri = await _upload_large_file(p, mime)
+    uri = await _upload_large_file(p, mime, content_hash=content_id)
     return uri, content_id
