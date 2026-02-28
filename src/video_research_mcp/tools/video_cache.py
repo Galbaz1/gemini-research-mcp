@@ -9,17 +9,24 @@ from google.genai import types
 
 from .. import context_cache
 from ..config import get_config
+from .video_url import is_youtube_url
 
 logger = logging.getLogger(__name__)
 
 
 def prewarm_cache(content_id: str, video_url: str) -> None:
-    """Fire background cache prewarm for a YouTube video.
+    """Fire background cache prewarm for a video.
+
+    Skips YouTube URLs — Gemini's caches.create() rejects them with
+    400 INVALID_ARGUMENT. Only File API URIs work for context caching.
 
     Args:
-        content_id: YouTube video ID.
-        video_url: Normalized YouTube URL for the file_data Part.
+        content_id: YouTube video ID or file hash.
+        video_url: Video URI (YouTube URL or File API URI).
     """
+    if is_youtube_url(video_url):
+        logger.debug("Skipping cache prewarm for YouTube URL: %s", content_id)
+        return
     cfg = get_config()
     warm_parts = [types.Part(file_data=types.FileData(file_uri=video_url))]
     context_cache.start_prewarm(content_id, warm_parts, cfg.default_model)
@@ -52,13 +59,20 @@ async def ensure_session_cache(video_id: str, video_url: str) -> tuple[str, str]
     sharing reliable instead of depending on the fire-and-forget prewarm
     from video_analyze.
 
+    Skips YouTube URLs — Gemini's caches.create() rejects them with
+    400 INVALID_ARGUMENT. Only File API URIs work for context caching.
+
     Args:
-        video_id: YouTube video ID.
-        video_url: Normalized YouTube URL for the file_data Part.
+        video_id: YouTube video ID or file hash.
+        video_url: Video URI (YouTube URL or File API URI).
 
     Returns:
         (cache_name, model) — both empty strings if lookup and creation fail.
     """
+    if is_youtube_url(video_url):
+        logger.debug("Skipping cache creation for YouTube URL: %s", video_id)
+        return "", ""
+
     # Fast path: existing cache from prewarm or previous session
     cache_name, model = await resolve_session_cache(video_id)
     if cache_name:

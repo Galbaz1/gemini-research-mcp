@@ -77,6 +77,15 @@ def _extract_video_id(url: str) -> str:
     return vid.split("&")[0].split("?")[0]
 
 
+def is_youtube_url(url: str) -> bool:
+    """Check if URL is a YouTube video URL.
+
+    Recognizes youtube.com (watch, shorts, embed, live) and youtu.be short links.
+    """
+    parsed = urlparse(url.replace("\\", ""))
+    return _is_youtube_host(parsed.netloc) or _is_youtu_be_host(parsed.netloc)
+
+
 def _video_content(url: str, prompt: str) -> types.Content:
     """Build a Content with video FileData + text prompt."""
     return types.Content(
