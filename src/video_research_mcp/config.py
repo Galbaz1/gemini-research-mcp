@@ -99,6 +99,7 @@ class ServerConfig(BaseModel):
     weaviate_api_key: str = Field(default="")
     weaviate_enabled: bool = Field(default=False)
     context_cache_ttl_seconds: int = Field(default=3600)
+    clear_cache_on_shutdown: bool = Field(default=False)
 
     @field_validator("default_thinking_level")
     @classmethod
@@ -157,6 +158,7 @@ class ServerConfig(BaseModel):
             weaviate_api_key=os.getenv("WEAVIATE_API_KEY", ""),
             weaviate_enabled=bool(weaviate_url),
             context_cache_ttl_seconds=int(os.getenv("GEMINI_CONTEXT_CACHE_TTL", "3600")),
+            clear_cache_on_shutdown=os.getenv("CLEAR_CACHE_ON_SHUTDOWN", "").lower() in ("1", "true", "yes"),
         )
 
 
