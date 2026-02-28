@@ -39,11 +39,13 @@ def _isolate_registry():
     cc_mod._registry.clear()
     cc_mod._pending.clear()
     cc_mod._suppressed.clear()
+    cc_mod._last_failure.clear()
     cc_mod._loaded = True
     yield
     cc_mod._registry.clear()
     cc_mod._pending.clear()
     cc_mod._suppressed.clear()
+    cc_mod._last_failure.clear()
     cc_mod._loaded = True
 
 
@@ -74,13 +76,14 @@ class TestEnsureSessionCache:
     """
 
     async def test_skips_youtube_urls(self):
-        """GIVEN a YouTube URL WHEN ensure_session_cache called THEN returns empty."""
+        """GIVEN a YouTube URL WHEN ensure_session_cache called THEN returns empty with reason."""
         from video_research_mcp.tools.video_cache import ensure_session_cache
 
-        cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, TEST_URL)
+        cache_name, model, reason = await ensure_session_cache(TEST_VIDEO_ID, TEST_URL)
 
         assert cache_name == ""
         assert model == ""
+        assert reason == "skipped:youtube_url"
 
     async def test_returns_existing_cache_from_registry(self):
         """GIVEN a registry entry WHEN ensure_session_cache called THEN returns it."""
@@ -89,10 +92,11 @@ class TestEnsureSessionCache:
         cfg = cfg_mod.get_config()
         cc_mod._registry[(TEST_VIDEO_ID, cfg.default_model)] = TEST_CACHE_NAME
 
-        cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, FILE_API_URI)
+        cache_name, model, reason = await ensure_session_cache(TEST_VIDEO_ID, FILE_API_URI)
 
         assert cache_name == TEST_CACHE_NAME
         assert model == cfg.default_model
+        assert reason == ""
 
     async def test_creates_cache_on_demand_when_registry_empty(self):
         """GIVEN empty registry WHEN ensure_session_cache called THEN creates via get_or_create."""
@@ -105,38 +109,65 @@ class TestEnsureSessionCache:
         mock_client.aio.caches.create = AsyncMock(return_value=mock_cached)
 
         with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
-            cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, FILE_API_URI)
+            cache_name, model, reason = await ensure_session_cache(TEST_VIDEO_ID, FILE_API_URI)
 
         assert cache_name == "cachedContents/on-demand-456"
         cfg = cfg_mod.get_config()
         assert model == cfg.default_model
+        assert reason == ""
 
-    async def test_returns_empty_when_both_fail(self):
-        """GIVEN empty registry AND create fails WHEN called THEN returns empty strings."""
+    async def test_returns_empty_with_reason_when_both_fail(self):
+        """GIVEN empty registry AND create fails WHEN called THEN returns empty + reason."""
         from video_research_mcp.tools.video_cache import ensure_session_cache
 
         mock_client = MagicMock()
         mock_client.aio.caches.create = AsyncMock(side_effect=Exception("API error"))
 
         with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
-            cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, FILE_API_URI)
+            cache_name, model, reason = await ensure_session_cache(TEST_VIDEO_ID, FILE_API_URI)
 
         assert cache_name == ""
         assert model == ""
+        assert "api_error" in reason
 
-    async def test_skips_create_when_suppressed(self):
-        """GIVEN suppressed video WHEN ensure_session_cache called THEN returns empty (no API call)."""
+    async def test_skips_create_when_suppressed_with_reason(self):
+        """GIVEN suppressed video WHEN ensure_session_cache called THEN returns suppression reason."""
         from video_research_mcp.tools.video_cache import ensure_session_cache
 
         cfg = cfg_mod.get_config()
         cc_mod._suppressed.add((TEST_VIDEO_ID, cfg.default_model))
 
         with patch("video_research_mcp.context_cache.GeminiClient.get") as mock_get:
-            cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, FILE_API_URI)
+            cache_name, model, reason = await ensure_session_cache(TEST_VIDEO_ID, FILE_API_URI)
 
         assert cache_name == ""
-        # get_or_create should skip (suppressed), so no client needed
+        assert reason == "suppressed:too_few_tokens"
         mock_get.assert_not_called()
+
+    async def test_returns_timeout_reason(self):
+        """GIVEN slow cache creation WHEN timeout exceeded THEN returns timeout reason."""
+        import asyncio
+        from video_research_mcp.tools.video_cache import ensure_session_cache
+
+        real_wait_for = asyncio.wait_for
+
+        async def fake_wait_for(coro, timeout=None):
+            """Immediately timeout for the 60s wait, pass through others."""
+            if timeout == 60.0:
+                raise asyncio.TimeoutError()
+            return await real_wait_for(coro, timeout=timeout)
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(return_value=MagicMock(name="cachedContents/never"))
+
+        with (
+            patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client),
+            patch("video_research_mcp.tools.video_cache.asyncio.wait_for", side_effect=fake_wait_for),
+        ):
+            cache_name, model, reason = await ensure_session_cache(TEST_VIDEO_ID, TEST_URL)
+
+        assert cache_name == ""
+        assert reason == "timeout:60s"
 
     async def test_deduplicates_against_pending_prewarm_after_timeout(self):
         """GIVEN a slow prewarm that outlasts lookup_or_await's timeout
@@ -178,7 +209,7 @@ class TestEnsureSessionCache:
 
             # ensure_session_cache: resolve_session_cache times out → slow path
             # slow path calls start_prewarm → returns same task (dedup)
-            cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, FILE_API_URI)
+            cache_name, model, _reason = await ensure_session_cache(TEST_VIDEO_ID, FILE_API_URI)
 
         assert cache_name == "cachedContents/dedup-789"
         # Only ONE create call — the slow path joined the pending task
@@ -349,7 +380,6 @@ class TestCreateSessionCache:
         assert result["cache_status"] == "uncached"
         assert result["download_status"] == "failed"
         assert "error" not in result
-
 
 class TestContinueSessionCache:
     @pytest.fixture()

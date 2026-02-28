@@ -53,6 +53,7 @@ class SessionInfo(BaseModel):
     source_type: str = ""
     cache_status: str = ""
     download_status: str = ""
+    cache_reason: str = ""
 
 
 class SessionResponse(BaseModel):

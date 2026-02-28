@@ -65,3 +65,28 @@ class TestInfraTools:
     async def test_infra_cache_unknown_action(self):
         out = await infra_cache(action="wat")
         assert "Unknown action" in out["error"]
+
+    @pytest.mark.asyncio
+    async def test_infra_cache_context_action(self):
+        """GIVEN cache subsystem state WHEN action=context THEN returns diagnostic dict."""
+        import video_research_mcp.context_cache as cc_mod
+
+        cc_mod._loaded = True
+        cc_mod._registry[("vid1", "model-a")] = "cachedContents/aaa"
+        cc_mod._suppressed.add(("short", "model-a"))
+        cc_mod._last_failure[("fail", "model-a")] = "api_error:TimeoutError"
+
+        try:
+            out = await infra_cache(action="context")
+
+            assert "registry" in out
+            assert "suppressed" in out
+            assert "pending" in out
+            assert "recent_failures" in out
+            assert out["registry"] == {"vid1/model-a": "cachedContents/aaa"}
+            assert "short/model-a" in out["suppressed"]
+            assert out["recent_failures"]["fail/model-a"] == "api_error:TimeoutError"
+        finally:
+            cc_mod._registry.clear()
+            cc_mod._suppressed.clear()
+            cc_mod._last_failure.clear()

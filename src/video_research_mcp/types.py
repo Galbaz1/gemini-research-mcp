@@ -10,7 +10,7 @@ from pydantic import Field
 
 ThinkingLevel = Literal["minimal", "low", "medium", "high"]
 Scope = Literal["quick", "moderate", "deep", "comprehensive"]
-CacheAction = Literal["stats", "list", "clear"]
+CacheAction = Literal["stats", "list", "clear", "context"]
 ModelPreset = Literal["best", "stable", "budget"]
 KnowledgeCollection = Literal[
     "ResearchFindings", "VideoAnalyses", "ContentAnalyses",

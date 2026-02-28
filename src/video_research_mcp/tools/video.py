@@ -333,6 +333,7 @@ async def video_create_session(
         source_type=source_type,
         cache_status="cached" if cache_name else "uncached",
         download_status=download_status,
+        cache_reason="",
     ).model_dump()
 
 

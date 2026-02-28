@@ -51,7 +51,7 @@ async def resolve_session_cache(video_id: str) -> tuple[str, str]:
     return "", ""
 
 
-async def ensure_session_cache(video_id: str, video_url: str) -> tuple[str, str]:
+async def ensure_session_cache(video_id: str, video_url: str) -> tuple[str, str, str]:
     """Look up or create context cache for session use.
 
     Unlike resolve_session_cache (lookup only), this function creates a cache
@@ -67,32 +67,43 @@ async def ensure_session_cache(video_id: str, video_url: str) -> tuple[str, str]
         video_url: Video URI (YouTube URL or File API URI).
 
     Returns:
-        (cache_name, model) — both empty strings if lookup and creation fail.
+        (cache_name, model, reason) — cache_name and model are empty strings
+        on failure; reason explains why (empty on success).
     """
     if is_youtube_url(video_url):
         logger.debug("Skipping cache creation for YouTube URL: %s", video_id)
-        return "", ""
+        return "", "", "skipped:youtube_url"
 
     # Fast path: existing cache from prewarm or previous session
     cache_name, model = await resolve_session_cache(video_id)
     if cache_name:
-        return cache_name, model
+        return cache_name, model, ""
+
+    # Check for known-unrecoverable failure before slow path
+    cfg = get_config()
+    early_reason = context_cache.failure_reason(video_id, cfg.default_model)
+    if early_reason.startswith("suppressed:"):
+        return "", "", early_reason
 
     # Slow path: create/join cache via start_prewarm (deduplicates against
     # any concurrent prewarm task to avoid creating duplicate caches)
     try:
-        cfg = get_config()
         video_parts = [types.Part(file_data=types.FileData(file_uri=video_url))]
         task = context_cache.start_prewarm(video_id, video_parts, cfg.default_model)
         cache_name = await asyncio.wait_for(asyncio.shield(task), timeout=60.0) or ""
         if cache_name:
             logger.info("Created context cache on-demand for session: %s", video_id)
-            return cache_name, cfg.default_model
+            return cache_name, cfg.default_model, ""
     except asyncio.TimeoutError:
         logger.debug("On-demand cache creation timed out for %s", video_id)
-    except Exception:
+        return "", "", "timeout:60s"
+    except Exception as exc:
         logger.debug("On-demand cache creation failed for %s", video_id, exc_info=True)
-    return "", ""
+        return "", "", f"error:{type(exc).__name__}"
+
+    # create returned None — check failure_reason for specifics
+    reason = context_cache.failure_reason(video_id, cfg.default_model)
+    return "", "", reason or "unknown"
 
 
 async def prepare_cached_request(
