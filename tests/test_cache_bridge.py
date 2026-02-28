@@ -122,29 +122,54 @@ class TestEnsureSessionCache:
         # get_or_create should skip (suppressed), so no client needed
         mock_get.assert_not_called()
 
-    async def test_deduplicates_against_pending_prewarm(self):
-        """GIVEN a pending prewarm task WHEN ensure_session_cache called THEN joins it (no duplicate)."""
+    async def test_deduplicates_against_pending_prewarm_after_timeout(self):
+        """GIVEN a slow prewarm that outlasts lookup_or_await's 5s timeout
+        WHEN ensure_session_cache falls to slow path THEN joins the pending
+        task via start_prewarm instead of creating a duplicate cache."""
+        import asyncio
         from video_research_mcp.tools.video_cache import ensure_session_cache
 
         mock_cached = MagicMock()
         mock_cached.name = "cachedContents/dedup-789"
 
-        mock_client = MagicMock()
-        mock_client.aio.caches.create = AsyncMock(return_value=mock_cached)
+        call_count = 0
 
-        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
-            # Simulate a pending prewarm (as if video_analyze just fired it)
+        async def slow_create(*args, **kwargs):
+            """Simulate a slow cache creation that outlasts lookup_or_await's timeout."""
+            nonlocal call_count
+            call_count += 1
+            await asyncio.sleep(0.3)  # Slow enough to exceed patched timeout
+            return mock_cached
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = slow_create
+
+        with (
+            patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client),
+            # Shorten lookup_or_await timeout so resolve_session_cache times out
+            patch.object(cc_mod, "lookup_or_await", wraps=cc_mod.lookup_or_await) as mock_lookup,
+        ):
+            # Start a slow prewarm (as if video_analyze just fired it)
             from google.genai import types as gtypes
             warm_parts = [gtypes.Part(file_data=gtypes.FileData(file_uri=TEST_URL))]
             cfg = cfg_mod.get_config()
             cc_mod.start_prewarm(TEST_VIDEO_ID, warm_parts, cfg.default_model)
 
-            # ensure_session_cache should join the pending task, not create a second
+            # Patch lookup_or_await to use a very short timeout so it times out
+            original_lookup_or_await = cc_mod.lookup_or_await
+
+            async def short_timeout_lookup(content_id, model, timeout=5.0):
+                return await original_lookup_or_await(content_id, model, timeout=0.05)
+
+            mock_lookup.side_effect = short_timeout_lookup
+
+            # ensure_session_cache: resolve_session_cache times out → slow path
+            # slow path calls start_prewarm → returns same task (dedup)
             cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, TEST_URL)
 
         assert cache_name == "cachedContents/dedup-789"
-        # Only ONE create call — the pending prewarm, not a duplicate
-        assert mock_client.aio.caches.create.call_count == 1
+        # Only ONE create call — the slow path joined the pending task
+        assert call_count == 1
 
 
 class TestVideoAnalyzePrewarm:
