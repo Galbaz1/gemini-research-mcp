@@ -209,6 +209,41 @@ class TestPrewarmAndLookupOrAwait:
         result = await cc_mod.lookup_or_await("vid1", "model-a")
         assert result is None
 
+    async def test_start_prewarm_deduplicates_concurrent_calls(self):
+        """GIVEN an in-flight prewarm WHEN start_prewarm called again THEN returns same task."""
+        mock_cached = MagicMock()
+        mock_cached.name = "cachedContents/dedup"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(return_value=mock_cached)
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            task1 = cc_mod.start_prewarm("vid1", _video_parts(), "model-a")
+            task2 = cc_mod.start_prewarm("vid1", _video_parts(), "model-a")
+
+        assert task1 is task2
+        await task1
+
+    async def test_start_prewarm_callback_does_not_remove_replacement(self):
+        """GIVEN task1 replaced by task2 WHEN task1 completes THEN task2 stays in _pending."""
+        mock_cached = MagicMock()
+        mock_cached.name = "cachedContents/first"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(return_value=mock_cached)
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            task1 = cc_mod.start_prewarm("vid1", _video_parts(), "model-a")
+            await task1  # complete task1
+            await asyncio.sleep(0)  # let callback run
+
+            # task1 is done, so start_prewarm creates a new task2
+            task2 = cc_mod.start_prewarm("vid1", _video_parts(), "model-a")
+
+        assert task1 is not task2
+        assert cc_mod._pending.get(("vid1", "model-a")) is task2
+        await task2
+
     async def test_start_prewarm_cleans_up_pending_on_completion(self):
         """GIVEN a prewarm task WHEN it completes THEN key removed from _pending."""
         mock_cached = MagicMock()
@@ -241,7 +276,7 @@ class TestTokenSuppression:
             result1 = await cc_mod.get_or_create("short-vid", _video_parts(), "gemini-pro")
 
         assert result1 is None
-        assert "short-vid" in cc_mod._suppressed
+        assert ("short-vid", "gemini-pro") in cc_mod._suppressed
 
         # Second call should be suppressed (no API call)
         with patch("video_research_mcp.context_cache.GeminiClient.get") as mock_get:
@@ -250,9 +285,33 @@ class TestTokenSuppression:
         assert result2 is None
         mock_get.assert_not_called()
 
+    async def test_suppression_does_not_block_other_models(self):
+        """GIVEN Pro failure WHEN Flash attempted THEN not suppressed."""
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(
+            side_effect=Exception("CachedContent has too few tokens")
+        )
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            await cc_mod.get_or_create("short-vid", _video_parts(), "gemini-pro")
+
+        assert ("short-vid", "gemini-pro") in cc_mod._suppressed
+        assert ("short-vid", "gemini-flash") not in cc_mod._suppressed
+
+        # Flash should still be attempted
+        mock_cached = MagicMock()
+        mock_cached.name = "cachedContents/flash-ok"
+        mock_client2 = MagicMock()
+        mock_client2.aio.caches.create = AsyncMock(return_value=mock_cached)
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client2):
+            result = await cc_mod.get_or_create("short-vid", _video_parts(), "gemini-flash")
+
+        assert result == "cachedContents/flash-ok"
+
     async def test_suppression_cleared_on_clear(self):
-        """GIVEN suppressed content_ids WHEN clear() called THEN suppression set emptied."""
-        cc_mod._suppressed.add("short-vid")
+        """GIVEN suppressed entries WHEN clear() called THEN suppression set emptied."""
+        cc_mod._suppressed.add(("short-vid", "gemini-pro"))
         cc_mod._registry[("a", "m")] = "cachedContents/1"
 
         mock_client = MagicMock()
@@ -261,6 +320,16 @@ class TestTokenSuppression:
         with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
             await cc_mod.clear()
 
+        assert len(cc_mod._suppressed) == 0
+
+    async def test_suppression_cleared_on_clear_empty_registry(self):
+        """GIVEN suppressed entries and empty registry WHEN clear() THEN suppression cleared."""
+        cc_mod._suppressed.add(("x", "model"))
+        assert len(cc_mod._registry) == 0
+
+        count = await cc_mod.clear()
+
+        assert count == 0
         assert len(cc_mod._suppressed) == 0
 
     async def test_non_token_error_not_suppressed(self):
@@ -273,7 +342,7 @@ class TestTokenSuppression:
         with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
             await cc_mod.get_or_create("other-vid", _video_parts(), "gemini-pro")
 
-        assert "other-vid" not in cc_mod._suppressed
+        assert ("other-vid", "gemini-pro") not in cc_mod._suppressed
 
     async def test_suppression_minimum_keyword(self):
         """GIVEN a create that fails with 'minimum' keyword THEN suppressed."""
@@ -285,7 +354,7 @@ class TestTokenSuppression:
         with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
             await cc_mod.get_or_create("tiny-vid", _video_parts(), "gemini-pro")
 
-        assert "tiny-vid" in cc_mod._suppressed
+        assert ("tiny-vid", "gemini-pro") in cc_mod._suppressed
 
 
 class TestClear:

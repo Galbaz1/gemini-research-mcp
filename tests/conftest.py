@@ -2,9 +2,46 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+
+def unwrap_tool(tool: Any) -> Any:
+    """Extract the raw coroutine from a FastMCP FunctionTool, if wrapped.
+
+    FastMCP 2.x wraps @server.tool functions in FunctionTool (not callable).
+    FastMCP 3.x preserves the original function. This helper works with both.
+    """
+    return getattr(tool, "fn", tool)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _unwrap_fastmcp_tools():
+    """Patch tool modules so FunctionTool objects become directly callable.
+
+    FastMCP 2.x wraps @server.tool in FunctionTool (not callable); 3.x
+    preserves the function. This fixture unwraps at the module level so
+    tests can ``await tool_func(...)`` regardless of FastMCP version.
+    """
+    import importlib
+    import pkgutil
+
+    import video_research_mcp.tools as tools_pkg
+
+    modules = []
+    for info in pkgutil.walk_packages(tools_pkg.__path__, tools_pkg.__name__ + "."):
+        try:
+            modules.append(importlib.import_module(info.name))
+        except Exception:
+            pass
+
+    for mod in modules:
+        for name in list(vars(mod)):
+            obj = getattr(mod, name, None)
+            if obj is not None and hasattr(obj, "fn") and not callable(obj):
+                setattr(mod, name, obj.fn)
 
 
 @pytest.fixture(autouse=True)
