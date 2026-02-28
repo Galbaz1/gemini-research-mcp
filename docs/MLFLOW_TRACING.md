@@ -140,7 +140,12 @@ web_search (TOOL)                                       ← @mlflow.trace decora
 
 It excludes: model registry, tracking UI/server, experiment management, evaluation framework, run management APIs (~1 GB saved).
 
-**Warning:** Do NOT co-install `mlflow` and `mlflow-tracing` in the same environment — causes namespace conflicts and version resolution issues.
+**Hard rule:** Do NOT co-install `mlflow` and `mlflow-tracing` in the same environment — causes namespace conflicts and version resolution issues.
+
+Use isolated environments by purpose:
+- **Server runtime env**: `video-research-mcp[tracing]` (contains `mlflow-tracing`)
+- **Local UI helper env**: `mlflow` CLI only (invoked via `uvx --with "mlflow>=3.10.0" ...`)
+- **Evaluation env**: `mlflow[genai]>=3.3` (separate from runtime env)
 
 ### 5. No-op fallback when MLflow is not installed
 
@@ -314,6 +319,45 @@ The `with_retry()` wrapper around every `generate_content()` call means retry at
 
 ## Implementation Plan
 
+### Delivery matrix (explicit)
+
+| Path | Primary user | Runtime launcher | MLflow package strategy |
+|------|--------------|------------------|-------------------------|
+| Source/dev install | Contributors and local developers | `uv run video-research-mcp` | Install `video-research-mcp[tracing]` in project env |
+| npx installer | Plugin users | Installer writes MCP entries and env | Interactive choices decide tracing on/off, URI, optional MLflow MCP server |
+| uvx MCP runtime | Claude Code consuming plugin | `uvx ... video-research-mcp` | Use plain package by default, switch to traced launcher when opted in |
+
+### Runtime launcher variants (for installer output)
+
+Default (no tracing):
+```json
+{
+  "video-research": {
+    "command": "uvx",
+    "args": ["video-research-mcp"],
+    "env": {
+      "GEMINI_API_KEY": "${GEMINI_API_KEY}"
+    }
+  }
+}
+```
+
+Tracing enabled:
+```json
+{
+  "video-research": {
+    "command": "uvx",
+    "args": ["--from", "video-research-mcp[tracing]", "video-research-mcp"],
+    "env": {
+      "GEMINI_API_KEY": "${GEMINI_API_KEY}",
+      "GEMINI_TRACING_ENABLED": "true",
+      "MLFLOW_TRACKING_URI": "./mlruns",
+      "MLFLOW_EXPERIMENT_NAME": "video-research-mcp"
+    }
+  }
+}
+```
+
 ### Current architecture (17 tools, 7 sub-servers)
 
 ```
@@ -421,7 +465,10 @@ def setup_tracing() -> None:
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(experiment)
     mlflow.gemini.autolog()
-    mlflow.config.enable_async_logging()
+    # mlflow-tracing does not expose mlflow.config.*; async behavior is
+    # configured via MLFLOW_ENABLE_ASYNC_TRACE_LOGGING* env vars.
+    if hasattr(mlflow, "config") and hasattr(mlflow.config, "enable_async_logging"):
+        mlflow.config.enable_async_logging()
 
     logger.info("Tracing enabled: experiment=%s, uri=%s", experiment, tracking_uri)
 
@@ -502,11 +549,17 @@ def test_trace_noop_when_disabled():
             return 42
 
 def test_setup_tracing_calls_autolog(mock_mlflow):
-    """setup_tracing() enables Gemini autolog and async logging."""
+    """setup_tracing() enables experiment + autolog for tracing."""
     setup_tracing()
+    mock_mlflow.set_tracking_uri.assert_called_once()
     mock_mlflow.set_experiment.assert_called_once()
     mock_mlflow.gemini.autolog.assert_called_once()
-    mock_mlflow.config.enable_async_logging.assert_called_once()
+
+def test_setup_tracing_works_without_mlflow_config_namespace(mock_mlflow):
+    """mlflow-tracing runtime has no mlflow.config; setup must still succeed."""
+    del mock_mlflow.config
+    setup_tracing()
+    mock_mlflow.gemini.autolog.assert_called_once()
 ```
 
 ### Phase 2: MLflow MCP Server + Claude Code skill
@@ -515,22 +568,34 @@ def test_setup_tracing_calls_autolog(mock_mlflow):
 
 #### 2a: Setup flow (in plugin installer)
 
-During `npx video-research-mcp` installation, or via a `/gr:setup` command, offer MLflow as an optional feature:
+During `npx video-research-mcp` installation, offer MLflow as an optional feature directly in the Node installer prompts:
 
 ```
 Step 1: "Enable MLflow tracing for this plugin?" → Yes / No
+        Why: visibility into prompts/latency/tokens vs minimal footprint.
+        Config: switch MCP launcher to traced uvx command + set GEMINI_TRACING_ENABLED.
+
 Step 2: (if Yes) "Where should traces be stored?"
-        → Local (./mlruns) — zero infra, view with `mlflow ui`
-        → Remote MLflow server — enter URL
+        → Local path (`./mlruns`) — fastest start, no infra.
+        → Remote MLflow URL — shared/team observability.
+        Config: set MLFLOW_TRACKING_URI for the video-research MCP server.
+
 Step 3: "Install MLflow MCP server for Claude Code?" → Yes / No
-        (if Yes) → adds mlflow MCP config to ~/.claude/settings.json
-Step 4: (if remote) "Set MLFLOW_TRACKING_URI now?" → enter URL or skip
+        Why: lets Claude query traces and log feedback directly.
+        Config: optionally add `mlflow` MCP server entry.
+
+Step 4: "Enable local UI helper command?" → Yes / No
+        Why: optional browser UI for trace browsing without changing runtime deps.
+        Config: print and persist helper instructions using isolated `uvx --with mlflow`.
+
+Step 5: Confirm summary and write config
+        Output: final launcher args, env vars, and optional MLflow MCP block.
 ```
 
-This uses `AskUserQuestion` in Claude Code to collect preferences, then:
-- Installs `mlflow-tracing>=3.0` into the project environment
-- Optionally adds `mlflow` MCP server config to `~/.claude/settings.json`
-- Sets environment variables in `.envrc` or project config
+Implementation notes:
+- For `npx` users, preferences are gathered in `bin/install.js` interactive prompts.
+- For local/global plugin installs, values are persisted in generated `.mcp.json` server `env`.
+- Precedence at runtime: MCP server `env` in `.mcp.json` > host process env > defaults in code.
 
 #### 2b: Claude Code skill — `mlflow-mcp-traces`
 
@@ -568,6 +633,38 @@ Add to `bin/lib/config.js` (the plugin installer's MCP config merger):
 ```
 
 This is optional — only installed when the user opts in during setup.
+
+#### 2d: Local UI helper (recommended optional companion)
+
+Do not add full `mlflow` to the server runtime environment. Instead, run MLflow UI in an isolated tool env:
+
+```bash
+uvx --with "mlflow>=3.10.0" mlflow ui \
+  --backend-store-uri ./mlruns \
+  --host 127.0.0.1 \
+  --port 5000
+```
+
+Expected URL: `http://127.0.0.1:5000`
+
+This keeps runtime lightweight (`mlflow-tracing`) while still giving a first-class local UI path.
+
+### Acceptance Criteria (must pass before rollout)
+
+Install path checks:
+- **Source/dev**: server starts with and without `[tracing]`; traces emitted when enabled.
+- **uvx runtime**: default launcher runs without MLflow deps; traced launcher emits traces.
+- **npx installer**: interactive choices correctly produce launcher args/env and optional mlflow MCP block.
+
+Behavioral checks:
+- All 17 tool handlers produce root spans when tracing is enabled.
+- Gemini calls appear as child `CHAT_MODEL` spans via autolog.
+- Shutdown always calls `mlflow.flush_trace_async_logging()` when tracing is enabled.
+
+Failure-path checks:
+- Missing `mlflow-tracing`: server still runs (no-op decorators).
+- Invalid/unreachable `MLFLOW_TRACKING_URI`: server logs warning and continues unless explicitly configured to fail fast.
+- Missing MLflow MCP server: plugin tools still work; only trace-query capability is absent.
 
 ### Phase 3: Evaluation and prompt registry (future)
 
@@ -673,12 +770,14 @@ This decouples prompt iteration from code releases. An alias flip (`@production`
 ### For developers — quick start
 
 ```bash
-# Install with tracing
+# Install runtime tracing (project env)
 uv pip install "video-research-mcp[tracing]"
 
-# Run — traces stored locally
+# Run server — traces stored locally by default
 GEMINI_API_KEY=... uv run video-research-mcp
-# View traces: mlflow ui  (opens http://localhost:5000)
+
+# Optional local UI (isolated env, does not modify runtime env)
+uvx --with "mlflow>=3.10.0" mlflow ui --backend-store-uri ./mlruns --host 127.0.0.1 --port 5000
 
 # Run with remote server
 MLFLOW_TRACKING_URI=http://mlflow:5000 GEMINI_API_KEY=... uv run video-research-mcp
@@ -693,18 +792,18 @@ GEMINI_TRACING_ENABLED=false GEMINI_API_KEY=... uv run video-research-mcp
 # Install plugin as usual
 npx video-research-mcp@latest
 
-# During setup, opt in to MLflow tracing and MCP server
+# During setup, choose tracing/local-vs-remote URI/optional MLflow MCP server/local UI helper
 # Claude Code can then use /gr:search, /gr:video etc. AND query traces via MLflow MCP tools
 ```
 
 ### Offline evaluation (developer workstation)
 
 ```bash
-# Requires full mlflow, not mlflow-tracing
-pip install "mlflow[genai]>=3.3"
+# Requires full mlflow in a separate env, not in runtime tracing env
+uvx --with "mlflow[genai]>=3.3" python -c "import mlflow; print(mlflow.__version__)"
 
 # Run evaluation on collected traces
-python -c "
+uvx --with "mlflow[genai]>=3.3" python -c "
 import mlflow
 mlflow.set_tracking_uri('http://localhost:5000')
 traces = mlflow.search_traces(experiment_names=['video-research-mcp'])
