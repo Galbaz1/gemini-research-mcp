@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 _registry: dict[tuple[str, str], str] = {}
 _pending: dict[tuple[str, str], asyncio.Task] = {}
-_suppressed: set[str] = set()  # content_ids that failed min-token check
+_suppressed: set[tuple[str, str]] = set()  # (content_id, model) pairs that failed min-token check
 _loaded: bool = False
 _MAX_REGISTRY_ENTRIES = 200
 
@@ -81,12 +81,12 @@ async def get_or_create(
     Returns:
         Cache resource name (e.g. "cachedContents/abc123") or None on failure.
     """
-    if content_id in _suppressed:
-        logger.debug("Skipping cache for %s (suppressed: too few tokens)", content_id)
-        return None
-
     _load_registry()
     key = (content_id, model)
+
+    if key in _suppressed:
+        logger.debug("Skipping cache for %s/%s (suppressed: too few tokens)", content_id, model)
+        return None
 
     existing = _registry.get(key)
     if existing:
@@ -126,8 +126,8 @@ async def get_or_create(
     except Exception as exc:
         msg = str(exc).lower()
         if "too few tokens" in msg or "minimum" in msg:
-            _suppressed.add(content_id)
-            logger.info("Suppressing future cache attempts for %s (too few tokens)", content_id)
+            _suppressed.add(key)
+            logger.info("Suppressing future cache attempts for %s/%s (too few tokens)", content_id, model)
         else:
             logger.warning("Failed to create context cache for %s", content_id, exc_info=True)
 
@@ -173,9 +173,12 @@ def start_prewarm(
         The background Task (also tracked in _pending).
     """
     key = (content_id, model)
+    existing = _pending.get(key)
+    if existing and not existing.done():
+        return existing
     task = asyncio.create_task(get_or_create(content_id, video_parts, model))
     _pending[key] = task
-    task.add_done_callback(lambda _t: _pending.pop(key, None))
+    task.add_done_callback(lambda t: _pending.pop(key, None) if _pending.get(key) is t else None)
     return task
 
 
@@ -207,6 +210,7 @@ async def lookup_or_await(
 async def clear() -> int:
     """Delete all tracked caches and clear the registry. Returns count cleared."""
     _load_registry()
+    _suppressed.clear()
     if not _registry:
         logger.info("Cleared 0 context cache(s)")
         return 0
