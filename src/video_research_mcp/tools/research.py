@@ -194,3 +194,13 @@ async def research_assess_evidence(
 
     except Exception as exc:
         return make_tool_error(exc)
+
+
+
+def _ensure_document_tool() -> None:
+    """Import research_document to register its tool on research_server.
+
+    Deferred to avoid circular import -- research_document imports from this module.
+    Called by server.py after research_server is fully initialised.
+    """
+    from . import research_document  # noqa: F401

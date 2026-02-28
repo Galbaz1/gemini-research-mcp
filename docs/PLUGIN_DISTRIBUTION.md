@@ -17,7 +17,7 @@ The npm package contains zero Python code. The PyPI package contains zero JavaSc
 
 ### What it does
 
-`bin/install.js` copies 19 markdown files into `~/.claude/` (global) or `.claude/` (local), then writes MCP server config to `.mcp.json`. That's it — no runtime, no daemon.
+`bin/install.js` copies 21 markdown files into `~/.claude/` (global) or `.claude/` (local), then writes MCP server config to `.mcp.json`. That's it — no runtime, no daemon.
 
 ```
 npx video-research-mcp@latest
@@ -253,7 +253,7 @@ USER: npx video-research-mcp@latest
          ▼
     bin/install.js (Node.js)
          │
-         ├── Copy 19 markdown files to ~/.claude/
+         ├── Copy 21 markdown files to ~/.claude/
          ├── Write .mcp.json (register MCP servers)
          └── Write manifest (for future upgrades)
 

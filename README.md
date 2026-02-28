@@ -4,7 +4,7 @@ Give Claude Code a Gemini-powered research partner that can watch videos, read p
 
 ## Why
 
-Claude Code has no native way to analyze video, run multi-source research with evidence grading, or keep findings across sessions. This plugin adds those capabilities through 23 MCP tools powered by Gemini 3.1 Pro, with optional persistent storage via Weaviate.
+Claude Code has no native way to analyze video, run multi-source research with evidence grading, or keep findings across sessions. This plugin adds those capabilities through 25 MCP tools powered by Gemini 3.1 Pro, with optional persistent storage via Weaviate.
 
 ## Install
 
@@ -13,7 +13,7 @@ npx video-research-mcp@latest
 export GEMINI_API_KEY="your-key-here"
 ```
 
-That's it. The installer copies 9 commands, 4 skills, and 4 agents to `~/.claude/` and configures the MCP servers to run via `uvx` from PyPI.
+That's it. The installer copies 10 commands, 4 skills, and 4 agents to `~/.claude/` and configures the MCP servers to run via `uvx` from PyPI.
 
 ```bash
 npx video-research-mcp@latest --check     # show install status
@@ -33,7 +33,7 @@ npx video-research-mcp@latest --local      # install for this project only
 >  Screenshot every shared screen."
 ```
 
-Gemini watches the entire video, extracts content in any language. For local files, ffmpeg pulls frames at key visual moments. The output goes to `output/<slug>/` in your workspace with analysis, frames, and an interactive concept map.
+Gemini watches the entire video, extracts content in any language. For local files, ffmpeg pulls frames at key visual moments. Large local files (>=20MB) are uploaded to Gemini's File API and context-cached automatically — multi-turn follow-ups reuse the cache instead of re-ingesting the full video. The output goes to `output/<slug>/` in your workspace with analysis, frames, and an interactive concept map.
 
 ### Research a topic
 
@@ -51,6 +51,23 @@ Runs `web_search` and `research_deep` in parallel. Findings are graded into evid
 ```
 
 Works with PDFs, URLs, and raw text. Extracts entities, relationships, and key arguments. Produces a knowledge graph visualization.
+
+### Compare a folder of documents
+
+```
+/gr:analyze ~/papers/
+```
+
+Scans the directory, passes all PDFs and text files to Gemini in one call, and returns a cross-document comparative analysis. Supports PDF, TXT, MD, HTML, XML, JSON, CSV.
+
+### Deep research in source documents
+
+```
+/gr:research-doc ~/papers/
+/gr:research-doc paper1.pdf paper2.pdf "Compare methodologies and find contradictions"
+```
+
+Runs a 4-phase pipeline — Document Mapping → Evidence Extraction → Cross-Reference → Synthesis — with every claim cited back to document and page number. Evidence tiers (CONFIRMED through SPECULATION) apply to document content, not web inference. Documents are uploaded to Gemini's File API once and reused across all phases.
 
 ### Search the web
 
@@ -108,7 +125,8 @@ The 23 tools are standard MCP -- any MCP client can call them. Point your app at
 | `/gr:video <source>` | One-shot video analysis with concept map and frame extraction |
 | `/gr:video-chat <source>` | Multi-turn video Q&A with progressive note-taking |
 | `/gr:research <topic>` | Deep research with evidence-tier labeling |
-| `/gr:analyze <content>` | Analyze any URL, file, or text |
+| `/gr:research-doc <files>` | Evidence-tiered research grounded in source documents |
+| `/gr:analyze <content>` | Analyze any URL, file, text, or directory of documents |
 | `/gr:search <query>` | Web search via Gemini grounding |
 | `/gr:recall [filter]` | Browse past analyses from memory |
 | `/gr:models [preset]` | Switch Gemini model preset (best/stable/budget) |
@@ -160,21 +178,25 @@ When MLflow tracing is enabled (`MLFLOW_TRACKING_URI` is set), every Gemini API 
 
 When `WEAVIATE_URL` is set, every tool automatically stores its results in Weaviate. Without it, nothing changes -- the plugin works the same, you just don't get persistent search.
 
-Seven collections are created on first connection:
+Eleven collections are created on first connection:
 
 | Collection | Filled by |
 |------------|-----------|
-| `ResearchFindings` | `research_deep`, `research_assess_evidence` |
+| `ResearchFindings` | `research_deep`, `research_assess_evidence`, `research_document` |
 | `VideoAnalyses` | `video_analyze`, `video_batch_analyze` |
-| `ContentAnalyses` | `content_analyze` |
+| `ContentAnalyses` | `content_analyze`, `content_batch_analyze` |
 | `VideoMetadata` | `video_metadata` |
 | `SessionTranscripts` | `video_continue_session` |
 | `WebSearchResults` | `web_search` |
 | `ResearchPlans` | `research_plan` |
+| `CommunityReactions` | comment analysis (via `/gr:video` agent) |
+| `ConceptKnowledge` | concept extraction from analyses |
+| `RelationshipEdges` | relationship mapping between concepts |
+| `CallNotes` | meeting/call analysis notes |
 
 Knowledge tools are also accessible through `/gr:recall`, which combines semantic search with filesystem browsing in one interface.
 
-Seven knowledge tools let you query this data: hybrid search, semantic similarity, fetch by UUID, manual ingest, collection stats. Two additional tools (`knowledge_ask` and `knowledge_query`) use Weaviate's QueryAgent for AI-generated answers with source citations -- these require the optional `weaviate-agents` package:
+Seven knowledge tools let you query this data: hybrid search (with optional Cohere reranking), semantic similarity, fetch by UUID, manual ingest, collection stats. `knowledge_ask` uses Weaviate's QueryAgent for AI-generated answers with source citations (requires the optional `weaviate-agents` package). `knowledge_query` is deprecated — use `knowledge_search` instead:
 
 ```bash
 uv pip install 'video-research-mcp[agents]'
@@ -194,7 +216,7 @@ export WEAVIATE_API_KEY="your-key"
 ```
 
 <details>
-<summary><strong>All 23 tools</strong></summary>
+<summary><strong>All 25 tools</strong></summary>
 
 ### Video (4)
 
@@ -213,19 +235,21 @@ export WEAVIATE_API_KEY="your-key"
 | `video_comments` | Fetch top-level comments with like counts and reply counts |
 | `video_playlist` | List videos in a YouTube playlist |
 
-### Research (3)
+### Research (4)
 
 | Tool | Description |
 |------|-------------|
 | `research_deep` | Multi-phase research with evidence tiers (Confirmed through Speculation) |
 | `research_plan` | Generate a research orchestration blueprint |
 | `research_assess_evidence` | Assess a specific claim against sources with confidence scoring |
+| `research_document` | 4-phase evidence-tiered pipeline grounded in source documents |
 
-### Content (2)
+### Content (3)
 
 | Tool | Description |
 |------|-------------|
 | `content_analyze` | Analyze a file, URL, or raw text with a natural language instruction |
+| `content_batch_analyze` | Compare or batch-analyze a directory or file list (compare/individual modes) |
 | `content_extract` | Extract structured data using a caller-provided JSON schema |
 
 ### Search (1)
@@ -251,7 +275,7 @@ export WEAVIATE_API_KEY="your-key"
 | `knowledge_fetch` | Retrieve a single object by UUID |
 | `knowledge_ingest` | Insert data into a collection (validated against schema) |
 | `knowledge_ask` | AI-generated answer with source citations (needs `weaviate-agents`) |
-| `knowledge_query` | Natural language object retrieval (needs `weaviate-agents`) |
+| `knowledge_query` | **[Deprecated]** Natural language object retrieval — use `knowledge_search` instead |
 
 </details>
 
@@ -324,7 +348,7 @@ node bin/install.js --global
 ```bash
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
-uv run pytest tests/ -v        # 417 tests, all mocked
+uv run pytest tests/ -v        # 520 tests, all mocked
 uv run ruff check src/ tests/  # lint
 ```
 

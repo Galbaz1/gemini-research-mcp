@@ -30,6 +30,11 @@ VideoDirectoryPath = Annotated[str, Field(
     min_length=1,
     description="Path to a directory containing video files",
 )]
+ContentDirectoryPath = Annotated[str, Field(
+    min_length=1,
+    description="Path to a directory containing content files (PDF, text, HTML, etc.)",
+)]
+ContentBatchMode = Literal["compare", "individual"]
 PlaylistUrl = Annotated[str, Field(
     min_length=10,
     description="YouTube playlist URL (must contain 'list=' parameter)",

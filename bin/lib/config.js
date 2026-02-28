@@ -9,6 +9,9 @@ const MCP_SERVERS = {
   'video-research': {
     command: 'uvx',
     args: ['video-research-mcp[tracing]'],
+    env: {
+      MLFLOW_TRACKING_URI: '${MLFLOW_TRACKING_URI}',
+    },
   },
   playwright: {
     command: 'npx',
