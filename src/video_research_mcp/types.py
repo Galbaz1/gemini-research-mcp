@@ -15,6 +15,7 @@ ModelPreset = Literal["best", "stable", "budget"]
 KnowledgeCollection = Literal[
     "ResearchFindings", "VideoAnalyses", "ContentAnalyses",
     "VideoMetadata", "SessionTranscripts", "WebSearchResults", "ResearchPlans",
+    "CommunityReactions", "ConceptKnowledge", "RelationshipEdges", "CallNotes",
 ]
 
 # ── Annotated aliases ────────────────────────────────────────────────────────
