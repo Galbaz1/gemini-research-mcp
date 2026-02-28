@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -22,11 +23,15 @@ def _clean_config(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _isolate_registry():
-    """Ensure cache registry is empty and _loaded reset between tests."""
+    """Ensure cache registry, pending, and suppressed are empty between tests."""
     cc_mod._registry.clear()
+    cc_mod._pending.clear()
+    cc_mod._suppressed.clear()
     cc_mod._loaded = True  # Prevent disk load during unit tests
     yield
     cc_mod._registry.clear()
+    cc_mod._pending.clear()
+    cc_mod._suppressed.clear()
     cc_mod._loaded = True
 
 
@@ -89,6 +94,26 @@ class TestGetOrCreate:
 
         assert result == "cachedContents/new123"
 
+    async def test_stale_eviction_persisted_on_recreate_failure(self, _isolate_registry_path):
+        """GIVEN a stale registry entry WHEN recreate fails THEN eviction is persisted to disk."""
+        cc_mod._registry[("abc", "gemini-pro")] = "cachedContents/stale"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.get = AsyncMock(side_effect=Exception("NOT_FOUND"))
+        mock_client.aio.caches.create = AsyncMock(side_effect=Exception("API error"))
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            result = await cc_mod.get_or_create("abc", _video_parts(), "gemini-pro")
+
+        assert result is None
+        assert ("abc", "gemini-pro") not in cc_mod._registry
+
+        # Verify eviction was persisted — reload from disk should NOT have the stale key
+        cc_mod._registry.clear()
+        cc_mod._loaded = False
+        cc_mod._load_registry()
+        assert ("abc", "gemini-pro") not in cc_mod._registry
+
     async def test_returns_none_on_create_failure(self):
         """GIVEN no registry entry WHEN create fails THEN returns None."""
         mock_client = MagicMock()
@@ -133,6 +158,134 @@ class TestLookup:
     def test_lookup_miss(self):
         """GIVEN no registry entry WHEN lookup called THEN returns None."""
         assert cc_mod.lookup("unknown", "model1") is None
+
+
+class TestPrewarmAndLookupOrAwait:
+    """Verify start_prewarm tracking and lookup_or_await bridging."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_pending(self):
+        cc_mod._pending.clear()
+        yield
+        cc_mod._pending.clear()
+
+    async def test_lookup_or_await_returns_after_prewarm_completes(self):
+        """GIVEN a pending prewarm WHEN lookup_or_await called THEN awaits and returns."""
+        mock_cached = MagicMock()
+        mock_cached.name = "cachedContents/warm123"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(return_value=mock_cached)
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            cc_mod.start_prewarm("vid1", _video_parts(), "model-a")
+            result = await cc_mod.lookup_or_await("vid1", "model-a", timeout=5.0)
+
+        assert result == "cachedContents/warm123"
+
+    async def test_lookup_or_await_times_out_gracefully(self):
+        """GIVEN a slow prewarm WHEN timeout reached THEN returns None."""
+        async def slow_create(*args, **kwargs):
+            await asyncio.sleep(10)
+            return MagicMock(name="cachedContents/never")
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = slow_create
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            cc_mod.start_prewarm("vid1", _video_parts(), "model-a")
+            result = await cc_mod.lookup_or_await("vid1", "model-a", timeout=0.1)
+
+        assert result is None
+
+    async def test_lookup_or_await_returns_immediately_on_registry_hit(self):
+        """GIVEN a registry hit WHEN lookup_or_await called THEN returns without awaiting."""
+        cc_mod._registry[("vid1", "model-a")] = "cachedContents/existing"
+        result = await cc_mod.lookup_or_await("vid1", "model-a")
+        assert result == "cachedContents/existing"
+
+    async def test_lookup_or_await_returns_none_when_no_pending(self):
+        """GIVEN no registry and no pending WHEN lookup_or_await THEN returns None."""
+        result = await cc_mod.lookup_or_await("vid1", "model-a")
+        assert result is None
+
+    async def test_start_prewarm_cleans_up_pending_on_completion(self):
+        """GIVEN a prewarm task WHEN it completes THEN key removed from _pending."""
+        mock_cached = MagicMock()
+        mock_cached.name = "cachedContents/done"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(return_value=mock_cached)
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            task = cc_mod.start_prewarm("vid1", _video_parts(), "model-a")
+            assert ("vid1", "model-a") in cc_mod._pending
+            await task
+
+        # done_callback may need an event loop iteration
+        await asyncio.sleep(0)
+        assert ("vid1", "model-a") not in cc_mod._pending
+
+
+class TestTokenSuppression:
+    """Verify min-token failure suppression for short videos."""
+
+    async def test_suppresses_after_min_token_failure(self):
+        """GIVEN a create that fails with 'too few tokens' WHEN retried THEN skipped."""
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(
+            side_effect=Exception("CachedContent has too few tokens")
+        )
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            result1 = await cc_mod.get_or_create("short-vid", _video_parts(), "gemini-pro")
+
+        assert result1 is None
+        assert "short-vid" in cc_mod._suppressed
+
+        # Second call should be suppressed (no API call)
+        with patch("video_research_mcp.context_cache.GeminiClient.get") as mock_get:
+            result2 = await cc_mod.get_or_create("short-vid", _video_parts(), "gemini-pro")
+
+        assert result2 is None
+        mock_get.assert_not_called()
+
+    async def test_suppression_cleared_on_clear(self):
+        """GIVEN suppressed content_ids WHEN clear() called THEN suppression set emptied."""
+        cc_mod._suppressed.add("short-vid")
+        cc_mod._registry[("a", "m")] = "cachedContents/1"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.delete = AsyncMock()
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            await cc_mod.clear()
+
+        assert len(cc_mod._suppressed) == 0
+
+    async def test_non_token_error_not_suppressed(self):
+        """GIVEN a create that fails with generic error WHEN checked THEN not suppressed."""
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(
+            side_effect=Exception("Internal server error")
+        )
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            await cc_mod.get_or_create("other-vid", _video_parts(), "gemini-pro")
+
+        assert "other-vid" not in cc_mod._suppressed
+
+    async def test_suppression_minimum_keyword(self):
+        """GIVEN a create that fails with 'minimum' keyword THEN suppressed."""
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(
+            side_effect=Exception("Content does not meet minimum token requirement")
+        )
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            await cc_mod.get_or_create("tiny-vid", _video_parts(), "gemini-pro")
+
+        assert "tiny-vid" in cc_mod._suppressed
 
 
 class TestClear:
@@ -268,6 +421,53 @@ class TestSessionCacheFields:
         assert loaded.cache_name == ""
         assert loaded.model == ""
         db.close()
+
+
+class TestShutdownBehavior:
+    """Verify shutdown respects clear_cache_on_shutdown config flag."""
+
+    async def test_shutdown_preserves_registry_by_default(self, _isolate_registry_path):
+        """GIVEN default config WHEN lifespan exits THEN registry file is untouched."""
+        cc_mod._registry[("vid1", "model-a")] = "cachedContents/aaa"
+        cc_mod._save_registry()
+        assert _isolate_registry_path.exists()
+
+        from video_research_mcp.server import _lifespan
+
+        with (
+            patch("video_research_mcp.server.WeaviateClient.aclose", new_callable=AsyncMock),
+            patch("video_research_mcp.server.GeminiClient.close_all", new_callable=AsyncMock, return_value=0),
+        ):
+            async with _lifespan(None):
+                pass
+
+        # Registry should still be on disk with data
+        cc_mod._registry.clear()
+        cc_mod._loaded = False
+        cc_mod._load_registry()
+        assert ("vid1", "model-a") in cc_mod._registry
+
+    async def test_shutdown_clears_when_configured(self, monkeypatch, _isolate_registry_path):
+        """GIVEN clear_cache_on_shutdown=True WHEN lifespan exits THEN registry is cleared."""
+        cfg_mod._config = None
+        monkeypatch.setenv("CLEAR_CACHE_ON_SHUTDOWN", "true")
+        cc_mod._registry[("vid1", "model-a")] = "cachedContents/aaa"
+        cc_mod._save_registry()
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.delete = AsyncMock()
+
+        from video_research_mcp.server import _lifespan
+
+        with (
+            patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client),
+            patch("video_research_mcp.server.WeaviateClient.aclose", new_callable=AsyncMock),
+            patch("video_research_mcp.server.GeminiClient.close_all", new_callable=AsyncMock, return_value=0),
+        ):
+            async with _lifespan(None):
+                pass
+
+        assert len(cc_mod._registry) == 0
 
 
 class TestRegistryPersistence:

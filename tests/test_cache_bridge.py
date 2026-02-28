@@ -37,9 +37,11 @@ def _clean_config(monkeypatch):
 def _isolate_registry():
     """Ensure cache registry is empty and _loaded reset between tests."""
     cc_mod._registry.clear()
+    cc_mod._pending.clear()
     cc_mod._loaded = True
     yield
     cc_mod._registry.clear()
+    cc_mod._pending.clear()
     cc_mod._loaded = True
 
 
@@ -61,20 +63,19 @@ def _mock_session_store():
 
 class TestVideoAnalyzePrewarm:
     async def test_video_analyze_prewarms_context_cache(self, mock_gemini_client):
-        """GIVEN a YouTube URL WHEN video_analyze completes THEN fires cache pre-warm."""
+        """GIVEN a YouTube URL WHEN video_analyze completes THEN fires cache pre-warm via start_prewarm."""
         from video_research_mcp.models.video import VideoResult
 
         mock_gemini_client["generate_structured"].return_value = VideoResult(
             title="Test", summary="Summary", key_points=["point"]
         )
 
-        with patch.object(cc_mod, "get_or_create", new_callable=AsyncMock) as mock_cache:
-            mock_cache.return_value = TEST_CACHE_NAME
+        with patch.object(cc_mod, "start_prewarm", return_value=MagicMock()) as mock_prewarm:
             result = await video_analyze(url=TEST_URL, use_cache=False)
 
         assert "error" not in result
-        mock_cache.assert_called_once()
-        call_args = mock_cache.call_args
+        mock_prewarm.assert_called_once()
+        call_args = mock_prewarm.call_args
         assert call_args[0][0] == TEST_VIDEO_ID
         assert isinstance(call_args[0][1], list)
         assert call_args[0][1][0].file_data is not None
