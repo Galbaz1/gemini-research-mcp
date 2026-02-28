@@ -64,3 +64,17 @@ A companion MCP server wrapping [video_explainer](https://github.com/prajwal-y/v
 - Distributed via the existing npm installer under `/ve:` namespace (3 commands, 1 skill, 2 agents)
 
 Design doc: [docs/plans/VIDEO_EXPLAINER_MCP_PLAN.md](docs/plans/VIDEO_EXPLAINER_MCP_PLAN.md) | [GitHub issue](https://github.com/Galbaz1/video-research-mcp/issues/5)
+
+## 6. Knowledge Conflict Detection
+
+Detect contradictory, outdated, or inconsistent information across the knowledge store at recall time. The store currently ingests everything without validation — when multiple sources discuss the same topic with opposing claims, they're returned side-by-side without any conflict indication. This tool uses Gemini structured output to analyze recall results for contradictions, classify conflict types (factual, temporal, methodological, scope), and suggest resolutions.
+
+- 1 new tool: `knowledge_conflicts`
+- Gemini-powered conflict analysis on recall results (no new dependencies)
+- Four conflict types with severity levels and resolution hints
+- Configurable sensitivity: strict (flag tensions), balanced (clear contradictions), lenient (direct opposites only)
+- Optional auto-check in `knowledge_ask` via `KNOWLEDGE_CONFLICT_CHECK` config flag
+- Conflict reports stored in new `ConflictReports` Weaviate collection for tracking
+- `/gr:recall conflicts "topic"` command integration
+
+Design doc: [docs/plans/KNOWLEDGE_CONFLICT_DETECTION.md](docs/plans/KNOWLEDGE_CONFLICT_DETECTION.md) | [GitHub issue](https://github.com/Galbaz1/video-research-mcp/issues/9)

@@ -5,7 +5,7 @@ description: Teaches Claude how to effectively use the 13 Gemini research tools.
 
 # Video Research MCP — Tool Usage Guide
 
-You have access to the `video-research-mcp` MCP server, which exposes 13 tools powered by Gemini 3.1 Pro and the YouTube Data API. These tools are **instruction-driven** — you write the instruction, Gemini returns structured JSON. Two tools (`video_metadata`, `video_playlist`) use the YouTube Data API directly for fast metadata retrieval without Gemini inference.
+You have access to the `video-research-mcp` MCP server, which exposes 15 tools powered by Gemini 3.1 Pro and the YouTube Data API. These tools are **instruction-driven** — you write the instruction, Gemini returns structured JSON. Two tools (`video_metadata`, `video_playlist`) use the YouTube Data API directly for fast metadata retrieval without Gemini inference.
 
 ## Core Principle
 
@@ -23,13 +23,25 @@ Tools accept an `instruction` parameter instead of fixed modes. Write specific, 
 | Plan a research strategy | `research_plan` |
 | Verify a specific claim | `research_assess_evidence` |
 | Analyze a URL, file, or text | `content_analyze` |
+| Batch-analyze a folder of documents | `content_batch_analyze` |
 | Extract structured data from content | `content_extract` |
+| Deep research grounded in documents | `research_document` |
 | Search the web for current info | `web_search` |
 | Check or clear the cache | `infra_cache` |
 | Change model/thinking/temperature | `infra_configure` |
 | Find past analyses and research | `/gr:recall "topic"` (semantic search when Weaviate configured) |
 | Get AI answer from past work | `/gr:recall ask "question"` (requires Weaviate + weaviate-agents) |
 | Browse knowledge gaps | `/gr:recall fuzzy` or `/gr:recall unknown` |
+
+## Media Storage Conventions
+
+When local media is available, prefer shared project memory paths:
+- Videos: `gr/media/videos/<content_id>.mp4`
+- Screenshots: `gr/media/screenshots/<content_id>/frame_MMSS.png`
+
+Knowledge results may include:
+- `local_filepath`: local video/content file path
+- `screenshot_dir`: local screenshot directory path
 
 ## Tool Reference
 
@@ -54,7 +66,8 @@ Use to enumerate playlist contents, then pass individual video IDs to `video_ana
 #### `video_analyze` — Analyze any YouTube video
 ```
 video_analyze(
-  url: str,                    # YouTube URL (required)
+  url: str | None = None,       # YouTube URL
+  file_path: str | None = None, # Local video file
   instruction: str = "...",     # What to analyze (default: comprehensive analysis)
   output_schema: dict | None,   # Custom JSON Schema for response shape
   thinking_level: str = "high", # minimal | low | medium | high
@@ -62,7 +75,7 @@ video_analyze(
 )
 ```
 
-**Default output** (VideoResult): `{title, summary, key_points[], timestamps[{time, description}], topics[], sentiment, url}`
+**Default output** (VideoResult + metadata): `{title, summary, key_points[], timestamps[{time, description}], topics[], sentiment, source, local_filepath, screenshot_dir}`
 
 **Writing good instructions:**
 - BAD: "analyze this video" (too vague, just use the default)
@@ -99,9 +112,15 @@ Use when the default VideoResult shape doesn't match what you need:
 
 #### `video_create_session` — Start multi-turn video exploration
 ```
-video_create_session(url: str, description: str = "")
+video_create_session(
+  url: str | None = None,
+  file_path: str | None = None,
+  description: str = "",
+  download: bool = False
+)
 ```
-Returns `{session_id, status, video_title}`. Use for iterative Q&A about one video.
+Returns `{session_id, status, video_title, source_type, cache_status, download_status, cache_reason, local_filepath}`.
+Use for iterative Q&A about one video.
 
 #### `video_continue_session` — Follow up within a session
 ```
@@ -109,7 +128,7 @@ video_continue_session(session_id: str, prompt: str)
 ```
 Returns `{response, turn_count}`. Maintains conversation history across turns.
 
-### Content Tools (2)
+### Content Tools (3)
 
 #### `content_analyze` — Analyze any content (file, URL, or text)
 ```
@@ -132,13 +151,37 @@ content_analyze(
 - Extract from PDF: `content_analyze(file_path="paper.pdf", instruction="Extract methodology with statistical methods")`
 - Analyze text: `content_analyze(text="...", instruction="List all named entities with types")`
 
+#### `content_batch_analyze` — Batch-analyze multiple documents
+```
+content_batch_analyze(
+  instruction: str = "...",          # What to analyze across documents
+  directory: str | None,             # Directory to scan for content files
+  file_paths: list[str] | None,      # Explicit list of file paths
+  glob_pattern: str = "*",           # Filter within directory
+  mode: str = "compare",            # "compare" (one call) | "individual" (per-file)
+  output_schema: dict | None,        # Custom JSON Schema
+  thinking_level: str = "high",
+  max_files: int = 20
+)
+```
+
+**Provide either** `directory` or `file_paths` (not both). Supports PDF, TXT, MD, HTML, XML, JSON, CSV.
+
+**Two modes:**
+- `compare`: All files sent in one Gemini call for cross-document analysis
+- `individual`: Each file analyzed separately with 3 parallel calls
+
+**Examples:**
+- Compare papers: `content_batch_analyze(directory="/papers/", instruction="Compare methodologies")`
+- Batch summarize: `content_batch_analyze(file_paths=["a.pdf", "b.pdf"], mode="individual", instruction="Summarize")`
+
 #### `content_extract` — Extract structured data with caller-provided schema
 ```
 content_extract(content: str, schema: dict)
 ```
 Use when you have a specific JSON Schema and want guaranteed structured extraction.
 
-### Research Tools (3)
+### Research Tools (4)
 
 #### `research_deep` — Multi-phase deep research
 ```
@@ -158,6 +201,29 @@ Evidence tiers: CONFIRMED, STRONG INDICATOR, INFERENCE, SPECULATION, UNKNOWN.
 research_plan(topic: str, scope: str = "moderate", available_agents: int = 10)
 ```
 Returns a phased blueprint with task decomposition and model assignments. Does NOT execute — provides the plan.
+
+#### `research_document` — Deep research grounded in source documents
+```
+research_document(
+  instruction: str,                  # Research question for the documents
+  file_paths: list[str] | None,      # Local PDF/document paths
+  urls: list[str] | None,            # URLs to downloadable documents
+  scope: str = "moderate",           # quick | moderate | deep | comprehensive
+  thinking_level: str = "high"
+)
+```
+
+4-phase pipeline: Document Mapping > Evidence Extraction > Cross-Reference > Synthesis.
+Every claim cited back to document + page. Documents uploaded via File API for multi-phase reuse.
+
+**Scope controls depth:**
+- `quick`: Map + lightweight summary (2 Gemini calls)
+- `moderate`: Map + evidence + synthesis (3 calls, skip cross-ref for single doc)
+- `deep`/`comprehensive`: All 4 phases with full cross-referencing
+
+**Examples:**
+- Analyze a paper: `research_document(file_paths=["paper.pdf"], instruction="Assess methodology")`
+- Compare reports: `research_document(file_paths=["q1.pdf", "q2.pdf"], instruction="Find contradictions", scope="deep")`
 
 #### `research_assess_evidence` — Assess a claim against sources
 ```

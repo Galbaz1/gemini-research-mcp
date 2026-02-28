@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from video_research_mcp.models.content import ContentResult
@@ -93,6 +95,26 @@ class TestContentAnalyze:
         )
 
         assert result["citations"] == ["Ref A"]
+
+    @pytest.mark.asyncio
+    async def test_file_source_stores_local_filepath(self, tmp_path, mock_gemini_client):
+        """Local file analysis passes resolved local_filepath to store_content_analysis."""
+        f = tmp_path / "notes.txt"
+        f.write_text("hello")
+
+        mock_gemini_client["generate_structured"].return_value = ContentResult(
+            title="Local Doc",
+            summary="Summary",
+        )
+
+        with patch(
+            "video_research_mcp.weaviate_store.store_content_analysis",
+            new_callable=AsyncMock,
+        ) as mock_store:
+            await content_analyze(file_path=str(f))
+
+        call_kwargs = mock_store.call_args.kwargs
+        assert call_kwargs["local_filepath"] == str(f.resolve())
 
     @pytest.mark.asyncio
     async def test_url_fallback_on_structured_failure(self, mock_gemini_client):

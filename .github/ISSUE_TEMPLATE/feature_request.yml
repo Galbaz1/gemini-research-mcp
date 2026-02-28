@@ -1,0 +1,44 @@
+name: Feature Request
+description: Suggest a new tool, command, or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea? We'd love to hear it. Check [ROADMAP.md](https://github.com/Galbaz1/video-research-mcp/blob/main/ROADMAP.md) first to see if it's already planned.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case or pain point.
+      placeholder: "I often need to analyze multiple PDFs in a directory, but content_analyze only handles one at a time..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work? Tool name, parameters, expected output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you've tried or other approaches.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - New MCP tool
+        - New command/skill
+        - Enhancement to existing tool
+        - Documentation
+        - Infrastructure/CI
+    validations:
+      required: true

@@ -23,15 +23,17 @@ def _clean_config(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _isolate_registry():
-    """Ensure cache registry, pending, and suppressed are empty between tests."""
+    """Ensure cache registry, pending, suppressed, and failures are empty between tests."""
     cc_mod._registry.clear()
     cc_mod._pending.clear()
     cc_mod._suppressed.clear()
+    cc_mod._last_failure.clear()
     cc_mod._loaded = True  # Prevent disk load during unit tests
     yield
     cc_mod._registry.clear()
     cc_mod._pending.clear()
     cc_mod._suppressed.clear()
+    cc_mod._last_failure.clear()
     cc_mod._loaded = True
 
 
@@ -580,3 +582,109 @@ class TestRegistryPersistence:
         cc_mod._loaded = False
         cc_mod._load_registry()
         assert len(cc_mod._registry) == cc_mod._MAX_REGISTRY_ENTRIES
+
+
+class TestFailureReason:
+    """Verify failure_reason() returns the correct reason for each failure mode."""
+
+    def test_suppressed_returns_reason(self):
+        """GIVEN a suppressed key WHEN failure_reason called THEN returns suppression reason."""
+        cc_mod._suppressed.add(("short-vid", "gemini-pro"))
+        assert cc_mod.failure_reason("short-vid", "gemini-pro") == "suppressed:too_few_tokens"
+
+    def test_api_error_returns_reason(self):
+        """GIVEN a last_failure entry WHEN failure_reason called THEN returns it."""
+        cc_mod._last_failure[("vid1", "model")] = "api_error:ValueError"
+        assert cc_mod.failure_reason("vid1", "model") == "api_error:ValueError"
+
+    def test_no_failure_returns_empty(self):
+        """GIVEN no failure recorded WHEN failure_reason called THEN returns empty string."""
+        assert cc_mod.failure_reason("unknown", "model") == ""
+
+    def test_suppressed_takes_precedence(self):
+        """GIVEN both suppressed and last_failure WHEN failure_reason called THEN suppressed wins."""
+        key = ("vid1", "model")
+        cc_mod._suppressed.add(key)
+        cc_mod._last_failure[key] = "api_error:RuntimeError"
+        assert cc_mod.failure_reason("vid1", "model") == "suppressed:too_few_tokens"
+
+    async def test_last_failure_cleared_on_success(self):
+        """GIVEN a previous failure WHEN get_or_create succeeds THEN failure cleared."""
+        cc_mod._last_failure[("abc", "gemini-pro")] = "api_error:RuntimeError"
+
+        mock_cached = MagicMock()
+        mock_cached.name = "cachedContents/success"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(return_value=mock_cached)
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            result = await cc_mod.get_or_create("abc", _video_parts(), "gemini-pro")
+
+        assert result == "cachedContents/success"
+        assert ("abc", "gemini-pro") not in cc_mod._last_failure
+
+    async def test_get_or_create_records_api_error(self):
+        """GIVEN a non-token API failure WHEN get_or_create called THEN records api_error."""
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(side_effect=RuntimeError("quota exceeded"))
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            await cc_mod.get_or_create("vid1", _video_parts(), "gemini-pro")
+
+        reason = cc_mod._last_failure[("vid1", "gemini-pro")]
+        assert reason.startswith("api_error:RuntimeError:")
+        assert "quota exceeded" in reason
+
+    async def test_get_or_create_records_stale_eviction(self):
+        """GIVEN a stale registry entry WHEN validation fails THEN records stale_cache_evicted."""
+        cc_mod._registry[("abc", "gemini-pro")] = "cachedContents/stale"
+
+        mock_cached = MagicMock()
+        mock_cached.name = "cachedContents/new"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.get = AsyncMock(side_effect=Exception("NOT_FOUND"))
+        mock_client.aio.caches.create = AsyncMock(return_value=mock_cached)
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            result = await cc_mod.get_or_create("abc", _video_parts(), "gemini-pro")
+
+        # Successful recreate clears the stale failure
+        assert result == "cachedContents/new"
+        assert ("abc", "gemini-pro") not in cc_mod._last_failure
+
+
+class TestDiagnostics:
+    """Verify diagnostics() returns a complete snapshot."""
+
+    def test_diagnostics_returns_snapshot(self):
+        """GIVEN various cache states WHEN diagnostics called THEN returns structured dict."""
+        cc_mod._registry[("vid1", "model-a")] = "cachedContents/aaa"
+        cc_mod._suppressed.add(("short", "model-a"))
+        cc_mod._last_failure[("fail", "model-a")] = "api_error:TimeoutError"
+
+        result = cc_mod.diagnostics()
+
+        assert result["registry"] == {"vid1/model-a": "cachedContents/aaa"}
+        assert "short/model-a" in result["suppressed"]
+        assert result["recent_failures"] == {"fail/model-a": "api_error:TimeoutError"}
+        assert isinstance(result["pending"], list)
+
+    def test_diagnostics_empty_state(self):
+        """GIVEN clean state WHEN diagnostics called THEN returns empty collections."""
+        result = cc_mod.diagnostics()
+        assert result == {"registry": {}, "suppressed": [], "pending": [], "recent_failures": {}}
+
+    async def test_clear_resets_last_failure(self):
+        """GIVEN failures recorded WHEN clear() called THEN last_failure emptied."""
+        cc_mod._last_failure[("vid1", "model")] = "api_error:ValueError"
+        cc_mod._registry[("a", "m")] = "cachedContents/1"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.delete = AsyncMock()
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            await cc_mod.clear()
+
+        assert len(cc_mod._last_failure) == 0

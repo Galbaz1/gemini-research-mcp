@@ -69,24 +69,30 @@ class TestStoreWhenEnabled:
              "timestamps": [{"t": "00:01"}], "topics": ["AI"], "sentiment": "positive"},
             "vid123", "summarize", "https://youtube.com/watch?v=vid123",
         )
-        assert result == "test-uuid-1234"
-        mock_weaviate_client["collection"].data.insert.assert_called_once()
+        assert result is not None
+        # With content_id present, uses deterministic UUID via replace-first
+        mock_weaviate_client["collection"].data.replace.assert_called_once()
 
     async def test_store_video_includes_new_fields(self, mock_weaviate_client, clean_config, monkeypatch):
-        """store_video_analysis passes timestamps_json, topics, sentiment."""
+        """store_video_analysis passes timestamps/topics and local media paths."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
         from video_research_mcp.weaviate_store import store_video_analysis
         await store_video_analysis(
             {"title": "V", "timestamps": [{"t": "1:00"}], "topics": ["ML"], "sentiment": "neutral"},
             "vid1", "analyze",
+            local_filepath="/tmp/video.mp4",
+            screenshot_dir="/tmp/screens/vid1",
         )
-        call_props = mock_weaviate_client["collection"].data.insert.call_args[1]["properties"]
+        # With content_id, uses replace-first with deterministic UUID
+        call_props = mock_weaviate_client["collection"].data.replace.call_args[1]["properties"]
         assert "timestamps_json" in call_props
         assert call_props["topics"] == ["ML"]
         assert call_props["sentiment"] == "neutral"
+        assert call_props["local_filepath"] == "/tmp/video.mp4"
+        assert call_props["screenshot_dir"] == "/tmp/screens/vid1"
 
     async def test_store_video_adds_cross_ref(self, mock_weaviate_client, clean_config, monkeypatch):
-        """store_video_analysis calls reference_add for has_metadata."""
+        """store_video_analysis adds has_metadata cross-ref in deterministic UUID path."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
         from video_research_mcp.weaviate_store import store_video_analysis
         await store_video_analysis({"title": "V"}, "vid1", "analyze")
@@ -110,16 +116,35 @@ class TestStoreWhenEnabled:
         assert result == "test-uuid-1234"
 
     async def test_store_content_includes_new_fields(self, mock_weaviate_client, clean_config, monkeypatch):
-        """store_content_analysis passes structure_notes and quality_assessment."""
+        """store_content_analysis passes structure/quality and local filepath."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
         from video_research_mcp.weaviate_store import store_content_analysis
         await store_content_analysis(
             {"title": "C", "structure_notes": "Well-organized", "quality_assessment": "High quality"},
-            "http://example.com", "analyze",
+            "http://example.com", "analyze", local_filepath="/tmp/doc.pdf",
         )
         call_props = mock_weaviate_client["collection"].data.insert.call_args[1]["properties"]
         assert call_props["structure_notes"] == "Well-organized"
         assert call_props["quality_assessment"] == "High quality"
+        assert call_props["local_filepath"] == "/tmp/doc.pdf"
+
+    async def test_store_session_includes_local_filepath(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """store_session_turn persists the local session filepath when provided."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.weaviate_store import store_session_turn
+
+        await store_session_turn(
+            "sess1",
+            "Video",
+            2,
+            "prompt",
+            "response",
+            local_filepath="/tmp/video.mp4",
+        )
+        call_props = mock_weaviate_client["collection"].data.insert.call_args[1]["properties"]
+        assert call_props["local_filepath"] == "/tmp/video.mp4"
 
     async def test_store_research_uses_insert_many(
         self, mock_weaviate_client, clean_config, monkeypatch
@@ -276,6 +301,7 @@ class TestStoreErrorHandling:
     ):
         """store_video_analysis returns None (not raises) on failure."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        mock_weaviate_client["collection"].data.replace.side_effect = RuntimeError("Connection lost")
         mock_weaviate_client["collection"].data.insert.side_effect = RuntimeError("Connection lost")
 
         from video_research_mcp.weaviate_store import store_video_analysis

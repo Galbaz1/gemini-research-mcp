@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from video_research_mcp.weaviate_schema import (
     ALL_COLLECTIONS,
+    CALL_NOTES,
+    COMMUNITY_REACTIONS,
+    CONCEPT_KNOWLEDGE,
     CONTENT_ANALYSES,
+    RELATIONSHIP_EDGES,
     RESEARCH_FINDINGS,
     RESEARCH_PLANS,
     VIDEO_ANALYSES,
@@ -13,11 +17,11 @@ from video_research_mcp.weaviate_schema import (
 
 
 class TestCollectionDefinitions:
-    """Verify all 7 collections are defined correctly."""
+    """Verify all 11 collections are defined correctly."""
 
     def test_all_collections_count(self):
-        """ALL_COLLECTIONS contains exactly 7 collections."""
-        assert len(ALL_COLLECTIONS) == 7
+        """ALL_COLLECTIONS contains exactly 11 collections."""
+        assert len(ALL_COLLECTIONS) == 11
 
     def test_collection_names(self):
         """All expected collection names are present."""
@@ -25,6 +29,7 @@ class TestCollectionDefinitions:
         expected = {
             "ResearchFindings", "VideoAnalyses", "ContentAnalyses",
             "VideoMetadata", "SessionTranscripts", "WebSearchResults", "ResearchPlans",
+            "CommunityReactions", "ConceptKnowledge", "RelationshipEdges", "CallNotes",
         }
         assert names == expected
 
@@ -107,10 +112,18 @@ class TestReferences:
         assert ref.name == "belongs_to_report"
         assert ref.target_collection == "ResearchFindings"
 
+    def test_community_reactions_has_video_reference(self):
+        """CommunityReactions has a for_video reference to VideoMetadata."""
+        assert len(COMMUNITY_REACTIONS.references) == 1
+        ref = COMMUNITY_REACTIONS.references[0]
+        assert ref.name == "for_video"
+        assert ref.target_collection == "VideoMetadata"
+
     def test_collections_without_references(self):
         """Most collections have no references."""
+        has_refs = {"VideoAnalyses", "ResearchFindings", "CommunityReactions"}
         for col in ALL_COLLECTIONS:
-            if col.name not in ("VideoAnalyses", "ResearchFindings"):
+            if col.name not in has_refs:
                 assert len(col.references) == 0, f"{col.name} should have no references"
 
 
@@ -198,12 +211,19 @@ class TestIndexFlags:
             prop = next(p for p in col.properties if p.name == "created_at")
             assert prop.index_range_filters is True, f"{col.name}.created_at needs range index"
 
+    def test_updated_at_has_range_index(self):
+        """updated_at should have index_range_filters=True in all collections."""
+        for col in ALL_COLLECTIONS:
+            prop = next(p for p in col.properties if p.name == "updated_at")
+            assert prop.index_range_filters is True, f"{col.name}.updated_at needs range index"
+
     def test_numeric_fields_have_range_index(self):
         """All int/number fields that are filterable should have range indexes."""
         expected_range = {
             "VideoMetadata": {"view_count", "like_count", "comment_count", "duration_seconds"},
             "ResearchFindings": {"confidence"},
             "SessionTranscripts": {"turn_index"},
+            "CommunityReactions": {"comment_count", "sentiment_positive", "sentiment_negative", "sentiment_neutral"},
         }
         for col in ALL_COLLECTIONS:
             range_props = expected_range.get(col.name, set())
@@ -266,3 +286,50 @@ class TestIndexFlags:
                 assert prop.index_filterable is True, (
                     f"{col.name}.{prop.name} should be filterable"
                 )
+
+
+class TestNewCollections:
+    """Verify properties of the 4 new collections."""
+
+    def test_community_reactions_properties(self):
+        """CommunityReactions has expected properties."""
+        names = {p.name for p in COMMUNITY_REACTIONS.properties}
+        for prop in ("video_id", "video_title", "comment_count",
+                      "sentiment_positive", "sentiment_negative", "sentiment_neutral",
+                      "themes_positive", "themes_critical", "consensus", "notable_opinions_json"):
+            assert prop in names, f"CommunityReactions missing {prop}"
+
+    def test_concept_knowledge_properties(self):
+        """ConceptKnowledge has expected properties."""
+        names = {p.name for p in CONCEPT_KNOWLEDGE.properties}
+        for prop in ("concept_name", "state", "source_url", "source_title",
+                      "source_category", "description", "timestamp"):
+            assert prop in names, f"ConceptKnowledge missing {prop}"
+
+    def test_relationship_edges_properties(self):
+        """RelationshipEdges has expected properties."""
+        names = {p.name for p in RELATIONSHIP_EDGES.properties}
+        for prop in ("from_concept", "to_concept", "relationship_type",
+                      "source_url", "source_category"):
+            assert prop in names, f"RelationshipEdges missing {prop}"
+
+    def test_call_notes_properties(self):
+        """CallNotes has expected properties."""
+        names = {p.name for p in CALL_NOTES.properties}
+        for prop in ("video_id", "source_url", "title", "summary",
+                      "participants", "decisions", "action_items",
+                      "topics_discussed", "duration", "meeting_date"):
+            assert prop in names, f"CallNotes missing {prop}"
+
+    def test_updated_at_in_all_collections(self):
+        """Every collection includes an updated_at date property."""
+        for col in ALL_COLLECTIONS:
+            prop_names = [p.name for p in col.properties]
+            assert "updated_at" in prop_names, f"{col.name} missing updated_at"
+
+    def test_allowed_properties_includes_all_11(self):
+        """ALLOWED_PROPERTIES auto-derived from ALL_COLLECTIONS includes all 11."""
+        from video_research_mcp.tools.knowledge.helpers import ALLOWED_PROPERTIES
+        assert len(ALLOWED_PROPERTIES) == 11
+        for col in ALL_COLLECTIONS:
+            assert col.name in ALLOWED_PROPERTIES, f"{col.name} missing from ALLOWED_PROPERTIES"

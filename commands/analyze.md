@@ -1,7 +1,7 @@
 ---
 description: Analyze any content — URL, file, or pasted text
 argument-hint: <url|file-path|text>
-allowed-tools: mcp__video-research__content_analyze, mcp__video-research__content_extract, Write, Glob, Read, Bash
+allowed-tools: mcp__video-research__content_analyze, mcp__video-research__content_extract, mcp__video-research__content_batch_analyze, Write, Glob, Read, Bash
 model: sonnet
 ---
 
@@ -14,6 +14,7 @@ Analyze the provided content with progressive memory saving and automatic knowle
 1. Determine the input type from "$ARGUMENTS":
    - If it starts with `http://` or `https://`: use `content_analyze` with `url` parameter
    - If it looks like a file path (contains `/` or `.`extension): use `content_analyze` with `file_path` parameter
+   - If it's a directory path (ends with `/` or is a known directory): use `content_batch_analyze` with `directory` parameter and `mode="compare"`
    - Otherwise: use `content_analyze` with `text` parameter
 2. Use instruction="Provide a comprehensive analysis including title, summary, key points, important entities (people, organizations, concepts, technologies), document structure, and quality assessment."
 

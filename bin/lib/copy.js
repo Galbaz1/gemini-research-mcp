@@ -17,7 +17,8 @@ const FILE_MAP = {
   'commands/search.md':     'commands/gr/search.md',
   'commands/recall.md':     'commands/gr/recall.md',
   'commands/models.md':     'commands/gr/models.md',
-  'commands/doctor.md':     'commands/gr/doctor.md',
+  'commands/doctor.md':        'commands/gr/doctor.md',
+  'commands/research-doc.md':  'commands/gr/research-doc.md',
 
   'commands/explainer.md':      'commands/ve/explainer.md',
   'commands/explain-video.md':  'commands/ve/explain-video.md',

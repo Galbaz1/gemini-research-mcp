@@ -28,14 +28,15 @@ async def infra_cache(
     action: CacheAction = "stats",
     content_id: Annotated[str | None, Field(description="Scope clear to a specific content ID")] = None,
 ) -> dict:
-    """Manage the analysis cache — stats, list, or clear entries.
+    """Manage the analysis cache — stats, list, clear, or inspect context cache state.
 
     Args:
-        action: Cache operation — "stats", "list", or "clear".
+        action: Cache operation — "stats", "list", "clear", or "context".
         content_id: When action is "clear", limit deletion to this content ID.
 
     Returns:
-        Dict with operation-specific results (file_count, entries, or removed count).
+        Dict with operation-specific results (file_count, entries, removed count,
+        or context cache diagnostics).
     """
     if action == "stats":
         return cache_mod.stats()
@@ -44,7 +45,10 @@ async def infra_cache(
     if action == "clear":
         removed = cache_mod.clear(content_id)
         return {"removed": removed}
-    return {"error": f"Unknown action: {action}", "valid_actions": ["stats", "list", "clear"]}
+    if action == "context":
+        from .. import context_cache
+        return context_cache.diagnostics()
+    return {"error": f"Unknown action: {action}", "valid_actions": ["stats", "list", "clear", "context"]}
 
 
 @infra_server.tool(

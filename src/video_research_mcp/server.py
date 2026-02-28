@@ -12,8 +12,8 @@ from . import context_cache
 from .config import get_config
 from .weaviate_client import WeaviateClient
 from .tools.video import video_server
-from .tools.research import research_server
-from .tools.content import content_server
+from .tools.research import research_server, _ensure_document_tool
+from .tools.content import content_server, _ensure_batch_tool
 from .tools.search import search_server
 from .tools.infra import infra_server
 from .tools.youtube import youtube_server
@@ -43,7 +43,9 @@ app = FastMCP(
 )
 
 app.mount(video_server)
+_ensure_document_tool()  # register research_document on research_server
 app.mount(research_server)
+_ensure_batch_tool()  # register content_batch_analyze on content_server
 app.mount(content_server)
 app.mount(search_server)
 app.mount(infra_server)

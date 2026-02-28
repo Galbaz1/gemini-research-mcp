@@ -78,7 +78,7 @@ async def video_batch_analyze(
     async def _process(fp: Path) -> BatchVideoItem:
         async with semaphore:
             try:
-                contents, content_id = await _video_file_content(str(fp), instruction)
+                contents, content_id, _ = await _video_file_content(str(fp), instruction)
                 result = await analyze_video(
                     contents,
                     instruction=instruction,
@@ -87,6 +87,7 @@ async def video_batch_analyze(
                     output_schema=output_schema,
                     thinking_level=thinking_level,
                     use_cache=True,
+                    local_filepath=str(fp.resolve()),
                 )
                 return BatchVideoItem(file_name=fp.name, file_path=str(fp), result=result)
             except Exception as exc:

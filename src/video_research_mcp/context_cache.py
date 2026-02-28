@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 _registry: dict[tuple[str, str], str] = {}
 _pending: dict[tuple[str, str], asyncio.Task] = {}
 _suppressed: set[tuple[str, str]] = set()  # (content_id, model) pairs that failed min-token check
+_last_failure: dict[tuple[str, str], str] = {}  # (content_id, model) → reason string
 _loaded: bool = False
 _MAX_REGISTRY_ENTRIES = 200
 
@@ -86,6 +87,7 @@ async def get_or_create(
 
     if key in _suppressed:
         logger.debug("Skipping cache for %s/%s (suppressed: too few tokens)", content_id, model)
+        _last_failure[key] = "suppressed:too_few_tokens"
         return None
 
     existing = _registry.get(key)
@@ -99,6 +101,7 @@ async def get_or_create(
         except Exception:
             logger.debug("Stale cache entry for %s, recreating", content_id)
             _registry.pop(key, None)
+            _last_failure[key] = "stale_cache_evicted"
             _save_registry()  # persist eviction even if recreate fails
 
     try:
@@ -117,6 +120,7 @@ async def get_or_create(
         )
         if cached and cached.name:
             _registry[key] = cached.name
+            _last_failure.pop(key, None)
             _save_registry()
             logger.info(
                 "Created context cache %s for %s (model=%s, ttl=%s)",
@@ -127,11 +131,45 @@ async def get_or_create(
         msg = str(exc).lower()
         if "too few tokens" in msg or "minimum" in msg:
             _suppressed.add(key)
+            _last_failure[key] = "suppressed:too_few_tokens"
             logger.info("Suppressing future cache attempts for %s/%s (too few tokens)", content_id, model)
         else:
+            detail = str(exc)[:200]
+            _last_failure[key] = f"api_error:{type(exc).__name__}:{detail}"
             logger.warning("Failed to create context cache for %s", content_id, exc_info=True)
 
     return None
+
+
+def failure_reason(content_id: str, model: str) -> str:
+    """Return the most recent failure reason for a (content_id, model) pair.
+
+    Checks suppression set first, then the last-failure map.
+
+    Returns:
+        Reason string (e.g. "suppressed:too_few_tokens",
+        "api_error:ClientError:400 INVALID_ARGUMENT. {...}")
+        or empty string if no failure recorded.
+    """
+    key = (content_id, model)
+    if key in _suppressed:
+        return "suppressed:too_few_tokens"
+    return _last_failure.get(key, "")
+
+
+def diagnostics() -> dict:
+    """Return a snapshot of cache subsystem state for observability.
+
+    Returns:
+        Dict with registry, suppressed, pending, and recent_failures.
+    """
+    _load_registry()
+    return {
+        "registry": {f"{cid}/{model}": name for (cid, model), name in _registry.items()},
+        "suppressed": [f"{cid}/{model}" for cid, model in _suppressed],
+        "pending": [f"{cid}/{model}" for cid, model in _pending if not _pending[(cid, model)].done()],
+        "recent_failures": {f"{cid}/{model}": reason for (cid, model), reason in _last_failure.items()},
+    }
 
 
 async def refresh_ttl(cache_name: str) -> bool:
@@ -211,6 +249,7 @@ async def clear() -> int:
     """Delete all tracked caches and clear the registry. Returns count cleared."""
     _load_registry()
     _suppressed.clear()
+    _last_failure.clear()
     if not _registry:
         logger.info("Cleared 0 context cache(s)")
         return 0
@@ -225,6 +264,7 @@ async def clear() -> int:
         )
         _registry.clear()
         _suppressed.clear()
+        _last_failure.clear()
         _save_registry()
         logger.info("Cleared 0 context cache(s) (registry only)")
         return 0
@@ -237,6 +277,7 @@ async def clear() -> int:
             pass
     _registry.clear()
     _suppressed.clear()
+    _last_failure.clear()
     _save_registry()
     logger.info("Cleared %d context cache(s)", count)
     return count

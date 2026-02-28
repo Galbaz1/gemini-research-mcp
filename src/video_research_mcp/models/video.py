@@ -37,7 +37,7 @@ class VideoResult(BaseModel):
     sentiment: str = ""
 
 
-# ── Session models (unchanged — stateful, not structured-output) ────────────
+# ── Session models (stateful, not structured-output) ─────────────────────────
 
 
 class SessionInfo(BaseModel):
@@ -52,6 +52,9 @@ class SessionInfo(BaseModel):
     video_title: str = ""
     source_type: str = ""
     cache_status: str = ""
+    download_status: str = ""
+    cache_reason: str = ""
+    local_filepath: str = ""
 
 
 class SessionResponse(BaseModel):

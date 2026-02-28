@@ -16,6 +16,7 @@ from pydantic import Field
 
 from ..client import GeminiClient
 from ..retry import with_retry
+from .. import context_cache
 from ..config import get_config
 from ..errors import make_tool_error
 from ..models.video import SessionInfo, SessionResponse
@@ -23,15 +24,16 @@ from ..prompts.video import METADATA_OPTIMIZER, METADATA_PREAMBLE
 from ..sessions import session_store
 from ..types import ThinkingLevel, VideoFilePath, YouTubeUrl
 from ..youtube import YouTubeClient
-from .video_cache import prewarm_cache, resolve_session_cache, prepare_cached_request
+from .video_cache import ensure_session_cache, prewarm_cache, prepare_cached_request
 from .video_core import analyze_video
-from .video_file import _video_file_content, _video_file_uri
+from .video_file import _upload_large_file, _video_file_content, _video_file_uri
 from .video_url import (
     _extract_video_id,
     _normalize_youtube_url,
     _video_content,
     _video_content_with_metadata,
 )
+from .youtube_download import download_youtube_video
 
 logger = logging.getLogger(__name__)
 video_server = FastMCP("video")
@@ -149,6 +151,8 @@ async def video_analyze(
 
     try:
         metadata_context = None
+        local_filepath = ""
+        screenshot_dir = ""
         if url:
             clean_url = _normalize_youtube_url(url)
             content_id = _extract_video_id(url)
@@ -165,8 +169,9 @@ async def video_analyze(
             else:
                 contents = _video_content(clean_url, instruction)
         else:
-            contents, content_id = await _video_file_content(file_path, instruction)
+            contents, content_id, file_uri = await _video_file_content(file_path, instruction)
             source_label = file_path
+            local_filepath = str(Path(file_path).expanduser().resolve())
 
         result = await analyze_video(
             contents,
@@ -177,11 +182,17 @@ async def video_analyze(
             thinking_level=thinking_level,
             use_cache=use_cache,
             metadata_context=metadata_context,
+            local_filepath=local_filepath,
+            screenshot_dir=screenshot_dir,
         )
+        result["local_filepath"] = local_filepath
+        result["screenshot_dir"] = screenshot_dir
 
-        # Pre-warm context cache for future session reuse (YouTube only)
-        if url and content_id:
-            prewarm_cache(content_id, clean_url)
+        # Pre-warm context cache for future session reuse
+        if content_id:
+            cache_uri = clean_url if url else file_uri
+            if cache_uri:
+                prewarm_cache(content_id, cache_uri)
 
         return result
 
@@ -189,6 +200,49 @@ async def video_analyze(
         return make_tool_error(exc)
     except Exception as exc:
         return make_tool_error(exc)
+
+
+async def _download_and_cache(
+    video_id: str,
+) -> tuple[str, str, str, str, str]:
+    """Download YouTube video, upload to File API, and create context cache.
+
+    Args:
+        video_id: YouTube video ID.
+
+    Returns:
+        (cache_name, model, download_status, file_api_uri, local_filepath) where
+        download_status is "downloaded" on success or "failed"/"unavailable".
+    """
+    try:
+        local_path = await download_youtube_video(video_id)
+    except Exception as exc:
+        status = "unavailable" if "not found" in str(exc).lower() else "failed"
+        logger.warning("Download failed for %s: %s", video_id, exc)
+        return "", "", status, "", ""
+
+    try:
+        file_uri = await _upload_large_file(
+            local_path, "video/mp4", content_hash=video_id
+        )
+    except Exception as exc:
+        logger.warning("File API upload failed for %s: %s", video_id, exc)
+        return "", "", "failed", "", str(local_path)
+
+    cfg = get_config()
+    try:
+        file_part = types.Part(file_data=types.FileData(file_uri=file_uri))
+        cache_name = await context_cache.get_or_create(
+            video_id, [file_part], cfg.default_model
+        )
+        if cache_name:
+            return cache_name, cfg.default_model, "downloaded", file_uri, str(local_path)
+    except Exception:
+        logger.debug("Cache creation failed for %s, session will use File API URI", video_id)
+
+    # Cache creation failed but upload succeeded — session can still use the
+    # File API URI (uncached but avoids re-fetching YouTube URL each turn)
+    return "", "", "downloaded", file_uri, str(local_path)
 
 
 @video_server.tool(
@@ -203,18 +257,27 @@ async def video_create_session(
     url: YouTubeUrl | None = None,
     file_path: VideoFilePath | None = None,
     description: Annotated[str, Field(description="Session purpose or focus area")] = "",
+    download: Annotated[bool, Field(
+        description="Download YouTube video locally for cached multi-turn sessions. "
+        "Slower startup (~2 min) but faster and cheaper per turn. "
+        "Requires yt-dlp installed."
+    )] = False,
 ) -> dict:
     """Create a persistent session for multi-turn video exploration.
 
-    Provide exactly one of url or file_path.
+    Provide exactly one of url or file_path. When ``download=True`` and the
+    source is YouTube, the video is downloaded via yt-dlp, uploaded to the
+    Gemini File API, and context-cached for fast multi-turn use.
 
     Args:
         url: YouTube video URL.
         file_path: Path to a local video file.
         description: Optional focus area for the session.
+        download: Download YouTube video for cached sessions.
 
     Returns:
-        Dict with session_id, status, video_title, and source_type.
+        Dict with session_id, status, video_title, source_type, cache/download status,
+        and optional local_filepath when a local file is available.
     """
     try:
         sources = sum(x is not None for x in (url, file_path))
@@ -229,17 +292,21 @@ async def video_create_session(
         if url:
             clean_url = _normalize_youtube_url(url)
             source_type = "youtube"
+            content_id = ""
+            local_filepath = ""
         else:
-            uri, _ = await _video_file_uri(file_path)
+            uri, content_id = await _video_file_uri(file_path)
             clean_url = uri
             source_type = "local"
+            local_filepath = str(Path(file_path).expanduser().resolve())
     except (ValueError, FileNotFoundError) as exc:
         return make_tool_error(exc)
 
     title = ""
+    video_id = ""
     if source_type == "youtube":
+        video_id = _extract_video_id(url)
         try:
-            video_id = _extract_video_id(url)
             meta = await YouTubeClient.video_metadata(video_id)
             title = meta.title
         except Exception:
@@ -256,16 +323,26 @@ async def video_create_session(
         except Exception:
             title = Path(file_path).stem if file_path else ""
 
-    # Look up pre-warmed context cache, awaiting pending prewarm if needed
-    cache_name, cache_model = "", ""
-    if source_type == "youtube":
-        cache_name, cache_model = await resolve_session_cache(_extract_video_id(url))
+    cache_name, cache_model, cache_reason, download_status = "", "", "", ""
+
+    if download and source_type == "youtube":
+        cache_name, cache_model, download_status, file_uri, local_filepath = (
+            await _download_and_cache(video_id)
+        )
+        if file_uri:
+            # Session URL becomes the File API URI for multi-turn replay
+            clean_url = file_uri
+    elif source_type == "local" and content_id:
+        cache_name, cache_model, cache_reason = await ensure_session_cache(
+            content_id, clean_url
+        )
 
     session = session_store.create(
         clean_url, "general",
         video_title=title,
         cache_name=cache_name,
         model=cache_model,
+        local_filepath=local_filepath,
     )
     return SessionInfo(
         session_id=session.session_id,
@@ -273,6 +350,9 @@ async def video_create_session(
         video_title=title,
         source_type=source_type,
         cache_status="cached" if cache_name else "uncached",
+        download_status=download_status,
+        cache_reason=cache_reason,
+        local_filepath=local_filepath,
     ).model_dump()
 
 
@@ -328,7 +408,14 @@ async def video_continue_session(
         )
         turn = session_store.add_turn(session_id, user_content, model_content)
         from ..weaviate_store import store_session_turn
-        await store_session_turn(session_id, session.video_title, turn, prompt, text)
+        await store_session_turn(
+            session_id,
+            session.video_title,
+            turn,
+            prompt,
+            text,
+            local_filepath=session.local_filepath,
+        )
         return SessionResponse(response=text, turn_count=turn).model_dump()
     except Exception as exc:
         return make_tool_error(exc)
