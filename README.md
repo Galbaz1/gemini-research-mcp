@@ -4,7 +4,7 @@ Give Claude Code a Gemini-powered research partner that can watch videos, read p
 
 ## Why
 
-Claude Code has no native way to analyze video, run multi-source research with evidence grading, or keep findings across sessions. This plugin adds those capabilities through 22 MCP tools powered by Gemini 3.1 Pro, with optional persistent storage via Weaviate.
+Claude Code has no native way to analyze video, run multi-source research with evidence grading, or keep findings across sessions. This plugin adds those capabilities through 23 MCP tools powered by Gemini 3.1 Pro, with optional persistent storage via Weaviate.
 
 ## Install
 

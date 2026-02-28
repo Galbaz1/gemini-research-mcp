@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Bumped version from 0.1.0 to 0.2.0 (aligned with npm package)
-- Corrected tool count from 23 to 22 across documentation
+- Unified tool count to 23 across all documentation
 
 ## [0.1.0] - 2026-02-01
 
