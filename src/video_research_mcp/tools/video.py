@@ -24,7 +24,7 @@ from ..prompts.video import METADATA_OPTIMIZER, METADATA_PREAMBLE
 from ..sessions import session_store
 from ..types import ThinkingLevel, VideoFilePath, YouTubeUrl
 from ..youtube import YouTubeClient
-from .video_cache import ensure_session_cache, prewarm_cache, prepare_cached_request
+from .video_cache import prewarm_cache, prepare_cached_request
 from .video_core import analyze_video
 from .video_file import _upload_large_file, _video_file_content, _video_file_uri
 from .video_url import (
@@ -319,9 +319,6 @@ async def video_create_session(
         if file_uri:
             # Session URL becomes the File API URI for multi-turn replay
             clean_url = file_uri
-    elif source_type != "youtube":
-        # Local files can use ensure_session_cache (File API URIs work fine)
-        cache_name, cache_model = await ensure_session_cache("", clean_url)
 
     session = session_store.create(
         clean_url, "general",
