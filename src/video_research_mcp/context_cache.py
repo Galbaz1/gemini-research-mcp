@@ -6,7 +6,9 @@ failures return None/False and never raise.
 
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
 
 from google.genai import types
 
@@ -16,6 +18,49 @@ from .config import get_config
 logger = logging.getLogger(__name__)
 
 _registry: dict[tuple[str, str], str] = {}
+_loaded: bool = False
+_MAX_REGISTRY_ENTRIES = 200
+
+
+def _registry_path() -> Path:
+    """Path to the JSON registry sidecar file."""
+    return Path(get_config().cache_dir) / "context_cache_registry.json"
+
+
+def _save_registry() -> None:
+    """Serialize registry to disk. Caps at _MAX_REGISTRY_ENTRIES (oldest evicted). Best-effort."""
+    try:
+        while len(_registry) > _MAX_REGISTRY_ENTRIES:
+            _registry.pop(next(iter(_registry)))
+        path = _registry_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        nested: dict[str, dict[str, str]] = {}
+        for (cid, model), name in _registry.items():
+            nested.setdefault(cid, {})[model] = name
+        # Atomic write: tmp file + rename prevents corruption on crash
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(nested))
+        tmp.replace(path)
+    except Exception:
+        logger.debug("Failed to save context cache registry", exc_info=True)
+
+
+def _load_registry() -> None:
+    """Load registry from disk on first access. Best-effort — falls back to empty."""
+    global _loaded
+    if _loaded:
+        return
+    _loaded = True
+    try:
+        path = _registry_path()
+        if not path.exists():
+            return
+        nested = json.loads(path.read_text())
+        for cid, models in nested.items():
+            for model, name in models.items():
+                _registry.setdefault((cid, model), name)
+    except Exception:
+        logger.debug("Failed to load context cache registry", exc_info=True)
 
 
 async def get_or_create(
@@ -33,6 +78,7 @@ async def get_or_create(
     Returns:
         Cache resource name (e.g. "cachedContents/abc123") or None on failure.
     """
+    _load_registry()
     key = (content_id, model)
 
     existing = _registry.get(key)
@@ -63,6 +109,7 @@ async def get_or_create(
         )
         if cached and cached.name:
             _registry[key] = cached.name
+            _save_registry()
             logger.info(
                 "Created context cache %s for %s (model=%s, ttl=%s)",
                 cached.name, content_id, model, ttl,
@@ -93,11 +140,13 @@ async def refresh_ttl(cache_name: str) -> bool:
 
 def lookup(content_id: str, model: str) -> str | None:
     """Synchronous registry check — no API call."""
+    _load_registry()
     return _registry.get((content_id, model))
 
 
 async def clear() -> int:
     """Delete all tracked caches and clear the registry. Returns count cleared."""
+    _load_registry()
     if not _registry:
         logger.info("Cleared 0 context cache(s)")
         return 0
@@ -111,6 +160,7 @@ async def clear() -> int:
             exc_info=True,
         )
         _registry.clear()
+        _save_registry()
         logger.info("Cleared 0 context cache(s) (registry only)")
         return 0
 
@@ -121,5 +171,6 @@ async def clear() -> int:
         except Exception:
             pass
     _registry.clear()
+    _save_registry()
     logger.info("Cleared %d context cache(s)", count)
     return count
