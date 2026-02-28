@@ -100,7 +100,7 @@ class TestSessionStorePersistence:
         db_path = str(tmp_path / "sessions.db")
         store1 = SessionStore(db_path=db_path)
         session = store1.create(
-            "https://youtube.com/watch?v=test", "general", "Test"
+            "https://youtube.com/watch?v=test", "general", "Test", local_filepath="/tmp/test.mp4"
         )
 
         # New store with same DB should recover the session
@@ -108,6 +108,7 @@ class TestSessionStorePersistence:
         recovered = store2.get(session.session_id)
         assert recovered is not None
         assert recovered.url == "https://youtube.com/watch?v=test"
+        assert recovered.local_filepath == "/tmp/test.mp4"
 
     def test_no_persistence_by_default(self):
         """GIVEN no db_path WHEN store created THEN _db is None."""

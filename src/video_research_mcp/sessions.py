@@ -21,6 +21,7 @@ class VideoSession:
     video_title: str = ""
     cache_name: str = ""
     model: str = ""
+    local_filepath: str = ""
     history: list[types.Content] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
     last_active: datetime = field(default_factory=datetime.now)
@@ -48,6 +49,7 @@ class SessionStore:
         video_title: str = "",
         cache_name: str = "",
         model: str = "",
+        local_filepath: str = "",
     ) -> VideoSession:
         """Create a new session, evicting expired ones first."""
         self._evict_expired()
@@ -64,6 +66,7 @@ class SessionStore:
             video_title=video_title,
             cache_name=cache_name,
             model=model,
+            local_filepath=local_filepath,
         )
         self._sessions[sid] = session
         if self._db:
