@@ -72,9 +72,47 @@ Google-style. Required on every module, public class, public function/method, an
 
 ~300 lines of executable code per production file (docstrings/comments/blanks excluded). Split by concern, not by line count. Test files may go to 500. Reference: `video.py` / `video_url.py` split.
 
+## Dependencies
+
+### Constraint Policy
+
+Pin to the **major version we actually use**. No cross-major constraints — a constraint like `>=2.0` that accepts both 2.x and 3.x is forbidden when the major versions have breaking API changes. Rationale: overly broad constraints hide version-specific code and create silent compatibility debt (ref: FastMCP 2.x→3.x FunctionTool wrapping incident).
+
+**Format:** `>=MAJOR.MINOR` where MINOR is the lowest version whose API surface we actually use. Never `>=MAJOR.0` unless we've verified compatibility with the .0 release.
+
+### Pinned Dependencies
+
+| Package | Constraint | Installed | API Surface We Use | Rationale |
+|---------|-----------|-----------|-------------------|-----------|
+| `fastmcp` | `>=3.0.2` | 3.0.2 | `FastMCP`, `.mount()`, `.tool()`, `.run()`, `@asynccontextmanager` lifespan | 3.x preserves tool callability; 2.x wraps in non-callable `FunctionTool` |
+| `google-genai` | `>=1.0` | 1.65.0 | `genai.Client`, `client.aio.models.generate_content`, `types.Part/Content/GenerateContentConfig`, structured output | Stable v1 SDK; no v2 exists. `>=1.0` is correct |
+| `google-api-python-client` | `>=2.100` | 2.190.0 | YouTube Data API v3 via `build("youtube", "v3")` | Pure REST wrapper; API stable within v2. `>=2.100` is fine |
+| `pydantic` | `>=2.0` | 2.12.5 | v2 only: `BaseModel`, `Field`, `model_validator`, `ConfigDict`, `model_dump()` | No v1 patterns anywhere. v3 doesn't exist yet. `>=2.0` is correct |
+| `weaviate-client` | `>=4.19.2` | 4.20.1 | v4 collections API: `client.collections.get()`, `weaviate.classes.*`, `AsyncQueryAgent` | v4 is a complete rewrite from v3. Constraint correctly pins v4 |
+| `pytest` | `>=8.0` | 9.0.2 | Standard API | pytest 9.x is backwards compatible. `>=8.0` is fine |
+| `pytest-asyncio` | `>=1.0` | 1.3.0 | `asyncio_mode = "auto"` (pyproject.toml) | Major rewrite in 1.0 (from 0.x). `asyncio_mode=auto` is 0.18+ but 1.x API is cleaner. Update constraint to `>=1.0` |
+| `ruff` | `>=0.9` | 0.15.4 | CLI linter/formatter | Pre-1.0; minor versions may change rules. Acceptable |
+
+### Known Defensive Patterns (Legitimate)
+
+These `getattr` patterns protect against **SDK response shape variation**, not version incompatibility — do NOT remove:
+
+- `getattr(p, "thought", False)` — Gemini thinking mode parts; `thought` attr only present when thinking is enabled
+- `getattr(cand, "grounding_metadata", None)` — search grounding; only present on grounded responses
+- `getattr(response, "final_answer", "")` in knowledge/agent.py — weaviate-agents response shape varies by query type
+- `try: from googleapiclient.errors import HttpError` in tools/youtube.py — guards error formatting when google-api-python-client isn't importable
+
+### Updating Dependencies
+
+When bumping a dependency:
+1. Update constraint in `pyproject.toml`
+2. Run `uv pip install -e ".[dev]"` to resolve
+3. Search for compatibility workarounds that may now be removable (`grep -r "2\.x\|v1\|compat\|shim\|workaround"`)
+4. Run full test suite: `uv run pytest tests/ -v`
+
 ## Testing
 
-303 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
+417 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
 
 **Key fixtures** (`conftest.py`): `mock_gemini_client` (mocks `.get()`, `.generate()`, `.generate_structured()`), `clean_config` (isolates config), autouse `GEMINI_API_KEY=test-key-not-real`.
 
