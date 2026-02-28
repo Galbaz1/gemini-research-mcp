@@ -164,7 +164,7 @@ class TestEnsureSessionCache:
             patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client),
             patch("video_research_mcp.tools.video_cache.asyncio.wait_for", side_effect=fake_wait_for),
         ):
-            cache_name, model, reason = await ensure_session_cache(TEST_VIDEO_ID, TEST_URL)
+            cache_name, model, reason = await ensure_session_cache(TEST_VIDEO_ID, FILE_API_URI)
 
         assert cache_name == ""
         assert reason == "timeout:60s"
