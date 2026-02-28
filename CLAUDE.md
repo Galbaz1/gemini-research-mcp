@@ -85,7 +85,7 @@ Pin to the **major version we actually use**. No cross-major constraints — a c
 | Package | Constraint | Installed | API Surface We Use | Rationale |
 |---------|-----------|-----------|-------------------|-----------|
 | `fastmcp` | `>=3.0.2` | 3.0.2 | `FastMCP`, `.mount()`, `.tool()`, `.run()`, `@asynccontextmanager` lifespan | 3.x preserves tool callability; 2.x wraps in non-callable `FunctionTool` |
-| `google-genai` | `>=1.0` | 1.65.0 | `genai.Client`, `client.aio.models.generate_content`, `types.Part/Content/GenerateContentConfig`, structured output | Stable v1 SDK; no v2 exists. `>=1.0` is correct |
+| `google-genai` | `>=1.57` | 1.65.0 | `genai.Client`, `ThinkingConfig`, `cached_content`, Gemini 3.1 model strings, async `generate_content` | 1.56 added ThinkingConfig; 1.57 added Gemini 3 model support. Preview/beta SDK versions are fine for this project |
 | `google-api-python-client` | `>=2.100` | 2.190.0 | YouTube Data API v3 via `build("youtube", "v3")` | Pure REST wrapper; API stable within v2. `>=2.100` is fine |
 | `pydantic` | `>=2.0` | 2.12.5 | v2 only: `BaseModel`, `Field`, `model_validator`, `ConfigDict`, `model_dump()` | No v1 patterns anywhere. v3 doesn't exist yet. `>=2.0` is correct |
 | `weaviate-client` | `>=4.19.2` | 4.20.1 | v4 collections API: `client.collections.get()`, `weaviate.classes.*`, `AsyncQueryAgent` | v4 is a complete rewrite from v3. Constraint correctly pins v4 |
