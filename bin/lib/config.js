@@ -10,6 +10,10 @@ const MCP_SERVERS = {
     command: 'uvx',
     args: ['video-research-mcp'],
   },
+  'video-explainer': {
+    command: 'uvx',
+    args: ['video-explainer-mcp'],
+  },
   playwright: {
     command: 'npx',
     args: ['@playwright/mcp@latest', '--headless', '--caps=vision,pdf'],
@@ -93,6 +97,10 @@ const ENV_TEMPLATE_KEYS = [
   'WEAVIATE_URL',
   'WEAVIATE_API_KEY',
   'WEAVIATE_GRPC_URL',
+  'EXPLAINER_PATH',
+  'EXPLAINER_TTS_PROVIDER',
+  'ELEVENLABS_API_KEY',
+  'OPENAI_API_KEY',
 ];
 
 /**
@@ -133,6 +141,16 @@ function ensureEnvFile() {
       '# WEAVIATE_URL=',
       '# WEAVIATE_API_KEY=',
       '# WEAVIATE_GRPC_URL=',
+      '',
+      '# Video Explainer — path to cloned video_explainer repo (required for /ve: commands)',
+      '# EXPLAINER_PATH=',
+      '# EXPLAINER_TTS_PROVIDER=mock',
+      '',
+      '# Optional — ElevenLabs TTS (recommended for production)',
+      '# ELEVENLABS_API_KEY=',
+      '',
+      '# Optional — OpenAI TTS (budget alternative)',
+      '# OPENAI_API_KEY=',
       '',
     ];
     fs.writeFileSync(envPath, lines.join('\n'), { mode: 0o600 });

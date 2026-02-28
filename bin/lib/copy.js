@@ -7,7 +7,7 @@ const path = require('path');
  * Source-to-destination file mapping.
  * Keys = paths relative to npm package root.
  * Values = paths relative to target dir (~/.claude/ or ./.claude/).
- * Commands land under commands/gr/ for the /gr: namespace.
+ * Commands land under commands/gr/ and commands/ve/ for their namespaces.
  */
 const FILE_MAP = {
   'commands/video.md':      'commands/gr/video.md',
@@ -20,18 +20,25 @@ const FILE_MAP = {
   'commands/doctor.md':        'commands/gr/doctor.md',
   'commands/research-doc.md':  'commands/gr/research-doc.md',
 
+  'commands/explainer.md':      'commands/ve/explainer.md',
+  'commands/explain-video.md':  'commands/ve/explain-video.md',
+  'commands/explain-status.md': 'commands/ve/explain-status.md',
+
   'skills/video-research/SKILL.md':                              'skills/video-research/SKILL.md',
   'skills/gemini-visualize/SKILL.md':                             'skills/gemini-visualize/SKILL.md',
   'skills/gemini-visualize/templates/video-concept-map.md':       'skills/gemini-visualize/templates/video-concept-map.md',
   'skills/gemini-visualize/templates/research-evidence-net.md':   'skills/gemini-visualize/templates/research-evidence-net.md',
   'skills/gemini-visualize/templates/content-knowledge-graph.md': 'skills/gemini-visualize/templates/content-knowledge-graph.md',
 
+  'skills/video-explainer/SKILL.md':                             'skills/video-explainer/SKILL.md',
   'skills/weaviate-setup/SKILL.md':                             'skills/weaviate-setup/SKILL.md',
 
   'agents/researcher.md':      'agents/researcher.md',
   'agents/video-analyst.md':   'agents/video-analyst.md',
   'agents/visualizer.md':      'agents/visualizer.md',
   'agents/comment-analyst.md': 'agents/comment-analyst.md',
+  'agents/video-producer.md':    'agents/video-producer.md',
+  'agents/content-to-video.md':  'agents/content-to-video.md',
 };
 
 /** Directories to clean up during uninstall (deepest first). */
@@ -39,8 +46,10 @@ const CLEANUP_DIRS = [
   'skills/gemini-visualize/templates',
   'skills/gemini-visualize',
   'skills/video-research',
+  'skills/video-explainer',
   'skills/weaviate-setup',
   'commands/gr',
+  'commands/ve',
 ];
 
 /** Copy files from sourceDir to targetDir based on action list. */
