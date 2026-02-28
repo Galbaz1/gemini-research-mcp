@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Memory Source Guard
+
+Do not import `AGENTS.md` (for example via `@AGENTS.md` or `@../AGENTS.md`) from this file or any `.claude/rules/*.md` file. `AGENTS.md` is Codex-specific and keeping it out of Claude memory prevents duplicate or conflicting guidance.
+
 ## What This Is
 
 An MCP server (stdio transport, FastMCP) exposing 23 tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
@@ -12,7 +16,26 @@ uv run pytest tests/ -v                                              # all tests
 uv run pytest tests/ -k "video_analyze" -v                           # filtered
 uv run ruff check src/ tests/                                        # lint
 GEMINI_API_KEY=... uv run video-research-mcp                         # run server
+scripts/detect_review_scope.py --json                                # auto-select review scope
 ```
+
+## Automated Review Triggers
+
+Use `scripts/detect_review_scope.py --json` to choose the review mode from git state:
+
+- `uncommitted`: there are local unstaged/staged changes (`git status --porcelain` not empty)
+- `pr`: clean working tree + branch has open PR (`gh pr view` resolves OPEN PR)
+- `commits`: clean working tree, no open PR, and branch is ahead of base (`base_branch..HEAD`)
+- `none`: nothing reviewable in current branch state
+
+Trigger this detector:
+- when user asks for a review/audit/check
+- after major git state transitions (commit, rebase, merge, branch switch)
+
+Priority when multiple states can apply:
+1. `uncommitted`
+2. `pr`
+3. `commits`
 
 ## Architecture
 
@@ -171,6 +194,7 @@ All other config (thinking level, temperature, cache dir/TTL, session limits, re
 | `docs/tutorials/WRITING_TESTS.md` | Fixtures, patterns, running tests |
 | `docs/tutorials/KNOWLEDGE_STORE.md` | Weaviate setup, 7 collections, 8 knowledge tools |
 | `docs/PLUGIN_DISTRIBUTION.md` | Two-package architecture, FILE_MAP, discovery, full inventory |
+| `docs/CODE_REVIEW_AUTOMATION.md` | Git-state trigger matrix for uncommitted, commit-range, and PR-context reviews |
 | `docs/WEAVIATE_PLUGIN_RECOMMENDATION.md` | Gap analysis and roadmap for knowledge store plugin assets |
 | `docs/PUBLISHING.md` | Dual-registry publishing guide with version sync policy |
 | `docs/RELEASE_CHECKLIST.md` | Copy-paste checklist for each release |
