@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "video-research": {
-      "command": "uvx",
-      "args": ["video-research-mcp"]
+      "command": "uv",
+      "args": ["run", "--directory", ".", "video-research-mcp"]
     },
     "playwright": {
       "command": "npx",
