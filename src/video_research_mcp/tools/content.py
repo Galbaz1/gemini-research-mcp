@@ -118,7 +118,13 @@ async def content_analyze(
 
         from ..weaviate_store import store_content_analysis
         source = url or file_path or "(text)"
-        await store_content_analysis(result, source, instruction)
+        local_filepath = str(Path(file_path).expanduser().resolve()) if file_path else ""
+        await store_content_analysis(
+            result,
+            source,
+            instruction,
+            local_filepath=local_filepath,
+        )
         return result
 
     except Exception as exc:

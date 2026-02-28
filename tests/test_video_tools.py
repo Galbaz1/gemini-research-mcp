@@ -159,6 +159,7 @@ class TestVideoAnalyze:
 
         assert result["title"] == "Local Video"
         assert result["source"] == str(f)
+        assert result["local_filepath"] == str(f.resolve())
         mock_gemini_client["generate_structured"].assert_called_once()
 
     @pytest.mark.asyncio
@@ -182,6 +183,7 @@ class TestVideoCreateSession:
         assert result["session_id"]
         assert result["status"] == "created"
         assert result["source_type"] == "youtube"
+        assert result["local_filepath"] == ""
 
     @pytest.mark.asyncio
     async def test_create_session_local_file(self, tmp_path, mock_gemini_client):
@@ -203,6 +205,7 @@ class TestVideoCreateSession:
 
         assert result["session_id"]
         assert result["source_type"] == "local"
+        assert result["local_filepath"] == str(f.resolve())
 
     @pytest.mark.asyncio
     async def test_create_session_no_source(self):

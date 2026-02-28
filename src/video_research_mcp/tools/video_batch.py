@@ -90,6 +90,7 @@ async def video_batch_analyze(
                     output_schema=output_schema,
                     thinking_level=thinking_level,
                     use_cache=True,
+                    local_filepath=str(fp.resolve()),
                 )
                 return BatchVideoItem(file_name=fp.name, file_path=str(fp), result=result)
             except Exception as exc:

@@ -237,7 +237,12 @@ async def content_batch_analyze(
         for item in result.items:
             if item.result or result.comparison:
                 data = item.result if mode == "individual" else result.comparison
-                await store_content_analysis(data, item.file_path, instruction)
+                await store_content_analysis(
+                    data,
+                    item.file_path,
+                    instruction,
+                    local_filepath=item.file_path,
+                )
 
         return result.model_dump()
     except Exception as exc:

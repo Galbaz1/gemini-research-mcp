@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
 from google.genai import types
 
 import pytest
@@ -92,6 +94,30 @@ class TestAnalyzeVideo:
         assert result["cached"] is True
         mock_gemini_client["generate_structured"].assert_not_called()
         mock_gemini_client["generate"].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_passes_local_media_fields_to_store(self, mock_gemini_client):
+        """When media paths are provided, analyze_video forwards them to Weaviate store."""
+        mock_gemini_client["generate_structured"].return_value = VideoResult(title="Test")
+
+        with patch(
+            "video_research_mcp.weaviate_store.store_video_analysis",
+            new_callable=AsyncMock,
+        ) as mock_store:
+            await analyze_video(
+                _make_content(),
+                instruction="summarize",
+                content_id="vid123",
+                source_label="https://youtube.com/watch?v=vid123",
+                use_cache=False,
+                local_filepath="/tmp/video.mp4",
+                screenshot_dir="/tmp/screens/vid123",
+            )
+
+        assert mock_store.await_count == 1
+        call_kwargs = mock_store.call_args.kwargs
+        assert call_kwargs["local_filepath"] == "/tmp/video.mp4"
+        assert call_kwargs["screenshot_dir"] == "/tmp/screens/vid123"
 
 
 class TestEnrichPrompt:
