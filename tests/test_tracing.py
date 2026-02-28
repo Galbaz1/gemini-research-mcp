@@ -11,10 +11,10 @@ from unittest.mock import MagicMock, patch
 
 
 def _make_config(**overrides):
-    """Build a mock ServerConfig with tracing defaults."""
+    """Build a mock ServerConfig with tracing-enabled defaults."""
     defaults = {
         "tracing_enabled": True,
-        "mlflow_tracking_uri": "./mlruns",
+        "mlflow_tracking_uri": "http://127.0.0.1:5001",
         "mlflow_experiment_name": "video-research-mcp",
     }
     defaults.update(overrides)
@@ -95,7 +95,7 @@ class TestSetup:
             with patch("video_research_mcp.config.get_config", return_value=cfg):
                 mod.setup()
 
-            mock_mlflow.set_tracking_uri.assert_called_once_with("./mlruns")
+            mock_mlflow.set_tracking_uri.assert_called_once_with("http://127.0.0.1:5001")
             mock_mlflow.set_experiment.assert_called_once_with("video-research-mcp")
             mock_gemini.autolog.assert_called_once()
         finally:
@@ -227,3 +227,48 @@ class TestShutdown:
             mod._HAS_MLFLOW = original_has
             if original_mlflow is not None:
                 mod.mlflow = original_mlflow
+
+
+# ---------------------------------------------------------------------------
+# _resolve_tracing_enabled()
+# ---------------------------------------------------------------------------
+
+
+class TestResolveTracingEnabled:
+    """``_resolve_tracing_enabled()`` derives tracing state from env vars."""
+
+    def test_enabled_when_uri_set(self):
+        """GIVEN tracking URI is set THEN tracing is enabled."""
+        from video_research_mcp.config import _resolve_tracing_enabled
+
+        assert _resolve_tracing_enabled("", "http://127.0.0.1:5001") is True
+
+    def test_disabled_when_uri_empty(self):
+        """GIVEN tracking URI is empty THEN tracing is disabled."""
+        from video_research_mcp.config import _resolve_tracing_enabled
+
+        assert _resolve_tracing_enabled("", "") is False
+
+    def test_disabled_when_flag_false(self):
+        """GIVEN explicit false flag THEN disabled regardless of URI."""
+        from video_research_mcp.config import _resolve_tracing_enabled
+
+        assert _resolve_tracing_enabled("false", "http://127.0.0.1:5001") is False
+
+    def test_disabled_when_flag_false_case_insensitive(self):
+        """GIVEN 'False' (capitalized) THEN disabled."""
+        from video_research_mcp.config import _resolve_tracing_enabled
+
+        assert _resolve_tracing_enabled("False", "http://127.0.0.1:5001") is False
+
+    def test_enabled_when_flag_true_and_uri_set(self):
+        """GIVEN explicit true flag + URI THEN enabled."""
+        from video_research_mcp.config import _resolve_tracing_enabled
+
+        assert _resolve_tracing_enabled("true", "http://127.0.0.1:5001") is True
+
+    def test_disabled_when_flag_true_but_no_uri(self):
+        """GIVEN explicit true flag but no URI THEN disabled."""
+        from video_research_mcp.config import _resolve_tracing_enabled
+
+        assert _resolve_tracing_enabled("true", "") is False

@@ -77,6 +77,18 @@ def _normalize_weaviate_url(raw: str) -> str:
     return normalized if urlparse(normalized).hostname else ""
 
 
+def _resolve_tracing_enabled(flag_value: str, tracking_uri: str) -> bool:
+    """Derive tracing_enabled from env vars.
+
+    - ``GEMINI_TRACING_ENABLED=false`` → always disabled (explicit opt-out).
+    - ``GEMINI_TRACING_ENABLED=true`` → enabled only if ``MLFLOW_TRACKING_URI`` is set.
+    - Empty flag → enabled when ``MLFLOW_TRACKING_URI`` is non-empty.
+    """
+    if flag_value.lower() == "false":
+        return False
+    return bool(tracking_uri)
+
+
 class ServerConfig(BaseModel):
     """Runtime configuration resolved from environment."""
 
@@ -100,8 +112,8 @@ class ServerConfig(BaseModel):
     weaviate_enabled: bool = Field(default=False)
     context_cache_ttl_seconds: int = Field(default=3600)
     clear_cache_on_shutdown: bool = Field(default=False)
-    tracing_enabled: bool = Field(default=True)
-    mlflow_tracking_uri: str = Field(default="./mlruns")
+    tracing_enabled: bool = Field(default=False)
+    mlflow_tracking_uri: str = Field(default="")
     mlflow_experiment_name: str = Field(default="video-research-mcp")
 
     @field_validator("default_thinking_level")
@@ -162,8 +174,11 @@ class ServerConfig(BaseModel):
             weaviate_enabled=bool(weaviate_url),
             context_cache_ttl_seconds=int(os.getenv("GEMINI_CONTEXT_CACHE_TTL", "3600")),
             clear_cache_on_shutdown=os.getenv("CLEAR_CACHE_ON_SHUTDOWN", "").lower() in ("1", "true", "yes"),
-            tracing_enabled=os.getenv("GEMINI_TRACING_ENABLED", "true").lower() != "false",
-            mlflow_tracking_uri=os.getenv("MLFLOW_TRACKING_URI", "./mlruns"),
+            tracing_enabled=_resolve_tracing_enabled(
+                os.getenv("GEMINI_TRACING_ENABLED", ""),
+                os.getenv("MLFLOW_TRACKING_URI", ""),
+            ),
+            mlflow_tracking_uri=os.getenv("MLFLOW_TRACKING_URI", ""),
             mlflow_experiment_name=os.getenv("MLFLOW_EXPERIMENT_NAME", "video-research-mcp"),
         )
 

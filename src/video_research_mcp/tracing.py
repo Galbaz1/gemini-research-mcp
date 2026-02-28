@@ -8,10 +8,10 @@ Configuration is read from :class:`~video_research_mcp.config.ServerConfig`
 (which loads ``~/.config/video-research-mcp/.env``), so new users can add
 ``MLFLOW_TRACKING_URI`` to their ``.env`` file just like ``WEAVIATE_URL``.
 
-Env vars (all have defaults, none required):
-    GEMINI_TRACING_ENABLED: "true" (default) or "false" to opt out.
-    MLFLOW_TRACKING_URI: Where to store traces (default ``./mlruns``).
+Env vars (all optional):
+    MLFLOW_TRACKING_URI: Where to store traces. Empty = tracing disabled.
     MLFLOW_EXPERIMENT_NAME: Experiment name (default ``video-research-mcp``).
+    GEMINI_TRACING_ENABLED: Set to ``"false"`` to force-disable even with a URI.
 """
 
 from __future__ import annotations

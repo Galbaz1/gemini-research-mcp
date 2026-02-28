@@ -8,7 +8,7 @@ const ui = require('./ui');
 const MCP_SERVERS = {
   'video-research': {
     command: 'uvx',
-    args: ['video-research-mcp'],
+    args: ['video-research-mcp[tracing]'],
   },
   playwright: {
     command: 'npx',
