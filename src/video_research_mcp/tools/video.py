@@ -1,4 +1,7 @@
-"""Video analysis tools — 4 tools on a FastMCP sub-server."""
+"""Video analysis tools — 3 single-video tools on a FastMCP sub-server.
+
+Batch analysis lives in video_batch.py, registered via side-effect import.
+"""
 
 from __future__ import annotations
 
@@ -17,17 +20,13 @@ from ..retry import with_retry
 from ..config import get_config
 from ..errors import make_tool_error
 from ..models.video import SessionInfo, SessionResponse
-from ..models.video_batch import BatchVideoItem, BatchVideoResult
 from ..prompts.video import METADATA_OPTIMIZER, METADATA_PREAMBLE
 from ..sessions import session_store
-from ..types import ThinkingLevel, VideoDirectoryPath, VideoFilePath, YouTubeUrl
+from ..types import ThinkingLevel, VideoFilePath, YouTubeUrl
 from ..youtube import YouTubeClient
 from .video_core import analyze_video
-from .video_file import (
-    SUPPORTED_VIDEO_EXTENSIONS,
-    _video_file_content,
-    _video_file_uri,
-)
+from .video_file import _video_file_content, _video_file_uri
+from .. import context_cache
 from .video_url import (
     _extract_video_id,
     _normalize_youtube_url,
@@ -40,6 +39,7 @@ video_server = FastMCP("video")
 
 _SHORT_VIDEO_THRESHOLD = 5 * 60  # 5 minutes
 _LONG_VIDEO_THRESHOLD = 30 * 60  # 30 minutes
+_background_tasks: set[asyncio.Task] = set()  # prevent GC of fire-and-forget tasks
 
 
 async def _youtube_metadata_pipeline(
@@ -171,7 +171,7 @@ async def video_analyze(
             contents, content_id = await _video_file_content(file_path, instruction)
             source_label = file_path
 
-        return await analyze_video(
+        result = await analyze_video(
             contents,
             instruction=instruction,
             content_id=content_id,
@@ -181,6 +181,18 @@ async def video_analyze(
             use_cache=use_cache,
             metadata_context=metadata_context,
         )
+
+        # Pre-warm context cache for future session reuse (YouTube only)
+        if url and content_id:
+            cfg = get_config()
+            warm_parts = [types.Part(file_data=types.FileData(file_uri=clean_url))]
+            task = asyncio.create_task(
+                context_cache.get_or_create(content_id, warm_parts, cfg.default_model)
+            )
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
+
+        return result
 
     except (ValueError, FileNotFoundError) as exc:
         return make_tool_error(exc)
@@ -253,12 +265,31 @@ async def video_create_session(
         except Exception:
             title = Path(file_path).stem if file_path else ""
 
-    session = session_store.create(clean_url, "general", video_title=title)
+    # Look up pre-warmed context cache (YouTube only)
+    cache_name = ""
+    cache_model = ""
+    if source_type == "youtube":
+        try:
+            vid = _extract_video_id(url)
+            cfg = get_config()
+            cache_name = context_cache.lookup(vid, cfg.default_model) or ""
+            if cache_name:
+                cache_model = cfg.default_model
+        except Exception:
+            pass
+
+    session = session_store.create(
+        clean_url, "general",
+        video_title=title,
+        cache_name=cache_name,
+        model=cache_model,
+    )
     return SessionInfo(
         session_id=session.session_id,
         status="created",
         video_title=title,
         source_type=source_type,
+        cache_status="cached" if cache_name else "uncached",
     ).model_dump()
 
 
@@ -291,25 +322,44 @@ async def video_continue_session(
             "hint": "Create a new session with video_create_session",
         }
 
-    user_content = types.Content(
-        role="user",
-        parts=[
+    # When cached content is available, omit the video Part from user messages
+    # (the video is already in the Gemini cache prefix).
+    # If TTL refresh fails, the cache is likely expired — fall back to inline video.
+    use_cache = False
+    if session.cache_name:
+        cache_alive = await context_cache.refresh_ttl(session.cache_name)
+        if cache_alive:
+            use_cache = True
+        else:
+            session.cache_name = ""
+
+    if use_cache:
+        user_parts = [types.Part(text=prompt)]
+    else:
+        user_parts = [
             types.Part(file_data=types.FileData(file_uri=session.url)),
             types.Part(text=prompt),
-        ],
-    )
+        ]
+    user_content = types.Content(role="user", parts=user_parts)
     contents = list(session.history) + [user_content]
 
     try:
         client = GeminiClient.get()
         cfg = get_config()
+
+        config_kwargs: dict = {
+            "thinking_config": types.ThinkingConfig(thinking_level="medium"),
+        }
+        if use_cache:
+            config_kwargs["cached_content"] = session.cache_name
+
+        # Use the model the cache was created for, or default
+        model = session.model if use_cache and session.model else cfg.default_model
         response = await with_retry(
             lambda: client.aio.models.generate_content(
-                model=cfg.default_model,
+                model=model,
                 contents=contents,
-                config=types.GenerateContentConfig(
-                    thinking_config=types.ThinkingConfig(thinking_level="medium"),
-                ),
+                config=types.GenerateContentConfig(**config_kwargs),
             )
         )
         parts = response.candidates[0].content.parts if response.candidates else []
@@ -327,87 +377,5 @@ async def video_continue_session(
         return make_tool_error(exc)
 
 
-@video_server.tool(
-    annotations=ToolAnnotations(
-        readOnlyHint=True,
-        destructiveHint=False,
-        idempotentHint=True,
-        openWorldHint=False,
-    )
-)
-async def video_batch_analyze(
-    directory: VideoDirectoryPath,
-    instruction: Annotated[str, Field(
-        description="What to analyze in each video"
-    )] = "Provide a comprehensive analysis of this video.",
-    glob_pattern: Annotated[str, Field(
-        description="Glob pattern to filter files within the directory"
-    )] = "*",
-    output_schema: Annotated[dict | None, Field(
-        description="Optional JSON Schema for each video's response"
-    )] = None,
-    thinking_level: ThinkingLevel = "high",
-    max_files: Annotated[int, Field(ge=1, le=50, description="Maximum files to process")] = 20,
-) -> dict:
-    """Analyze all video files in a directory concurrently.
-
-    Scans the directory for supported video files (mp4, webm, mov, avi, mkv,
-    mpeg, wmv, 3gpp), then analyzes each with the given instruction using
-    bounded concurrency (3 parallel Gemini calls).
-
-    Args:
-        directory: Path to a directory containing video files.
-        instruction: What to analyze in each video.
-        glob_pattern: Glob to filter files (default "*" matches all).
-        output_schema: Optional JSON Schema dict for each result.
-        thinking_level: Gemini thinking depth.
-        max_files: Maximum number of files to process.
-
-    Returns:
-        Dict with directory, counts, and per-file results.
-    """
-    dir_path = Path(directory).expanduser().resolve()
-    if not dir_path.is_dir():
-        return make_tool_error(ValueError(f"Not a directory: {directory}"))
-
-    video_files = sorted(
-        f for f in dir_path.glob(glob_pattern)
-        if f.is_file() and f.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS
-    )[:max_files]
-
-    if not video_files:
-        return BatchVideoResult(
-            directory=str(dir_path),
-            total_files=0,
-            successful=0,
-            failed=0,
-        ).model_dump()
-
-    semaphore = asyncio.Semaphore(3)
-
-    async def _process(fp: Path) -> BatchVideoItem:
-        async with semaphore:
-            try:
-                contents, content_id = await _video_file_content(str(fp), instruction)
-                result = await analyze_video(
-                    contents,
-                    instruction=instruction,
-                    content_id=content_id,
-                    source_label=str(fp),
-                    output_schema=output_schema,
-                    thinking_level=thinking_level,
-                    use_cache=True,
-                )
-                return BatchVideoItem(file_name=fp.name, file_path=str(fp), result=result)
-            except Exception as exc:
-                return BatchVideoItem(file_name=fp.name, file_path=str(fp), error=str(exc))
-
-    items = await asyncio.gather(*[_process(f) for f in video_files])
-    successful = sum(1 for i in items if not i.error)
-    return BatchVideoResult(
-        directory=str(dir_path),
-        total_files=len(items),
-        successful=successful,
-        failed=len(items) - successful,
-        items=list(items),
-    ).model_dump()
+# Register batch tool on video_server (side-effect import + re-export)
+from .video_batch import video_batch_analyze  # noqa: F401, E402
