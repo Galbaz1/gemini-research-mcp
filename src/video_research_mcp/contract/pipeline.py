@@ -62,11 +62,19 @@ def sanitize_slug(title: str) -> str:
 
 
 def _resolve_output_dir(slug: str) -> Path:
-    """Determine the output directory, adding UUID suffix on collision."""
+    """Determine the output directory, using atomic mkdir to avoid races.
+
+    Always appends a short UUID suffix so concurrent requests with the
+    same slug never collide. os.makedirs is atomic on POSIX — if two
+    processes race, exactly one succeeds and the other gets FileExistsError.
+    """
     base = Path(os.environ.get("VIDEO_OUTPUT_DIR", "output"))
-    target = base / slug
-    if target.exists():
+    target = base / f"{slug}-{uuid.uuid4().hex[:8]}"
+    try:
+        target.mkdir(parents=True, exist_ok=False)
+    except FileExistsError:
         target = base / f"{slug}-{uuid.uuid4().hex[:8]}"
+        target.mkdir(parents=True, exist_ok=True)
     return target
 
 
@@ -142,7 +150,6 @@ async def run_strict_pipeline(
         slug = sanitize_slug(content_id) if content_id else f"video-{uuid.uuid4().hex[:8]}"
 
     output_dir = _resolve_output_dir(slug)
-    output_dir.parent.mkdir(parents=True, exist_ok=True)
     tmp_dir = Path(tempfile.mkdtemp(prefix=".tmp-", dir=output_dir.parent))
 
     try:
@@ -172,7 +179,9 @@ async def run_strict_pipeline(
             }
 
         # Stage 6: Atomic rename on success
-        output_dir.parent.mkdir(parents=True, exist_ok=True)
+        # Remove the placeholder dir created by _resolve_output_dir so
+        # shutil.move replaces it rather than nesting inside it.
+        output_dir.rmdir()
         shutil.move(str(tmp_dir), str(output_dir))
 
         # Update paths to final location

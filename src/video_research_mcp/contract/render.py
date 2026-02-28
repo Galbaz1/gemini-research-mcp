@@ -11,6 +11,46 @@ from __future__ import annotations
 import html
 from pathlib import Path
 
+# Localizable section headers keyed by ISO 639-1 code.
+# English is the fallback for any unrecognized language.
+_HEADERS: dict[str, dict[str, str]] = {
+    "en": {
+        "summary": "Summary",
+        "key_points": "Key Points",
+        "timestamps": "Timestamps",
+        "topics": "Topics",
+        "strategy_notes": "Strategic Notes",
+        "concept_map": "Concept Map",
+        "source": "Source",
+        "see_also": "See also",
+    },
+    "nl": {
+        "summary": "Samenvatting",
+        "key_points": "Kernpunten",
+        "timestamps": "Tijdstempels",
+        "topics": "Onderwerpen",
+        "strategy_notes": "Strategische Notities",
+        "concept_map": "Conceptkaart",
+        "source": "Bron",
+        "see_also": "Zie ook",
+    },
+    "es": {
+        "summary": "Resumen",
+        "key_points": "Puntos Clave",
+        "timestamps": "Marcas de Tiempo",
+        "topics": "Temas",
+        "strategy_notes": "Notas Estratégicas",
+        "concept_map": "Mapa Conceptual",
+        "source": "Fuente",
+        "see_also": "Ver también",
+    },
+}
+
+
+def _get_headers(lang: str) -> dict[str, str]:
+    """Return localized headers, falling back to English."""
+    return _HEADERS.get(lang, _HEADERS["en"])
+
 
 def render_artifacts(
     output_dir: Path,
@@ -34,47 +74,48 @@ def render_artifacts(
     Returns:
         Dict mapping artifact name to file path.
     """
+    headers = _get_headers(report_language)
     paths: dict[str, str] = {}
 
     analysis_path = output_dir / "analysis.md"
-    _render_analysis_md(analysis_path, analysis, source_label)
+    _render_analysis_md(analysis_path, analysis, source_label, headers)
     paths["analysis"] = str(analysis_path)
 
     strategy_path = output_dir / "strategy.md"
-    _render_strategy_md(strategy_path, strategy)
+    _render_strategy_md(strategy_path, strategy, headers)
     paths["strategy"] = str(strategy_path)
 
     concept_path = output_dir / "concept-map.html"
-    _render_concept_map_html(concept_path, concept_map)
+    _render_concept_map_html(concept_path, concept_map, headers)
     paths["concept_map"] = str(concept_path)
 
     return paths
 
 
-def _render_analysis_md(path: Path, analysis: dict, source: str) -> None:
+def _render_analysis_md(path: Path, analysis: dict, source: str, h: dict[str, str]) -> None:
     """Write the main analysis markdown file."""
     lines: list[str] = []
     title = analysis.get("title", "Video Analysis")
     lines.append(f"# {title}")
     lines.append("")
-    lines.append(f"**Source:** {source}")
+    lines.append(f"**{h['source']}:** {source}")
     lines.append("")
 
     if analysis.get("summary"):
-        lines.append("## Summary")
+        lines.append(f"## {h['summary']}")
         lines.append("")
         lines.append(analysis["summary"])
         lines.append("")
 
     if analysis.get("key_points"):
-        lines.append("## Key Points")
+        lines.append(f"## {h['key_points']}")
         lines.append("")
         for point in analysis["key_points"]:
             lines.append(f"- {point}")
         lines.append("")
 
     if analysis.get("timestamps"):
-        lines.append("## Timestamps")
+        lines.append(f"## {h['timestamps']}")
         lines.append("")
         lines.append("| Time | Description |")
         lines.append("|------|-------------|")
@@ -85,20 +126,20 @@ def _render_analysis_md(path: Path, analysis: dict, source: str) -> None:
         lines.append("")
 
     if analysis.get("topics"):
-        lines.append("## Topics")
+        lines.append(f"## {h['topics']}")
         lines.append("")
         lines.append(", ".join(analysis["topics"]))
         lines.append("")
 
     lines.append("---")
     lines.append("")
-    lines.append("See also: [Strategy Report](strategy.md) | [Concept Map](concept-map.html)")
+    lines.append(f"{h['see_also']}: [Strategy Report](strategy.md) | [{h['concept_map']}](concept-map.html)")
     lines.append("")
 
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _render_strategy_md(path: Path, strategy: dict) -> None:
+def _render_strategy_md(path: Path, strategy: dict, h: dict[str, str]) -> None:
     """Write the strategy report markdown file."""
     lines: list[str] = []
     lines.append(f"# {strategy.get('title', 'Strategy Report')}")
@@ -111,7 +152,7 @@ def _render_strategy_md(path: Path, strategy: dict) -> None:
         lines.append("")
 
     if strategy.get("strategic_notes"):
-        lines.append("## Strategic Notes")
+        lines.append(f"## {h['strategy_notes']}")
         lines.append("")
         for note in strategy["strategic_notes"]:
             lines.append(f"- {note}")
@@ -120,7 +161,7 @@ def _render_strategy_md(path: Path, strategy: dict) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _render_concept_map_html(path: Path, concept_map: dict) -> None:
+def _render_concept_map_html(path: Path, concept_map: dict, h: dict[str, str]) -> None:
     """Write a self-contained HTML file with an inline SVG concept map."""
     nodes = concept_map.get("nodes", [])
     edges = concept_map.get("edges", [])
@@ -168,11 +209,11 @@ def _render_concept_map_html(path: Path, concept_map: dict) -> None:
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Concept Map</title>
+<title>{h['concept_map']}</title>
 <style>body {{ font-family: sans-serif; margin: 20px; background: #f5f5f5; }}</style>
 </head>
 <body>
-<h1>Concept Map</h1>
+<h1>{h['concept_map']}</h1>
 <svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
