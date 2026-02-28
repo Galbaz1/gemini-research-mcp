@@ -14,7 +14,7 @@ import threading
 from urllib.parse import urlparse
 
 import weaviate
-from weaviate.classes.config import Configure, DataType, Property, ReferenceProperty
+from weaviate.classes.config import Configure, DataType, Property, Reconfigure, ReferenceProperty
 from weaviate.classes.init import AdditionalConfig, Auth, Timeout
 
 from .config import get_config
@@ -211,15 +211,21 @@ class WeaviateClient:
         if _client is None:
             return
 
+        cfg = get_config()
+        reranker_cfg = Configure.Reranker.cohere() if cfg.reranker_enabled else None
+
         existing = set(_client.collections.list_all().keys())
         for col_def in ALL_COLLECTIONS:
             if col_def.name not in existing:
-                _client.collections.create(
-                    name=col_def.name,
-                    description=col_def.description,
-                    properties=[_to_property(p) for p in col_def.properties],
-                    vector_config=Configure.Vectors.text2vec_weaviate(),
-                )
+                create_kwargs: dict = {
+                    "name": col_def.name,
+                    "description": col_def.description,
+                    "properties": [_to_property(p) for p in col_def.properties],
+                    "vector_config": Configure.Vectors.text2vec_weaviate(),
+                }
+                if reranker_cfg is not None:
+                    create_kwargs["reranker_config"] = reranker_cfg
+                _client.collections.create(**create_kwargs)
                 logger.info("Created Weaviate collection: %s", col_def.name)
             else:
                 cls._evolve_collection(col_def)
@@ -228,7 +234,7 @@ class WeaviateClient:
 
     @classmethod
     def _evolve_collection(cls, col_def: CollectionDef) -> None:
-        """Add missing properties to an existing collection (additive only)."""
+        """Add missing properties and update reranker config on existing collections."""
         col = _client.collections.get(col_def.name)
         existing_props = {p.name for p in col.config.get().properties}
 
@@ -240,6 +246,12 @@ class WeaviateClient:
                 logger.info("Added property %s.%s", col_def.name, prop_def.name)
             except Exception as exc:
                 logger.debug("Property %s.%s already exists or failed: %s", col_def.name, prop_def.name, exc)
+
+        if get_config().reranker_enabled:
+            try:
+                col.config.update(reranker_config=Reconfigure.Reranker.cohere())
+            except Exception as exc:
+                logger.debug("Reranker config for %s: %s", col_def.name, exc)
 
     @classmethod
     def _ensure_references(cls, collections: list[CollectionDef]) -> None:

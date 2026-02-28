@@ -26,7 +26,7 @@ paths: "src/**/*.py"
 
 - `cached_content` in `GenerateContentConfig` — cache name string
 - Registry maps `(content_id, model)` → cache name
-- Cache prewarm via `context_cache.start_prewarm()`, lookup via `lookup_or_await()`
+- Cache prewarm via `context_cache.start_prewarm()`, session lookup via `ensure_session_cache()` (which uses `lookup_or_await()` internally)
 - Caches expire via TTL (default 1 hour) — no manual cleanup needed on shutdown
 
 ## Models

@@ -88,7 +88,7 @@ After the user has configured the environment, tell them to restart Claude Code 
 knowledge_search(query="test")
 ```
 
-This will attempt to connect and search. On first connection, the server auto-creates all 7 collections. If the search returns empty results with no error, the connection is working.
+This will attempt to connect and search. On first connection, the server auto-creates all 11 collections. If the search returns empty results with no error, the connection is working.
 
 Then confirm collections exist:
 
@@ -96,7 +96,7 @@ Then confirm collections exist:
 knowledge_stats()
 ```
 
-This should return counts for all 7 collections (all 0 initially). If it returns an error, troubleshoot based on the error category:
+This should return counts for all 11 collections (all 0 initially). If it returns an error, troubleshoot based on the error category:
 
 | Error | Fix |
 |-------|-----|

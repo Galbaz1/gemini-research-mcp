@@ -19,6 +19,22 @@ ALLOWED_PROPERTIES: dict[str, set[str]] = {
 }
 
 
+# Best text property per collection for Cohere reranking
+RERANK_PROPERTY: dict[str, str] = {
+    "ResearchFindings": "claim",
+    "VideoAnalyses": "summary",
+    "ContentAnalyses": "summary",
+    "VideoMetadata": "description",
+    "SessionTranscripts": "turn_response",
+    "WebSearchResults": "response",
+    "ResearchPlans": "topic",
+    "CommunityReactions": "consensus",
+    "ConceptKnowledge": "description",
+    "RelationshipEdges": "relationship_type",
+    "CallNotes": "summary",
+}
+
+
 def weaviate_not_configured() -> dict:
     """Return an empty result when Weaviate is not configured."""
     return {"error": "Weaviate not configured", "hint": "Set WEAVIATE_URL to enable knowledge tools"}

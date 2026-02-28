@@ -133,10 +133,12 @@ async def knowledge_query(
     ] = None,
     limit: Annotated[int, Field(ge=1, le=100, description="Max results")] = 10,
 ) -> dict:
-    """Search knowledge store using natural language with automatic query understanding.
+    """[DEPRECATED] Search knowledge store using natural language.
+
+    Deprecated: Use knowledge_search instead, which now includes Cohere reranking
+    and Flash summarization for better results with lower token usage.
 
     Uses Weaviate AsyncQueryAgent in search mode for intelligent object retrieval.
-    Returns raw objects like knowledge_search but with AI-powered query interpretation.
 
     Args:
         query: Natural language search query.
@@ -146,6 +148,7 @@ async def knowledge_query(
     Returns:
         Dict matching KnowledgeQueryResult schema, or error dict.
     """
+    logger.warning("knowledge_query is deprecated — use knowledge_search instead")
     if not _HAS_QUERY_AGENT:
         return make_tool_error(ImportError(_MISSING_DEP_ERROR))
     if not get_config().weaviate_enabled:
@@ -168,9 +171,15 @@ async def knowledge_query(
                 collection=collection, object_id=object_id, properties=props,
             ))
 
-        return KnowledgeQueryResult(
+        result = KnowledgeQueryResult(
             query=query, total_results=len(hits), results=hits,
         ).model_dump()
+        result["_deprecated"] = True
+        result["_deprecation_notice"] = (
+            "knowledge_query is deprecated. Use knowledge_search instead, "
+            "which now includes Cohere reranking and Flash summarization."
+        )
+        return result
 
     except Exception as exc:
         return make_tool_error(exc)

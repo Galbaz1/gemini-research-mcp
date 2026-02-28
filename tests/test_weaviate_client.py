@@ -377,6 +377,60 @@ class TestV4PropertyAPI:
         assert all(isinstance(p, Property) for p in props)
 
 
+class TestRerankerConfig:
+    """Tests for reranker configuration in ensure_collections."""
+
+    @patch("video_research_mcp.weaviate_client.weaviate.connect_to_weaviate_cloud")
+    def test_passes_reranker_when_enabled(self, mock_connect, clean_config, monkeypatch):
+        """ensure_collections passes reranker_config when reranker is enabled."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        monkeypatch.setenv("COHERE_API_KEY", "test-cohere-key")
+        from video_research_mcp.weaviate_client import WeaviateClient
+        WeaviateClient.reset()
+
+        mock_client = MagicMock()
+        mock_client.collections.list_all.return_value = {}
+        mock_connect.return_value = mock_client
+
+        WeaviateClient.get()
+        first_call = mock_client.collections.create.call_args_list[0]
+        assert "reranker_config" in first_call[1]
+        assert first_call[1]["reranker_config"] is not None
+
+    @patch("video_research_mcp.weaviate_client.weaviate.connect_to_weaviate_cloud")
+    def test_no_reranker_when_disabled(self, mock_connect, clean_config, monkeypatch):
+        """ensure_collections omits reranker_config when reranker is disabled."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        monkeypatch.delenv("COHERE_API_KEY", raising=False)
+        from video_research_mcp.weaviate_client import WeaviateClient
+        WeaviateClient.reset()
+
+        mock_client = MagicMock()
+        mock_client.collections.list_all.return_value = {}
+        mock_connect.return_value = mock_client
+
+        WeaviateClient.get()
+        first_call = mock_client.collections.create.call_args_list[0]
+        assert "reranker_config" not in first_call[1]
+
+    def test_evolve_adds_reranker(self, clean_config, monkeypatch):
+        """_evolve_collection updates reranker config when enabled."""
+        monkeypatch.setenv("COHERE_API_KEY", "test-cohere-key")
+        import video_research_mcp.weaviate_client as mod
+        from video_research_mcp.weaviate_client import WeaviateClient
+        from video_research_mcp.weaviate_schema import CollectionDef
+
+        mock_client = MagicMock()
+        mod._client = mock_client
+        mock_col = MagicMock()
+        mock_col.config.get.return_value = MagicMock(properties=[])
+        mock_client.collections.get.return_value = mock_col
+
+        col_def = CollectionDef(name="TestCollection", properties=[])
+        WeaviateClient._evolve_collection(col_def)
+        mock_col.config.update.assert_called_once()
+
+
 class TestProviderHeaders:
     """Tests for _collect_provider_headers()."""
 

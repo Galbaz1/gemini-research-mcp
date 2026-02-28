@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock
 
 
@@ -412,3 +413,156 @@ class TestKnowledgeFetch:
         from video_research_mcp.tools.knowledge import knowledge_fetch
         result = await knowledge_fetch(object_id="test-uuid", collection="VideoAnalyses")
         assert "error" in result
+
+
+class TestMCPSerialization:
+    """Tests for MCP JSON-RPC dict/list string coercion."""
+
+    async def test_search_collections_from_json_string(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_search parses collections from JSON string (MCP transport)."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.tools.knowledge import knowledge_search
+        await knowledge_search(query="test", collections='["VideoAnalyses"]')
+        assert mock_weaviate_client["client"].collections.get.call_count == 1
+
+    async def test_search_collections_none_unchanged(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_search searches all collections when None passed."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.tools.knowledge import knowledge_search
+        await knowledge_search(query="test", collections=None)
+        assert mock_weaviate_client["client"].collections.get.call_count == 11
+
+    async def test_ingest_properties_from_json_string(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_ingest parses properties from JSON string (MCP transport)."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.tools.knowledge import knowledge_ingest
+        result = await knowledge_ingest(
+            collection="VideoAnalyses",
+            properties=json.dumps({"title": "Test", "summary": "A summary"}),
+        )
+        assert result["status"] == "success"
+
+    async def test_ingest_invalid_json_string(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_ingest treats invalid JSON string as raw string (fails validation)."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.tools.knowledge import knowledge_ingest
+        result = await knowledge_ingest(
+            collection="VideoAnalyses",
+            properties="not valid json",
+        )
+        # String has no keys so set(properties) fails — should return error
+        assert "error" in result
+
+
+class TestReranking:
+    """Tests for Cohere reranking integration in knowledge_search."""
+
+    async def test_reranked_flag_false_when_disabled(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_search returns reranked=False when reranker is disabled."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(query="test", collections=["VideoAnalyses"])
+        assert result["reranked"] is False
+
+    async def test_reranked_flag_true_when_enabled(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_search returns reranked=True when reranker is enabled."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        monkeypatch.setenv("COHERE_API_KEY", "test-cohere-key")
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(query="test", collections=["VideoAnalyses"])
+        assert result["reranked"] is True
+
+    async def test_overfetch_when_reranking_enabled(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_search overfetches by 3x when reranking is enabled."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        monkeypatch.setenv("COHERE_API_KEY", "test-cohere-key")
+        from video_research_mcp.tools.knowledge import knowledge_search
+        await knowledge_search(query="test", collections=["VideoAnalyses"], limit=5)
+        call_kwargs = mock_weaviate_client["collection"].query.hybrid.call_args[1]
+        assert call_kwargs["limit"] == 15  # 5 * 3
+
+    async def test_rerank_score_extracted(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_search extracts rerank_score from metadata."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        monkeypatch.setenv("COHERE_API_KEY", "test-cohere-key")
+
+        obj = MagicMock()
+        obj.uuid = "uuid-1"
+        obj.properties = {"title": "Test"}
+        obj.metadata = MagicMock(score=0.5, rerank_score=0.92)
+        mock_weaviate_client["collection"].query.hybrid.return_value = MagicMock(objects=[obj])
+
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(query="test", collections=["VideoAnalyses"])
+        assert result["results"][0]["rerank_score"] == 0.92
+
+    async def test_flash_processed_reflects_actual_success(
+        self, mock_weaviate_client, clean_config, monkeypatch, mock_gemini_client
+    ):
+        """knowledge_search sets flash_processed based on whether summaries were generated."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        obj = MagicMock()
+        obj.uuid = "uuid-1"
+        obj.properties = {"title": "Test"}
+        obj.metadata = MagicMock(score=0.5, rerank_score=None)
+        mock_weaviate_client["collection"].query.hybrid.return_value = MagicMock(objects=[obj])
+
+        from video_research_mcp.models.knowledge import HitSummary, HitSummaryBatch
+        mock_gemini_client["generate_structured"].return_value = HitSummaryBatch(
+            summaries=[HitSummary(
+                object_id="uuid-1", relevance=0.9, summary="Relevant", useful_properties=["title"],
+            )],
+        )
+
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(query="test", collections=["VideoAnalyses"])
+        assert result["flash_processed"] is True
+
+    async def test_flash_processed_false_on_silent_failure(
+        self, mock_weaviate_client, clean_config, monkeypatch, mock_gemini_client
+    ):
+        """knowledge_search sets flash_processed=False when Flash fails silently."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        obj = MagicMock()
+        obj.uuid = "uuid-1"
+        obj.properties = {"title": "Test"}
+        obj.metadata = MagicMock(score=0.5, rerank_score=None)
+        mock_weaviate_client["collection"].query.hybrid.return_value = MagicMock(objects=[obj])
+
+        mock_gemini_client["generate_structured"].side_effect = RuntimeError("Flash down")
+
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(query="test", collections=["VideoAnalyses"])
+        assert result["flash_processed"] is False
+
+    async def test_flash_disabled_flag(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """knowledge_search returns flash_processed=False when FLASH_SUMMARIZE=false."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        monkeypatch.setenv("FLASH_SUMMARIZE", "false")
+        obj = MagicMock()
+        obj.uuid = "uuid-1"
+        obj.properties = {"title": "Test"}
+        obj.metadata = MagicMock(score=0.5, rerank_score=None)
+        mock_weaviate_client["collection"].query.hybrid.return_value = MagicMock(objects=[obj])
+
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(query="test", collections=["VideoAnalyses"])
+        assert result["flash_processed"] is False

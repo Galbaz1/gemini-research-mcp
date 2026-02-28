@@ -214,7 +214,7 @@ stateDiagram-v2
 
 ## 4. Weaviate Knowledge Store Data Flow
 
-All tool results are written through to Weaviate collections via `weaviate_store.py`. The knowledge tools (`knowledge_*`) provide query access. The 7 collections store different data types, each with common properties (`created_at`, `source_tool`) plus domain-specific fields.
+All tool results are written through to Weaviate collections via `weaviate_store/`. The knowledge tools (`knowledge_*`) provide query access. The 11 collections store different data types, each with common properties (`created_at`, `source_tool`) plus domain-specific fields.
 
 ```mermaid
 flowchart LR
@@ -236,7 +236,7 @@ flowchart LR
         T8["web_search"]:::tool
     end
 
-    subgraph "weaviate_store.py"
+    subgraph "weaviate_store/"
         S1["store_video_analysis()"]:::store
         S2["store_content_analysis()"]:::store
         S3["store_research_finding()"]:::store

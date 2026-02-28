@@ -126,7 +126,7 @@ All source file references point to actual files.
 ### Diagram 4: Weaviate Data Flow
 
 - Lists 8 producer tools: MATCHES `weaviate_store.py` (8 store functions)
-- Lists 7 collections with key properties: MATCHES `weaviate_schema.py`
+- Lists 11 collections with key properties: MATCHES `weaviate_schema/`
 - Lists 4 knowledge query tools: MATCHES `tools/knowledge.py`
 - Shows WeaviateClient singleton as intermediary: MATCHES architecture
 

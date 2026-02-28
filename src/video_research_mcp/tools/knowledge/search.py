@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Annotated
 
 from mcp.types import ToolAnnotations
@@ -16,7 +17,7 @@ from ...types import KnowledgeCollection
 from ...weaviate_client import WeaviateClient
 from ..knowledge_filters import build_collection_filter
 from . import knowledge_server
-from .helpers import ALL_COLLECTION_NAMES, ALLOWED_PROPERTIES, SearchType, logger, serialize
+from .helpers import ALL_COLLECTION_NAMES, ALLOWED_PROPERTIES, RERANK_PROPERTY, SearchType, logger, serialize
 from ...tracing import trace
 
 
@@ -50,7 +51,7 @@ async def knowledge_search(
 ) -> dict:
     """Search across knowledge collections using hybrid, semantic, or keyword mode.
 
-    Searches any/all 7 collections. Results are merged and sorted by score.
+    Searches specified or all collections. Results are merged and sorted by score.
     Filters are collection-aware: conditions are skipped for collections
     that lack the relevant property.
 
@@ -73,7 +74,17 @@ async def knowledge_search(
     if not get_config().weaviate_enabled:
         return KnowledgeSearchResult(query=query).model_dump()
 
+    # MCP JSON-RPC transport may serialize list params as JSON strings
+    if isinstance(collections, str):
+        try:
+            parsed = json.loads(collections)
+            if isinstance(parsed, list):
+                collections = parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     try:
+        cfg = get_config()
         target = list(collections) if collections else ALL_COLLECTION_NAMES
         filter_kwargs = dict(
             evidence_tier=evidence_tier, source_tool=source_tool,
@@ -81,52 +92,86 @@ async def knowledge_search(
             category=category, video_id=video_id,
         )
         filters_applied = {k: v for k, v in filter_kwargs.items() if v is not None} or None
+        reranked = False
 
         def _search():
             client = WeaviateClient.get()
             hits: list[KnowledgeHit] = []
+            any_reranked = False
             for col_name in target:
                 try:
                     collection = client.collections.get(col_name)
                     col_filter = build_collection_filter(
                         col_name, ALLOWED_PROPERTIES.get(col_name, set()), **filter_kwargs,
                     )
+                    rerank_prop = RERANK_PROPERTY.get(col_name) if cfg.reranker_enabled else None
+                    rerank_cfg = _build_rerank(rerank_prop, query) if rerank_prop else None
+                    fetch_limit = limit * _OVERFETCH_FACTOR if rerank_cfg else limit
+
                     response = _dispatch_search(
-                        collection, query, search_type, limit, alpha, col_filter,
+                        collection, query, search_type, fetch_limit, alpha, col_filter, rerank_cfg,
                     )
+                    if rerank_cfg:
+                        any_reranked = True
                     for obj in response.objects:
                         props = {k: serialize(v) for k, v in obj.properties.items()}
+                        base_score, rerank_score = _extract_score(obj, search_type)
                         hits.append(KnowledgeHit(
                             collection=col_name,
                             object_id=str(obj.uuid),
-                            score=_extract_score(obj, search_type),
+                            score=base_score,
+                            rerank_score=rerank_score,
                             properties=props,
                         ))
                 except Exception as exc:
                     logger.warning("Search failed for %s: %s", col_name, exc)
 
-            hits.sort(key=lambda h: h.score, reverse=True)
-            return hits
+            # Sort by rerank_score when available, fall back to base score
+            hits.sort(
+                key=lambda h: (h.rerank_score if h.rerank_score is not None else -1, h.score),
+                reverse=True,
+            )
+            return hits, any_reranked
 
-        hits = await asyncio.to_thread(_search)
+        hits, reranked = await asyncio.to_thread(_search)
+
+        # Flash post-processing (async, best-effort)
+        flash_processed = False
+        if cfg.flash_summarize and hits:
+            from .summarize import summarize_hits
+            hits = await summarize_hits(hits, query)
+            flash_processed = any(h.summary is not None for h in hits)
+
         return KnowledgeSearchResult(
             query=query,
             total_results=len(hits),
             results=hits,
             filters_applied=filters_applied,
+            reranked=reranked,
+            flash_processed=flash_processed,
         ).model_dump()
 
     except Exception as exc:
         return make_tool_error(exc)
 
 
-def _dispatch_search(collection, query, search_type, limit, alpha, col_filter):
+_OVERFETCH_FACTOR = 3
+
+
+def _build_rerank(prop: str, query: str):
+    """Build a Rerank config for Weaviate query methods."""
+    from weaviate.classes.query import Rerank
+    return Rerank(prop=prop, query=query)
+
+
+def _dispatch_search(collection, query, search_type, limit, alpha, col_filter, rerank_cfg=None):
     """Dispatch to the correct Weaviate query method based on search_type."""
     if search_type == "semantic":
         return collection.query.near_text(
             query=query,
             limit=limit,
             filters=col_filter,
+            rerank=rerank_cfg,
             return_metadata=MetadataQuery(distance=True),
         )
     if search_type == "keyword":
@@ -134,6 +179,7 @@ def _dispatch_search(collection, query, search_type, limit, alpha, col_filter):
             query=query,
             limit=limit,
             filters=col_filter,
+            rerank=rerank_cfg,
             return_metadata=MetadataQuery(score=True),
         )
     # Default: hybrid
@@ -142,13 +188,17 @@ def _dispatch_search(collection, query, search_type, limit, alpha, col_filter):
         limit=limit,
         alpha=alpha,
         filters=col_filter,
+        rerank=rerank_cfg,
         return_metadata=MetadataQuery(score=True),
     )
 
 
-def _extract_score(obj, search_type: str) -> float:
-    """Extract a normalized score from a Weaviate result object."""
+def _extract_score(obj, search_type: str) -> tuple[float, float | None]:
+    """Extract base score and optional rerank score from a Weaviate result."""
+    rerank_score = getattr(obj.metadata, "rerank_score", None)
     if search_type == "semantic":
         distance = getattr(obj.metadata, "distance", None)
-        return 1.0 - distance if distance is not None else 0.0
-    return getattr(obj.metadata, "score", 0.0) or 0.0
+        base = 1.0 - distance if distance is not None else 0.0
+    else:
+        base = getattr(obj.metadata, "score", 0.0) or 0.0
+    return base, rerank_score

@@ -68,7 +68,7 @@ export WEAVIATE_API_KEY="your-weaviate-api-key"
 
 ### Verify Connection
 
-Start the MCP server. On first connection, it will auto-create all 7 collections if they do not exist. Check logs for:
+Start the MCP server. On first connection, it will auto-create all 11 collections if they do not exist. Check logs for:
 
 ```
 INFO: Connected to Weaviate at http://localhost:8080
@@ -77,7 +77,7 @@ INFO: Created Weaviate collection: VideoAnalyses
 ...
 ```
 
-## The 7 Collections
+## The 11 Collections
 
 Each collection stores results from specific tools. All collections share two common properties: `created_at` (date) and `source_tool` (text).
 
@@ -173,6 +173,62 @@ Stores orchestration plans from `research_plan`.
 | task_decomposition | text[] | yes | Task breakdown |
 | phases_json | text | no | Phases as JSON |
 
+### CommunityReactions
+
+Stores YouTube comment sentiment analysis from the comment-analyst agent.
+
+| Property | Type | Vectorized | Description |
+|----------|------|-----------|-------------|
+| video_id | text | no | YouTube video ID |
+| video_title | text | yes | Video title |
+| comment_count | int | no | Number of comments analyzed |
+| sentiment_positive | number | no | Positive sentiment 0-100 |
+| sentiment_negative | number | no | Negative sentiment 0-100 |
+| sentiment_neutral | number | no | Neutral sentiment 0-100 |
+| themes_positive | text[] | yes | Positive themes from comments |
+| themes_critical | text[] | yes | Critical themes from comments |
+| consensus | text | yes | Community consensus assessment |
+
+### ConceptKnowledge
+
+Stores concepts extracted from analyses with knowledge state tracking.
+
+| Property | Type | Vectorized | Description |
+|----------|------|-----------|-------------|
+| concept_name | text | yes | Name of the concept |
+| state | text | no | Knowledge state: know, fuzzy, or unknown |
+| source_url | text | no | URL or path of source content |
+| source_title | text | yes | Title of the source content |
+| source_category | text | no | Category: video, video-chat, research, analysis |
+| description | text | yes | Brief description of the concept |
+
+### RelationshipEdges
+
+Stores directed relationships between concepts from analyses.
+
+| Property | Type | Vectorized | Description |
+|----------|------|-----------|-------------|
+| from_concept | text | yes | Source concept name |
+| to_concept | text | yes | Target concept name |
+| relationship_type | text | no | Type: enables, example_of, builds_on, contradicts, related_to |
+| source_url | text | no | URL or path of source content |
+| source_category | text | no | Category: video, video-chat, research, analysis |
+
+### CallNotes
+
+Stores structured notes from meeting and call recordings.
+
+| Property | Type | Vectorized | Description |
+|----------|------|-----------|-------------|
+| video_id | text | no | YouTube video ID or file hash |
+| source_url | text | no | Source URL or file path |
+| title | text | yes | Meeting/call title |
+| summary | text | yes | Meeting summary |
+| participants | text[] | yes | Meeting participants |
+| decisions | text[] | yes | Decisions made |
+| action_items | text[] | yes | Action items |
+| topics_discussed | text[] | yes | Topics discussed |
+
 ## Using the Knowledge Tools
 
 ### knowledge_search -- search across collections
@@ -188,7 +244,7 @@ Use knowledge_search with query "batch normalization" and search_type "keyword"
 Parameters:
 - `query` (required) -- search text
 - `search_type` (optional) -- `"hybrid"` (default), `"semantic"`, or `"keyword"`
-- `collections` (optional) -- list of collection names to search; defaults to all 7
+- `collections` (optional) -- list of collection names to search; defaults to all 11
 - `limit` (optional) -- max results per collection (default 10)
 - `alpha` (optional) -- hybrid balance: 0.0 = pure keyword, 1.0 = pure vector, 0.5 = balanced (hybrid mode only)
 
@@ -265,35 +321,25 @@ Returns an AI-generated `answer` string plus a `sources` list with collection na
 
 **Requires**: `pip install video-research-mcp[agents]` (installs `weaviate-agents>=1.2.0`). Returns a clear error hint if the package is not installed.
 
-### knowledge_query -- natural language object retrieval (QueryAgent)
+### knowledge_query -- [DEPRECATED] natural language object retrieval
 
-Retrieve objects using a natural-language query. Unlike `knowledge_search` (where you choose the search mode), QueryAgent automatically translates your query into optimized Weaviate operations.
+> **Deprecated**: Use `knowledge_search` instead, which now includes Cohere reranking and Flash summarization for better results. `knowledge_ask` (AI-powered Q&A) is unaffected.
 
-```
-Use knowledge_query with query "videos about machine learning published this week"
-Use knowledge_query with query "research findings with high confidence about LLMs" and limit 5
-```
+`knowledge_query` still functions during the deprecation period but returns a `_deprecated: true` flag in all responses. Migrate to `knowledge_search` for all retrieval needs.
 
-Parameters:
-- `query` (required) -- natural-language search description
-- `collections` (optional) -- list of collection names to search; defaults to all 7
-- `limit` (optional) -- max results (default 10)
+### How knowledge_search compares to knowledge_ask
 
-Returns matched objects with collection, UUID, score, and properties -- the same `KnowledgeHit` format as `knowledge_search`.
-
-**Requires**: `pip install video-research-mcp[agents]` (installs `weaviate-agents>=1.2.0`).
-
-### How QueryAgent differs from knowledge_search
-
-| Feature | `knowledge_search` | `knowledge_ask` / `knowledge_query` |
+| Feature | `knowledge_search` | `knowledge_ask` |
 |---------|--------------------|------------------------------------|
 | Search mode | Explicit (hybrid/semantic/keyword) | Automatic (QueryAgent decides) |
 | Filters | Manual (evidence_tier, date_from, etc.) | Inferred from natural language |
-| Output | Raw objects with scores | `ask`: synthesized answer + sources; `query`: objects |
+| Reranking | Cohere (when `COHERE_API_KEY` set) | N/A |
+| Summarization | Gemini Flash (relevance scoring + trimming) | N/A |
+| Output | Objects with scores + summaries | Synthesized answer + source citations |
 | Dependency | `weaviate-client` only | `weaviate-agents` (optional) |
-| Best for | Precise, repeatable queries | Exploratory questions, complex multi-collection queries |
+| Best for | Precise, repeatable queries with score transparency | Exploratory questions, "what do I know about X?" |
 
-The QueryAgent instance is lazily created on first use and cached by the frozenset of target collection names. If the collection set changes between calls, a new agent is created.
+The QueryAgent instance (used by `knowledge_ask`) is lazily created on first use and cached by the frozenset of target collection names.
 
 ## Write-Through Store Pattern
 

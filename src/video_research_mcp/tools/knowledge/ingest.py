@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Annotated
 
 from mcp.types import ToolAnnotations
@@ -45,6 +46,15 @@ async def knowledge_ingest(
     """
     if not get_config().weaviate_enabled:
         return weaviate_not_configured()
+
+    # MCP JSON-RPC transport may serialize dict params as JSON strings
+    if isinstance(properties, str):
+        try:
+            parsed = json.loads(properties)
+            if isinstance(parsed, dict):
+                properties = parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
 
     # Validate properties against schema
     allowed = ALLOWED_PROPERTIES.get(collection, set())

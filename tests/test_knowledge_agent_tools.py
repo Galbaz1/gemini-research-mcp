@@ -297,6 +297,26 @@ class TestKnowledgeQuery:
         assert result["total_results"] == 0
         assert result["results"] == []
 
+    async def test_returns_deprecation_notice(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """GIVEN knowledge_query called WHEN returns result THEN includes deprecation fields."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        mock_agent = AsyncMock()
+        mock_agent.search.return_value = MagicMock(
+            search_results=MagicMock(objects=[]),
+        )
+
+        with (
+            patch(f"{AGENT_MODULE}._HAS_QUERY_AGENT", True),
+            patch(f"{AGENT_MODULE}._get_query_agent", new_callable=AsyncMock, return_value=mock_agent),
+        ):
+            from video_research_mcp.tools.knowledge.agent import knowledge_query
+            result = await knowledge_query(query="test")
+
+        assert result["_deprecated"] is True
+        assert "knowledge_search" in result["_deprecation_notice"]
+
 
 class TestQueryAgentSingleton:
     """Tests for the _get_query_agent async caching behavior."""

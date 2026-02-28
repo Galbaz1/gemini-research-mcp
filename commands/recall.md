@@ -2,6 +2,7 @@
 description: Search and browse past research, video notes, and analyses
 argument-hint: "[topic|category|fuzzy|unknown|ask \"question\"]"
 allowed-tools: mcp__video-research__knowledge_search, mcp__video-research__knowledge_stats, mcp__video-research__knowledge_related, mcp__video-research__knowledge_fetch, mcp__video-research__knowledge_ask, Glob, Grep, Read
+note: knowledge_query is deprecated — use knowledge_search for all retrieval needs. knowledge_ask remains the preferred tool for AI-powered Q&A.
 model: sonnet
 ---
 
@@ -31,7 +32,7 @@ Call `knowledge_stats()` first. If it returns collection counts, Weaviate is ava
 4. Present unified overview:
 
    **Knowledge Store** (if available)
-   X objects across 7 collections
+   X objects across 11 collections
    ResearchFindings: N | VideoAnalyses: N | ContentAnalyses: N | ...
 
    **Project Memory** (filesystem)
@@ -68,7 +69,7 @@ Category-to-collection mapping:
 3. Read the first heading and YAML frontmatter of each file
 
 If category + keyword (e.g., `/gr:recall research kubernetes`):
-- Weaviate: `knowledge_search(query="kubernetes", collections=["ResearchFindings"])`
+- Weaviate: `knowledge_search(query="kubernetes", collections=["ResearchFindings"], limit=5)`
 - Filesystem: `Grep` in `gr/research/` directories
 
 **Without Weaviate:** `Glob` on `gr/$CATEGORY/` only (unchanged).
@@ -112,8 +113,15 @@ Extract the question (everything after "ask ").
 
 ### If arguments are a keyword:
 
+**Collection scoping** — when the query contains known category keywords, pass the `collections` filter:
+- Query contains "video" → `collections=["VideoAnalyses", "VideoMetadata"]`
+- Query contains "research" → `collections=["ResearchFindings", "ResearchPlans"]`
+- Query contains "content" or "analysis" → `collections=["ContentAnalyses"]`
+- Query contains "session" or "chat" → `collections=["SessionTranscripts"]`
+- Otherwise → search all collections (no filter)
+
 **With Weaviate:**
-1. Call `knowledge_search(query="$ARGUMENTS", search_type="hybrid", limit=10)`
+1. Call `knowledge_search(query="$ARGUMENTS", search_type="hybrid", limit=5)` (with optional `collections` filter per scoping rules above)
 2. In parallel, use `Glob` + `Grep` for filesystem matches (same as current behavior)
 3. Present in two sections:
 
