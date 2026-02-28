@@ -6,17 +6,30 @@ Do not import `AGENTS.md` (for example via `@AGENTS.md` or `@../AGENTS.md`) from
 
 ## What This Is
 
-An MCP server (stdio transport, FastMCP) exposing 23 tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
+A monorepo with two MCP servers:
+
+1. **video-research-mcp** (root) — 23 tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3.
+2. **video-explainer-mcp** (`packages/video-explainer-mcp/`) — 15 tools for synthesizing explainer videos from research content. Wraps the [video_explainer](https://github.com/prajwal-y/video_explainer) CLI.
+
+Both servers share `~/.config/video-research-mcp/.env` for configuration. Built with Pydantic v2, hatchling. Python >= 3.11.
 
 ## Commands
 
 ```bash
+# video-research-mcp (root)
 uv venv && source .venv/bin/activate && uv pip install -e ".[dev]"  # install
 uv run pytest tests/ -v                                              # all tests
-uv run pytest tests/ -k "video_analyze" -v                           # filtered
 uv run ruff check src/ tests/                                        # lint
 GEMINI_API_KEY=... uv run video-research-mcp                         # run server
-scripts/detect_review_scope.py --json                                # auto-select review scope
+
+# video-explainer-mcp (packages/)
+cd packages/video-explainer-mcp
+uv venv && source .venv/bin/activate && uv pip install -e ".[dev]"  # install
+uv run pytest tests/ -v                                              # all tests
+uv run ruff check src/ tests/                                        # lint
+EXPLAINER_PATH=/path/to/video_explainer uv run video-explainer-mcp  # run server
+
+python3 ~/.claude/scripts/detect_review_scope.py --json               # auto-select review scope
 ```
 
 ## Automated Review Triggers
@@ -65,6 +78,27 @@ Supporting modules: `video_cache.py` (context cache warming), `video_batch.py` (
 **Optional dependency:** `weaviate-agents>=1.2.0` (install via `pip install video-research-mcp[agents]`) enables `knowledge_ask` and `knowledge_query` tools powered by Weaviate's QueryAgent.
 
 > Deep dive: `docs/ARCHITECTURE.md` (13 sections) | `docs/DIAGRAMS.md` (4 Mermaid diagrams)
+
+### video-explainer-mcp Architecture
+
+`packages/video-explainer-mcp/src/video_explainer_mcp/server.py` mounts 4 sub-servers:
+
+| Sub-server | Tools | File |
+|------------|-------|------|
+| project | `explainer_create`, `explainer_inject`, `explainer_status`, `explainer_list` | `tools/project.py` |
+| pipeline | `explainer_generate`, `explainer_step`, `explainer_render`, `explainer_render_start`, `explainer_render_poll`, `explainer_short` | `tools/pipeline.py` |
+| quality | `explainer_refine`, `explainer_feedback`, `explainer_factcheck` | `tools/quality.py` |
+| audio | `explainer_sound`, `explainer_music` | `tools/audio.py` |
+
+**Key patterns:**
+- **CLI wrapping** — tools call the `video_explainer` Python module via `asyncio.create_subprocess_exec` (never shell=True)
+- **Filesystem scanning** — `scanner.py` inspects project directories for step completion without CLI calls
+- **Background renders** — `explainer_render_start` returns a job ID; `explainer_render_poll` checks progress
+- **Shared config** — same `~/.config/video-research-mcp/.env` as the parent server
+
+**Key modules:** `runner.py` (subprocess executor), `scanner.py` (project inspector), `jobs.py` (render tracking), `prereqs.py` (system checks), `config.py` (singleton from env).
+
+**Env vars:** `EXPLAINER_PATH` (required), `EXPLAINER_TTS_PROVIDER` (default: mock), `ELEVENLABS_API_KEY`, `OPENAI_API_KEY`.
 
 ## Conventions
 
@@ -157,7 +191,7 @@ Agent configuration: `.claude/rules/` contains project-specific conventions that
 Two-package architecture: npm (installer) copies commands/skills/agents to `~/.claude/`, PyPI (server) runs via `uvx`. Same package name, different registries.
 
 ```bash
-npx video-research-mcp@latest              # install plugin (copies 17 markdown files + .mcp.json)
+npx video-research-mcp@latest              # install plugin (copies 23 markdown files + .mcp.json)
 npx video-research-mcp@latest --check      # dry-run
 npx video-research-mcp@latest --uninstall  # remove
 ```
@@ -178,8 +212,12 @@ Canonical source: `config.py:ServerConfig`. Key variables:
 | `WEAVIATE_URL` | `""` | Empty = knowledge store disabled |
 | `WEAVIATE_API_KEY` | `""` | Required for Weaviate Cloud |
 | `GEMINI_SESSION_DB` | `""` | Empty = in-memory only |
+| `EXPLAINER_PATH` | `""` | Path to cloned video_explainer repo |
+| `EXPLAINER_TTS_PROVIDER` | `"mock"` | mock, elevenlabs, openai, gemini, edge |
+| `ELEVENLABS_API_KEY` | `""` | Required for elevenlabs TTS |
+| `OPENAI_API_KEY` | `""` | Required for openai TTS |
 
-The server auto-loads `~/.config/video-research-mcp/.env` at startup. Process env vars always take precedence over the config file. This ensures keys are available in any workspace, even without direnv.
+Both servers auto-load `~/.config/video-research-mcp/.env` at startup. Process env vars always take precedence over the config file. This ensures keys are available in any workspace, even without direnv.
 
 All other config (thinking level, temperature, cache dir/TTL, session limits, retry params, YouTube API key) has sensible defaults — see `config.py` or `docs/ARCHITECTURE.md` §10.
 
