@@ -157,7 +157,7 @@ Agent configuration: `.claude/rules/` contains project-specific conventions that
 Two-package architecture: npm (installer) copies commands/skills/agents to `~/.claude/`, PyPI (server) runs via `uvx`. Same package name, different registries.
 
 ```bash
-npx video-research-mcp@latest              # install plugin (copies 17 markdown files + .mcp.json)
+npx video-research-mcp@latest              # install plugin (copies 19 markdown files + .mcp.json)
 npx video-research-mcp@latest --check      # dry-run
 npx video-research-mcp@latest --uninstall  # remove
 ```
@@ -178,6 +178,8 @@ Canonical source: `config.py:ServerConfig`. Key variables:
 | `WEAVIATE_URL` | `""` | Empty = knowledge store disabled |
 | `WEAVIATE_API_KEY` | `""` | Required for Weaviate Cloud |
 | `GEMINI_SESSION_DB` | `""` | Empty = in-memory only |
+| `MLFLOW_TRACKING_URI` | `""` | Empty = tracing disabled |
+| `MLFLOW_EXPERIMENT_NAME` | `video-research-mcp` | MLflow experiment name |
 
 The server auto-loads `~/.config/video-research-mcp/.env` at startup. Process env vars always take precedence over the config file. This ensures keys are available in any workspace, even without direnv.
 

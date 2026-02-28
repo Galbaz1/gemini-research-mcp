@@ -14,6 +14,13 @@ const MCP_SERVERS = {
     command: 'npx',
     args: ['@playwright/mcp@latest', '--headless', '--caps=vision,pdf'],
   },
+  'mlflow-mcp': {
+    command: 'uvx',
+    args: ['--with', 'mlflow[mcp]>=3.5.1', 'mlflow', 'mcp', 'run'],
+    env: {
+      MLFLOW_TRACKING_URI: '${MLFLOW_TRACKING_URI}',
+    },
+  },
 };
 
 /**
@@ -93,6 +100,8 @@ const ENV_TEMPLATE_KEYS = [
   'WEAVIATE_URL',
   'WEAVIATE_API_KEY',
   'WEAVIATE_GRPC_URL',
+  'MLFLOW_TRACKING_URI',
+  'MLFLOW_EXPERIMENT_NAME',
 ];
 
 /**
@@ -133,6 +142,10 @@ function ensureEnvFile() {
       '# WEAVIATE_URL=',
       '# WEAVIATE_API_KEY=',
       '# WEAVIATE_GRPC_URL=',
+      '',
+      '# Optional — MLflow tracing (leave commented to disable)',
+      '# MLFLOW_TRACKING_URI=http://127.0.0.1:5001',
+      '# MLFLOW_EXPERIMENT_NAME=video-research-mcp',
       '',
     ];
     fs.writeFileSync(envPath, lines.join('\n'), { mode: 0o600 });
