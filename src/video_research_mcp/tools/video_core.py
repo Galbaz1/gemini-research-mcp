@@ -46,6 +46,8 @@ async def analyze_video(
     thinking_level: str = "high",
     use_cache: bool = True,
     metadata_context: str | None = None,
+    local_filepath: str = "",
+    screenshot_dir: str = "",
 ) -> dict:
     """Run the video analysis pipeline shared by video_analyze and video_batch_analyze.
 
@@ -58,6 +60,8 @@ async def analyze_video(
         thinking_level: Gemini thinking depth.
         use_cache: Whether to check/save cache.
         metadata_context: Optional video metadata context to prepend to the prompt.
+        local_filepath: Local filesystem path to the analyzed/downloaded video.
+        screenshot_dir: Local filesystem path to extracted screenshots.
 
     Returns:
         Dict matching VideoResult schema (default) or the custom output_schema.
@@ -102,5 +106,12 @@ async def analyze_video(
     if use_cache:
         cache_save(content_id, "video_analyze", cfg.default_model, result, instruction=instruction)
     from ..weaviate_store import store_video_analysis
-    await store_video_analysis(result, content_id, instruction, source_label)
+    await store_video_analysis(
+        result,
+        content_id,
+        instruction,
+        source_label,
+        local_filepath=local_filepath,
+        screenshot_dir=screenshot_dir,
+    )
     return result

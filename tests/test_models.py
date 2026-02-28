@@ -51,6 +51,7 @@ class TestVideoModels:
         s = SessionInfo(session_id="abc123", video_title="Test")
         assert s.status == "created"
         assert s.source_type == ""
+        assert s.local_filepath == ""
 
     def test_session_info_source_type(self):
         s = SessionInfo(session_id="abc", source_type="youtube")

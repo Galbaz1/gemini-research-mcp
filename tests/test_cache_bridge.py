@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -251,6 +252,7 @@ class TestCreateSessionCache:
 
         assert result["cache_status"] == "uncached"
         assert result["download_status"] == ""
+        assert result["local_filepath"] == ""
         session = _mock_session_store.get(result["session_id"])
         assert session.cache_name == ""
 
@@ -285,6 +287,7 @@ class TestCreateSessionCache:
 
         assert result["cache_status"] == "cached"
         assert result["download_status"] == "downloaded"
+        assert result["local_filepath"] == "/tmp/test.mp4"
         session = _mock_session_store.get(result["session_id"])
         assert session.cache_name == TEST_CACHE_NAME
         # Session URL should be the File API URI, not the YouTube URL
@@ -330,6 +333,7 @@ class TestCreateSessionCache:
 
         assert result["cache_status"] == "uncached"
         assert result["download_status"] == "failed"
+        assert result["local_filepath"] == "/tmp/test.mp4"
 
     async def test_download_true_cache_fails_but_upload_succeeds(
         self, mock_gemini_client, _mock_session_store
@@ -360,6 +364,7 @@ class TestCreateSessionCache:
         # Cache failed but download+upload succeeded — still uses File API URI
         assert result["cache_status"] == "uncached"
         assert result["download_status"] == "downloaded"
+        assert result["local_filepath"] == "/tmp/test.mp4"
         session = _mock_session_store.get(result["session_id"])
         # Session should use File API URI even without cache
         assert session.url == FILE_API_URI
@@ -583,6 +588,37 @@ class TestContinueSessionCache:
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert not hasattr(config, "cached_content") or config.cached_content is None
 
+    async def test_continue_session_stores_local_filepath(self, _mock_session_store):
+        """Session transcript writes include the session's local media path."""
+        session = _mock_session_store.create(
+            FILE_API_URI,
+            "general",
+            video_title="Test",
+            local_filepath="/tmp/local-video.mp4",
+        )
+
+        mock_response = MagicMock()
+        mock_response.candidates = [
+            MagicMock(content=MagicMock(parts=[MagicMock(text="Answer", thought=False)]))
+        ]
+        mock_client = MagicMock()
+        mock_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
+
+        with (
+            patch("video_research_mcp.tools.video.GeminiClient.get", return_value=mock_client),
+            patch("video_research_mcp.tools.video.with_retry", side_effect=_passthrough_retry),
+            patch(
+                "video_research_mcp.weaviate_store.store_session_turn",
+                new_callable=AsyncMock,
+            ) as mock_store,
+        ):
+            result = await video_continue_session(session_id=session.session_id, prompt="Summarize")
+
+        assert "error" not in result
+        assert mock_store.await_count == 1
+        call_kwargs = mock_store.call_args.kwargs
+        assert call_kwargs["local_filepath"] == "/tmp/local-video.mp4"
+
 
 class TestLocalFileCaching:
     """Verify local file paths activate caching (via File API URI)."""
@@ -611,6 +647,7 @@ class TestLocalFileCaching:
 
         assert result["cache_status"] == "cached"
         assert result["source_type"] == "local"
+        assert result["local_filepath"] == str(Path("/tmp/test.mp4").resolve())
         session = _mock_session_store.get(result["session_id"])
         assert session.cache_name == TEST_CACHE_NAME
 
@@ -635,6 +672,7 @@ class TestLocalFileCaching:
 
         assert result["cache_status"] == "uncached"
         assert result["cache_reason"] != ""
+        assert result["local_filepath"] == str(Path("/tmp/test.mp4").resolve())
         session = _mock_session_store.get(result["session_id"])
         assert session.cache_name == ""
 

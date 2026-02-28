@@ -33,6 +33,16 @@ Tools accept an `instruction` parameter instead of fixed modes. Write specific, 
 | Get AI answer from past work | `/gr:recall ask "question"` (requires Weaviate + weaviate-agents) |
 | Browse knowledge gaps | `/gr:recall fuzzy` or `/gr:recall unknown` |
 
+## Media Storage Conventions
+
+When local media is available, prefer shared project memory paths:
+- Videos: `gr/media/videos/<content_id>.mp4`
+- Screenshots: `gr/media/screenshots/<content_id>/frame_MMSS.png`
+
+Knowledge results may include:
+- `local_filepath`: local video/content file path
+- `screenshot_dir`: local screenshot directory path
+
 ## Tool Reference
 
 ### Video Tools (3) + YouTube Tools (2)
@@ -56,7 +66,8 @@ Use to enumerate playlist contents, then pass individual video IDs to `video_ana
 #### `video_analyze` — Analyze any YouTube video
 ```
 video_analyze(
-  url: str,                    # YouTube URL (required)
+  url: str | None = None,       # YouTube URL
+  file_path: str | None = None, # Local video file
   instruction: str = "...",     # What to analyze (default: comprehensive analysis)
   output_schema: dict | None,   # Custom JSON Schema for response shape
   thinking_level: str = "high", # minimal | low | medium | high
@@ -64,7 +75,7 @@ video_analyze(
 )
 ```
 
-**Default output** (VideoResult): `{title, summary, key_points[], timestamps[{time, description}], topics[], sentiment, url}`
+**Default output** (VideoResult + metadata): `{title, summary, key_points[], timestamps[{time, description}], topics[], sentiment, source, local_filepath, screenshot_dir}`
 
 **Writing good instructions:**
 - BAD: "analyze this video" (too vague, just use the default)
@@ -101,9 +112,15 @@ Use when the default VideoResult shape doesn't match what you need:
 
 #### `video_create_session` — Start multi-turn video exploration
 ```
-video_create_session(url: str, description: str = "")
+video_create_session(
+  url: str | None = None,
+  file_path: str | None = None,
+  description: str = "",
+  download: bool = False
+)
 ```
-Returns `{session_id, status, video_title}`. Use for iterative Q&A about one video.
+Returns `{session_id, status, video_title, source_type, cache_status, download_status, cache_reason, local_filepath}`.
+Use for iterative Q&A about one video.
 
 #### `video_continue_session` — Follow up within a session
 ```
