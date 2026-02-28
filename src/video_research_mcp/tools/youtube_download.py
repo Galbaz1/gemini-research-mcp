@@ -25,7 +25,10 @@ def _download_dir() -> Path:
     return d
 
 
-async def download_youtube_video(video_id: str) -> Path:
+async def download_youtube_video(
+    video_id: str,
+    target_dir: Path | None = None,
+) -> Path:
     """Download a YouTube video via yt-dlp to local cache.
 
     Reuses cached download if the file already exists. Downloads at
@@ -33,6 +36,7 @@ async def download_youtube_video(video_id: str) -> Path:
 
     Args:
         video_id: YouTube video ID (e.g. "dQw4w9WgXcQ").
+        target_dir: Optional download destination. Defaults to cache dir.
 
     Returns:
         Path to the downloaded .mp4 file.
@@ -46,7 +50,12 @@ async def download_youtube_video(video_id: str) -> Path:
             "or pip install yt-dlp"
         )
 
-    output_path = _download_dir() / f"{video_id}.mp4"
+    if target_dir is None:
+        target_dir = _download_dir()
+    else:
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+    output_path = target_dir / f"{video_id}.mp4"
 
     if output_path.exists() and output_path.stat().st_size > 0:
         logger.info("Download cache hit: %s", output_path.name)

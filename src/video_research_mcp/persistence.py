@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     video_title TEXT NOT NULL DEFAULT '',
     cache_name TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL DEFAULT '',
+    local_filepath TEXT NOT NULL DEFAULT '',
     history TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
     last_active TEXT NOT NULL,
@@ -45,7 +46,7 @@ class SessionDB:
 
     def _migrate(self) -> None:
         """Add columns introduced after the initial schema."""
-        for col in ("cache_name", "model"):
+        for col in ("cache_name", "model", "local_filepath"):
             try:
                 self._conn.execute(
                     f"ALTER TABLE sessions ADD COLUMN {col} TEXT NOT NULL DEFAULT ''"
@@ -65,8 +66,8 @@ class SessionDB:
         self._conn.execute(
             """INSERT OR REPLACE INTO sessions
                (session_id, url, mode, video_title, cache_name, model,
-                history, created_at, last_active, turn_count)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                local_filepath, history, created_at, last_active, turn_count)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 session.session_id,
                 session.url,
@@ -74,6 +75,7 @@ class SessionDB:
                 session.video_title,
                 session.cache_name,
                 session.model,
+                session.local_filepath,
                 history_json,
                 session.created_at.isoformat(),
                 session.last_active.isoformat(),
@@ -97,14 +99,14 @@ class SessionDB:
 
         row = self._conn.execute(
             "SELECT session_id, url, mode, video_title, cache_name, model, "
-            "history, created_at, last_active, turn_count "
+            "local_filepath, history, created_at, last_active, turn_count "
             "FROM sessions WHERE session_id = ?",
             (session_id,),
         ).fetchone()
         if row is None:
             return None
 
-        history_dicts = json.loads(row[6])
+        history_dicts = json.loads(row[7])
         history = [_dict_to_content(d) for d in history_dicts]
 
         return VideoSession(
@@ -114,10 +116,11 @@ class SessionDB:
             video_title=row[3],
             cache_name=row[4],
             model=row[5],
+            local_filepath=row[6],
             history=history,
-            created_at=datetime.fromisoformat(row[7]),
-            last_active=datetime.fromisoformat(row[8]),
-            turn_count=row[9],
+            created_at=datetime.fromisoformat(row[8]),
+            last_active=datetime.fromisoformat(row[9]),
+            turn_count=row[10],
         )
 
     def load_all_ids(self) -> list[str]:

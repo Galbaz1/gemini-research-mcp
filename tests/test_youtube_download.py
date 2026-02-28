@@ -114,3 +114,26 @@ class TestDownloadYoutubeVideo:
 
         assert result == cached_file
         assert result.read_bytes() == b"fresh download"
+
+    async def test_uses_target_dir_when_provided(self, tmp_path):
+        """GIVEN target_dir WHEN download called THEN writes output in that directory."""
+        target_dir = tmp_path / "media" / "videos"
+        output_path = target_dir / f"{TEST_VIDEO_ID}.mp4"
+
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+
+        async def fake_subprocess(*args, **kwargs):
+            output_path.write_bytes(b"downloaded video data")
+            return mock_proc
+
+        with (
+            patch("shutil.which", return_value="/usr/bin/yt-dlp"),
+            patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess),
+        ):
+            result = await download_youtube_video(TEST_VIDEO_ID, target_dir=target_dir)
+
+        assert target_dir.exists()
+        assert result == output_path
+        assert result.exists()

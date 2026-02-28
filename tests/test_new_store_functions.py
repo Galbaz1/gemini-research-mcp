@@ -121,9 +121,12 @@ class TestNewStoreWhenEnabled:
             "decisions": ["Ship v2 next week"],
             "action_items": ["Alice: update docs"],
             "topics_discussed": ["Sprint review", "Planning"],
+            "local_filepath": "/tmp/meeting.mp4",
         })
         assert result == "test-uuid-1234"
         mock_weaviate_client["collection"].data.insert.assert_called_once()
+        call_props = mock_weaviate_client["collection"].data.insert.call_args[1]["properties"]
+        assert call_props["local_filepath"] == "/tmp/meeting.mp4"
 
 
 class TestNewStoreErrorHandling:
