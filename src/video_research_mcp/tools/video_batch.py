@@ -78,7 +78,7 @@ async def video_batch_analyze(
     async def _process(fp: Path) -> BatchVideoItem:
         async with semaphore:
             try:
-                contents, content_id = await _video_file_content(str(fp), instruction)
+                contents, content_id, _ = await _video_file_content(str(fp), instruction)
                 result = await analyze_video(
                     contents,
                     instruction=instruction,

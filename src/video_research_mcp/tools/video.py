@@ -24,7 +24,7 @@ from ..prompts.video import METADATA_OPTIMIZER, METADATA_PREAMBLE
 from ..sessions import session_store
 from ..types import ThinkingLevel, VideoFilePath, YouTubeUrl
 from ..youtube import YouTubeClient
-from .video_cache import prewarm_cache, prepare_cached_request
+from .video_cache import ensure_session_cache, prewarm_cache, prepare_cached_request
 from .video_core import analyze_video
 from .video_file import _upload_large_file, _video_file_content, _video_file_uri
 from .video_url import (
@@ -167,7 +167,7 @@ async def video_analyze(
             else:
                 contents = _video_content(clean_url, instruction)
         else:
-            contents, content_id = await _video_file_content(file_path, instruction)
+            contents, content_id, file_uri = await _video_file_content(file_path, instruction)
             source_label = file_path
 
         result = await analyze_video(
@@ -181,9 +181,11 @@ async def video_analyze(
             metadata_context=metadata_context,
         )
 
-        # Pre-warm context cache for future session reuse (YouTube only)
-        if url and content_id:
-            prewarm_cache(content_id, clean_url)
+        # Pre-warm context cache for future session reuse
+        if content_id:
+            cache_uri = clean_url if url else file_uri
+            if cache_uri:
+                prewarm_cache(content_id, cache_uri)
 
         return result
 
@@ -282,8 +284,9 @@ async def video_create_session(
         if url:
             clean_url = _normalize_youtube_url(url)
             source_type = "youtube"
+            content_id = ""
         else:
-            uri, _ = await _video_file_uri(file_path)
+            uri, content_id = await _video_file_uri(file_path)
             clean_url = uri
             source_type = "local"
     except (ValueError, FileNotFoundError) as exc:
@@ -310,7 +313,7 @@ async def video_create_session(
         except Exception:
             title = Path(file_path).stem if file_path else ""
 
-    cache_name, cache_model, download_status = "", "", ""
+    cache_name, cache_model, cache_reason, download_status = "", "", "", ""
 
     if download and source_type == "youtube":
         cache_name, cache_model, download_status, file_uri = (
@@ -319,6 +322,10 @@ async def video_create_session(
         if file_uri:
             # Session URL becomes the File API URI for multi-turn replay
             clean_url = file_uri
+    elif source_type == "local" and content_id:
+        cache_name, cache_model, cache_reason = await ensure_session_cache(
+            content_id, clean_url
+        )
 
     session = session_store.create(
         clean_url, "general",
@@ -333,7 +340,7 @@ async def video_create_session(
         source_type=source_type,
         cache_status="cached" if cache_name else "uncached",
         download_status=download_status,
-        cache_reason="",
+        cache_reason=cache_reason,
     ).model_dump()
 
 

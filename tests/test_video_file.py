@@ -98,9 +98,10 @@ class TestVideoFileContent:
         f = tmp_path / "small.mp4"
         f.write_bytes(b"\x00" * 100)
 
-        content, content_id = await _video_file_content(str(f), "summarize")
+        content, content_id, file_uri = await _video_file_content(str(f), "summarize")
 
         assert content_id == _file_content_hash(f)
+        assert file_uri == ""  # small files use inline bytes, no File API URI
         assert len(content.parts) == 2
         # First part: inline bytes (no file_data attribute)
         assert content.parts[0].inline_data is not None
@@ -118,9 +119,10 @@ class TestVideoFileContent:
         active_file = MagicMock(state="ACTIVE")
         mock_gemini_client["client"].aio.files.get = AsyncMock(return_value=active_file)
 
-        content, content_id = await _video_file_content(str(f), "analyze")
+        content, content_id, file_uri = await _video_file_content(str(f), "analyze")
 
         assert content.parts[0].file_data.file_uri == uploaded.uri
+        assert file_uri == uploaded.uri  # large files return File API URI
         assert content.parts[1].text == "analyze"
         mock_gemini_client["client"].aio.files.upload.assert_called_once()
 

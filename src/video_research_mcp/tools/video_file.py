@@ -155,28 +155,30 @@ async def _upload_large_file(path: Path, mime_type: str, content_hash: str = "")
     return uploaded.uri
 
 
-async def _video_file_content(file_path: str, prompt: str) -> tuple[types.Content, str]:
+async def _video_file_content(file_path: str, prompt: str) -> tuple[types.Content, str, str]:
     """Build Content for a local video file.
 
     Small files (<20 MB) use inline Part.from_bytes.
     Large files are uploaded via the File API.
 
     Returns:
-        (content, content_id) where content_id is the SHA-256 hash prefix.
+        (content, content_id, file_uri) where content_id is the SHA-256 hash
+        prefix and file_uri is the File API URI (empty for small inline files).
     """
     p, mime = _validate_video_path(file_path)
     content_id = _file_content_hash(p)
     size = p.stat().st_size
 
     if size >= LARGE_FILE_THRESHOLD:
-        uri = await _upload_large_file(p, mime, content_hash=content_id)
-        parts = [types.Part(file_data=types.FileData(file_uri=uri))]
+        file_uri = await _upload_large_file(p, mime, content_hash=content_id)
+        parts = [types.Part(file_data=types.FileData(file_uri=file_uri))]
     else:
+        file_uri = ""
         data = await asyncio.to_thread(p.read_bytes)
         parts = [types.Part.from_bytes(data=data, mime_type=mime)]
 
     parts.append(types.Part(text=prompt))
-    return types.Content(parts=parts), content_id
+    return types.Content(parts=parts), content_id, file_uri
 
 
 async def _video_file_uri(file_path: str) -> tuple[str, str]:

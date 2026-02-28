@@ -582,3 +582,100 @@ class TestContinueSessionCache:
 
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert not hasattr(config, "cached_content") or config.cached_content is None
+
+
+class TestLocalFileCaching:
+    """Verify local file paths activate caching (via File API URI)."""
+
+    async def test_local_file_session_creates_cache(
+        self, mock_gemini_client, _mock_session_store
+    ):
+        """GIVEN a local file WHEN video_create_session(file_path=...) THEN returns cached status."""
+        mock_gemini_client["generate"].return_value = "Local Video Title"
+
+        mock_cached = MagicMock()
+        mock_cached.name = TEST_CACHE_NAME
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(return_value=mock_cached)
+
+        with (
+            patch(
+                "video_research_mcp.tools.video._video_file_uri",
+                new_callable=AsyncMock,
+                return_value=(FILE_API_URI, "abcdef1234567890"),
+            ),
+            patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client),
+        ):
+            result = await video_create_session(file_path="/tmp/test.mp4")
+
+        assert result["cache_status"] == "cached"
+        assert result["source_type"] == "local"
+        session = _mock_session_store.get(result["session_id"])
+        assert session.cache_name == TEST_CACHE_NAME
+
+    async def test_local_file_session_cache_failure_returns_reason(
+        self, mock_gemini_client, _mock_session_store
+    ):
+        """GIVEN cache creation fails WHEN video_create_session(file_path=...) THEN returns reason."""
+        mock_gemini_client["generate"].return_value = "Local Video Title"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(side_effect=Exception("Cache API down"))
+
+        with (
+            patch(
+                "video_research_mcp.tools.video._video_file_uri",
+                new_callable=AsyncMock,
+                return_value=(FILE_API_URI, "abcdef1234567890"),
+            ),
+            patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client),
+        ):
+            result = await video_create_session(file_path="/tmp/test.mp4")
+
+        assert result["cache_status"] == "uncached"
+        assert result["cache_reason"] != ""
+        session = _mock_session_store.get(result["session_id"])
+        assert session.cache_name == ""
+
+    async def test_video_analyze_prewarms_for_local_file(self, mock_gemini_client):
+        """GIVEN a local file with File API URI WHEN video_analyze THEN calls prewarm_cache."""
+        from video_research_mcp.models.video import VideoResult
+
+        mock_gemini_client["generate_structured"].return_value = VideoResult(
+            title="Test", summary="Summary", key_points=["point"]
+        )
+
+        with (
+            patch(
+                "video_research_mcp.tools.video._video_file_content",
+                new_callable=AsyncMock,
+                return_value=(MagicMock(), "abcdef1234567890", FILE_API_URI),
+            ),
+            patch.object(cc_mod, "start_prewarm", return_value=MagicMock()) as mock_prewarm,
+        ):
+            result = await video_analyze(file_path="/tmp/test.mp4", use_cache=False)
+
+        assert "error" not in result
+        mock_prewarm.assert_called_once()
+
+    async def test_local_file_small_skips_prewarm(self, mock_gemini_client):
+        """GIVEN a small local file (inline bytes, no URI) WHEN video_analyze THEN skips prewarm."""
+        from video_research_mcp.models.video import VideoResult
+
+        mock_gemini_client["generate_structured"].return_value = VideoResult(
+            title="Test", summary="Summary", key_points=["point"]
+        )
+
+        with (
+            patch(
+                "video_research_mcp.tools.video._video_file_content",
+                new_callable=AsyncMock,
+                return_value=(MagicMock(), "abcdef1234567890", ""),
+            ),
+            patch.object(cc_mod, "start_prewarm", return_value=MagicMock()) as mock_prewarm,
+        ):
+            result = await video_analyze(file_path="/tmp/small.mp4", use_cache=False)
+
+        assert "error" not in result
+        mock_prewarm.assert_not_called()
