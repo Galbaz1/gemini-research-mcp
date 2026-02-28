@@ -84,7 +84,7 @@ knowledge_ask(query="What did I learn about ef_construction?")  # AI-generated s
 
 ### Use it as an MCP server in your own application
 
-The 22 tools are standard MCP -- any MCP client can call them. Point your app at the server and you get Gemini-powered video analysis, research, and knowledge retrieval as API calls. No Claude Code required.
+The 23 tools are standard MCP -- any MCP client can call them. Point your app at the server and you get Gemini-powered video analysis, research, and knowledge retrieval as API calls. No Claude Code required.
 
 ```json
 {
@@ -176,7 +176,7 @@ export WEAVIATE_API_KEY="your-key"
 ```
 
 <details>
-<summary><strong>All 22 tools</strong></summary>
+<summary><strong>All 23 tools</strong></summary>
 
 ### Video (4)
 

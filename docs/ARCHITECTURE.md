@@ -8,7 +8,7 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 2. [Composite Server Pattern](#2-composite-server-pattern)
 3. [GeminiClient Pipeline](#3-geminiclient-pipeline)
 4. [Tool Conventions](#4-tool-conventions)
-5. [Tool Reference (22 tools)](#5-tool-reference-22-tools)
+5. [Tool Reference (23 tools)](#5-tool-reference-23-tools)
 6. [Singletons](#6-singletons)
 7. [Weaviate Integration](#7-weaviate-integration)
 8. [Session Management](#8-session-management)
@@ -22,18 +22,20 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 
 ## 1. System Overview
 
-`video-research-mcp` is an MCP (Model Context Protocol) server that exposes 22 tools for video analysis, deep research, content extraction, web search, and knowledge management. It communicates over **stdio transport** using **FastMCP** (`fastmcp>=2.0`) and is powered by **Gemini 3.1 Pro** via the `google-genai` SDK.
+`video-research-mcp` is an MCP (Model Context Protocol) server that exposes 23 tools for video analysis, deep research, content extraction, web search, and knowledge management. It communicates over **stdio transport** using **FastMCP** (`fastmcp>=3.0.2`) and is powered by **Gemini 3.1 Pro** via the `google-genai` SDK.
 
 ### Core Dependencies
 
 | Package | Purpose |
 |---------|---------|
-| `fastmcp>=2.0` | MCP server framework (FastMCP 3.x) |
-| `google-genai>=1.0` | Gemini API client (generate, structured output, File API) |
+| `fastmcp>=3.0.2` | MCP server framework — v3.x preserves tool callability |
+| `google-genai>=1.57` | Gemini API client — 1.56 added ThinkingConfig; 1.57 added Gemini 3 model support |
 | `google-api-python-client>=2.100` | YouTube Data API v3 |
 | `pydantic>=2.0` | Schema validation, structured output models |
 | `weaviate-client>=4.19.2` | Vector database for knowledge persistence |
 | `weaviate-agents>=1.2.0` | *(optional)* QueryAgent for AI-powered knowledge Q&A |
+
+**Dev dependencies**: `pytest>=8.0`, `pytest-asyncio>=1.0`, `ruff>=0.9`
 
 ### Build & Runtime
 
@@ -50,6 +52,8 @@ src/video_research_mcp/
   server.py              Root FastMCP app, mounts 7 sub-servers
   client.py              GeminiClient singleton (client pool)
   config.py              ServerConfig from env vars, runtime update
+  context_cache.py       Context cache registry with disk persistence, prewarm tracking
+  dotenv.py              Auto-loads ~/.config/video-research-mcp/.env
   sessions.py            In-memory SessionStore with TTL eviction
   persistence.py         SQLite-backed session persistence (WAL mode)
   cache.py               File-based JSON analysis cache
@@ -72,10 +76,12 @@ src/video_research_mcp/
     content.py           STRUCTURED_EXTRACT template
   tools/
     video.py             video_server (4 tools)
+    video_batch.py       Batch video analysis tool (split from video.py)
+    video_cache.py       Cache bridge helpers for video tools
     video_core.py        Shared analysis pipeline (cache + Gemini + cache save)
     video_url.py         YouTube URL validation + Content builder
     video_file.py        Local video file handling, File API upload
-    youtube.py           youtube_server (2 tools)
+    youtube.py           youtube_server (3 tools)
     research.py          research_server (3 tools)
     content.py           content_server (2 tools)
     search.py            search_server (1 tool)
@@ -83,7 +89,7 @@ src/video_research_mcp/
     knowledge/           knowledge_server (8 tools: search, retrieval, ingest, QueryAgent)
 ```
 
-**Tool count**: 4 + 2 + 3 + 2 + 1 + 2 + 8 = **22 tools** across 7 sub-servers.
+**Tool count**: 4 + 3 + 3 + 2 + 1 + 2 + 8 = **23 tools** across 7 sub-servers.
 
 ---
 
@@ -101,22 +107,25 @@ app.mount(research_server)    # tools/research.py     3 tools
 app.mount(content_server)     # tools/content.py      2 tools
 app.mount(search_server)      # tools/search.py       1 tool
 app.mount(infra_server)       # tools/infra.py        2 tools
-app.mount(youtube_server)     # tools/youtube.py      2 tools
+app.mount(youtube_server)     # tools/youtube.py      3 tools
 app.mount(knowledge_server)   # tools/knowledge/       8 tools
-#                                                     ── 22 tools total
+#                                                     ── 23 tools total
 ```
 
 ### Lifespan Hook
 
 The `_lifespan` async context manager handles graceful shutdown:
 
-1. **Weaviate**: `WeaviateClient.aclose()` closes the cluster connection
-2. **Gemini**: `GeminiClient.close_all()` tears down all pooled clients
+1. **Context cache**: Conditionally cleared when `clear_cache_on_shutdown` is `True`
+2. **Weaviate**: `WeaviateClient.aclose()` closes the cluster connection
+3. **Gemini**: `GeminiClient.close_all()` tears down all pooled clients
 
 ```python
 @asynccontextmanager
 async def _lifespan(server: FastMCP):
     yield {}
+    if get_config().clear_cache_on_shutdown:
+        await context_cache.clear()
     await WeaviateClient.aclose()
     closed = await GeminiClient.close_all()
 ```
@@ -334,7 +343,7 @@ return result
 | `content_analyze` | `store_content_analysis` | `ContentAnalyses` |
 | `web_search` | `store_web_search` | `WebSearchResults` |
 
-Tools not in this table (`content_extract`, `video_playlist`, `infra_cache`, `infra_configure`, and the knowledge tools) do not write through.
+Tools not in this table (`content_extract`, `video_comments`, `video_playlist`, `infra_cache`, `infra_configure`, and the knowledge tools) do not write through.
 
 **Key guarantees**:
 - **Non-fatal**: All store functions catch exceptions and log warnings. Tool results are never lost due to Weaviate failures.
@@ -343,7 +352,7 @@ Tools not in this table (`content_extract`, `video_playlist`, `infra_cache`, `in
 
 ---
 
-## 5. Tool Reference (22 tools)
+## 5. Tool Reference (23 tools)
 
 ### Video Server (4 tools)
 
@@ -392,7 +401,7 @@ Returns: `SessionResponse` dict with `response` and `turn_count`. Appends to ses
 
 Returns: `BatchVideoResult` dict. Uses semaphore-bounded concurrency (3 parallel Gemini calls).
 
-### YouTube Server (2 tools)
+### YouTube Server (3 tools)
 
 **`video_metadata`** -- Fetch YouTube video metadata without Gemini.
 
@@ -401,6 +410,15 @@ Returns: `BatchVideoResult` dict. Uses semaphore-bounded concurrency (3 parallel
 | `url` | `YouTubeUrl` | (required) | YouTube URL |
 
 Returns: `VideoMetadata` dict (title, stats, duration, tags, channel). Costs 1 YouTube API unit, 0 Gemini units. Writes to `VideoMetadata` collection with deterministic UUID.
+
+**`video_comments`** -- Fetch top YouTube comments sorted by relevance.
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `url` | `YouTubeUrl` | (required) | YouTube URL |
+| `max_comments` | `int` | `200` | Max comments (1-500) |
+
+Returns: dict with `video_id`, `comments` list (text, like count, author), and `count`. Costs 1+ YouTube API units, 0 Gemini units.
 
 **`video_playlist`** -- Get video items from a YouTube playlist.
 
@@ -858,6 +876,18 @@ cache_save(content_id, "video_analyze", cfg.default_model, result, instruction=i
 
 Cached results include a `"cached": True` flag so callers can distinguish cache hits.
 
+### Context Cache (`context_cache.py`)
+
+Gemini's context caching lets the server reuse uploaded video content across multiple tool calls without re-uploading. The `context_cache` module manages a registry of cached content and handles background prewarming.
+
+**Registry**: `_registry` maps `(content_id, model)` tuples to cache name strings. The registry is persisted to a JSON file on disk so cache references survive server restarts.
+
+**Prewarm**: `start_prewarm()` fires a background task that uploads content to the Gemini cache. `lookup_or_await()` checks the registry and, if a prewarm is in progress, waits with a timeout for it to complete.
+
+**Token suppression**: The `_suppressed` set tracks `(content_id, model)` pairs where caching failed (e.g., video too short to benefit). Once suppressed, the module skips further cache attempts for that pair.
+
+**TTL**: Gemini context caches expire naturally (default 1 hour). No manual cleanup is needed during normal operation. The `clear_cache_on_shutdown` config flag (default `False`) triggers `context_cache.clear()` during the lifespan shutdown hook.
+
 ---
 
 ## 10. Configuration
@@ -885,6 +915,7 @@ All configuration is resolved from environment variables via `ServerConfig.from_
 | `GEMINI_SESSION_DB` | `session_db_path` | `""` | Empty = in-memory only |
 | `WEAVIATE_URL` | `weaviate_url` | `""` | -- |
 | `WEAVIATE_API_KEY` | `weaviate_api_key` | `""` | -- |
+| `CLEAR_CACHE_ON_SHUTDOWN` | `clear_cache_on_shutdown` | `False` | Clear context caches on server shutdown |
 | -- | `weaviate_enabled` | derived | `True` if `WEAVIATE_URL` is set |
 
 ### Model Presets
