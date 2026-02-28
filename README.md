@@ -69,6 +69,35 @@ Google Search via Gemini grounding with source citations.
 
 Searches your analysis memory. Each analysis tracks knowledge states (know / fuzzy / unknown) in YAML frontmatter, so you can find gaps.
 
+### Build up knowledge while you code
+
+The plugin works as a research companion during development. You encounter an unfamiliar concept, research it, and the findings are stored automatically. Next week, when you run into the same topic, `knowledge_search` or `knowledge_ask` retrieves what you learned -- across projects, across sessions.
+
+```
+# While working on a project, you hit something you don't understand
+/gr:research "HNSW index parameters for high-dimensional embeddings"
+
+# Two weeks later, in a different project
+knowledge_search(query="HNSW tuning")           # finds your earlier research
+knowledge_ask(query="What did I learn about ef_construction?")  # AI-generated summary
+```
+
+### Use it as an MCP server in your own application
+
+The 21 tools are standard MCP -- any MCP client can call them. Point your app at the server and you get Gemini-powered video analysis, research, and knowledge retrieval as API calls. No Claude Code required.
+
+```json
+{
+  "mcpServers": {
+    "video-research": {
+      "command": "uvx",
+      "args": ["video-research-mcp"],
+      "env": { "GEMINI_API_KEY": "${GEMINI_API_KEY}" }
+    }
+  }
+}
+```
+
 ## Commands
 
 | Command | What it does |
