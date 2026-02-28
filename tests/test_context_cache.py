@@ -22,10 +22,20 @@ def _clean_config(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _isolate_registry():
-    """Ensure cache registry is empty between tests."""
+    """Ensure cache registry is empty and _loaded reset between tests."""
     cc_mod._registry.clear()
+    cc_mod._loaded = True  # Prevent disk load during unit tests
     yield
     cc_mod._registry.clear()
+    cc_mod._loaded = True
+
+
+@pytest.fixture(autouse=True)
+def _isolate_registry_path(tmp_path):
+    """Redirect registry persistence to temp dir — never touch real filesystem."""
+    json_path = tmp_path / "context_cache_registry.json"
+    with patch.object(cc_mod, "_registry_path", return_value=json_path):
+        yield json_path
 
 
 def _video_parts() -> list[types.Part]:
@@ -258,3 +268,46 @@ class TestSessionCacheFields:
         assert loaded.cache_name == ""
         assert loaded.model == ""
         db.close()
+
+
+class TestRegistryPersistence:
+    """Verify registry save/load roundtrip and GC behavior."""
+
+    def test_save_and_load_roundtrip(self, _isolate_registry_path):
+        """GIVEN populated registry WHEN saved and reloaded THEN entries restored."""
+        cc_mod._registry[("vid1", "model-a")] = "cachedContents/aaa"
+        cc_mod._registry[("vid2", "model-b")] = "cachedContents/bbb"
+        cc_mod._save_registry()
+
+        cc_mod._registry.clear()
+        cc_mod._loaded = False
+        cc_mod._load_registry()
+
+        assert cc_mod._registry[("vid1", "model-a")] == "cachedContents/aaa"
+        assert cc_mod._registry[("vid2", "model-b")] == "cachedContents/bbb"
+
+    def test_load_missing_file(self):
+        """GIVEN no file on disk WHEN load called THEN empty registry, no error."""
+        cc_mod._loaded = False
+        cc_mod._load_registry()
+        assert len(cc_mod._registry) == 0
+
+    def test_load_corrupted_file(self, _isolate_registry_path):
+        """GIVEN invalid JSON WHEN load called THEN falls back to empty."""
+        _isolate_registry_path.write_text("not valid json {{{")
+        cc_mod._loaded = False
+        cc_mod._load_registry()
+        assert len(cc_mod._registry) == 0
+
+    def test_gc_caps_at_max_entries(self, _isolate_registry_path):
+        """GIVEN 250 entries WHEN saved THEN capped at _MAX_REGISTRY_ENTRIES."""
+        for i in range(250):
+            cc_mod._registry[(f"vid{i}", "model")] = f"cachedContents/{i}"
+        cc_mod._save_registry()
+
+        assert len(cc_mod._registry) <= cc_mod._MAX_REGISTRY_ENTRIES
+
+        cc_mod._registry.clear()
+        cc_mod._loaded = False
+        cc_mod._load_registry()
+        assert len(cc_mod._registry) == cc_mod._MAX_REGISTRY_ENTRIES
