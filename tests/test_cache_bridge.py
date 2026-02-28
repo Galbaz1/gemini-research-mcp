@@ -38,10 +38,12 @@ def _isolate_registry():
     """Ensure cache registry is empty and _loaded reset between tests."""
     cc_mod._registry.clear()
     cc_mod._pending.clear()
+    cc_mod._suppressed.clear()
     cc_mod._loaded = True
     yield
     cc_mod._registry.clear()
     cc_mod._pending.clear()
+    cc_mod._suppressed.clear()
     cc_mod._loaded = True
 
 
@@ -59,6 +61,112 @@ def _mock_session_store():
     store = SessionStore()
     with patch("video_research_mcp.tools.video.session_store", store):
         yield store
+
+
+class TestEnsureSessionCache:
+    """Verify ensure_session_cache lookup → on-demand creation fallback."""
+
+    async def test_returns_existing_cache_from_registry(self):
+        """GIVEN a registry entry WHEN ensure_session_cache called THEN returns it."""
+        from video_research_mcp.tools.video_cache import ensure_session_cache
+
+        cfg = cfg_mod.get_config()
+        cc_mod._registry[(TEST_VIDEO_ID, cfg.default_model)] = TEST_CACHE_NAME
+
+        cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, TEST_URL)
+
+        assert cache_name == TEST_CACHE_NAME
+        assert model == cfg.default_model
+
+    async def test_creates_cache_on_demand_when_registry_empty(self):
+        """GIVEN empty registry WHEN ensure_session_cache called THEN creates via get_or_create."""
+        from video_research_mcp.tools.video_cache import ensure_session_cache
+
+        mock_cached = MagicMock()
+        mock_cached.name = "cachedContents/on-demand-456"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(return_value=mock_cached)
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, TEST_URL)
+
+        assert cache_name == "cachedContents/on-demand-456"
+        cfg = cfg_mod.get_config()
+        assert model == cfg.default_model
+
+    async def test_returns_empty_when_both_fail(self):
+        """GIVEN empty registry AND create fails WHEN called THEN returns empty strings."""
+        from video_research_mcp.tools.video_cache import ensure_session_cache
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(side_effect=Exception("API error"))
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, TEST_URL)
+
+        assert cache_name == ""
+        assert model == ""
+
+    async def test_skips_create_when_suppressed(self):
+        """GIVEN suppressed video WHEN ensure_session_cache called THEN returns empty (no API call)."""
+        from video_research_mcp.tools.video_cache import ensure_session_cache
+
+        cfg = cfg_mod.get_config()
+        cc_mod._suppressed.add((TEST_VIDEO_ID, cfg.default_model))
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get") as mock_get:
+            cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, TEST_URL)
+
+        assert cache_name == ""
+        # get_or_create should skip (suppressed), so no client needed
+        mock_get.assert_not_called()
+
+    async def test_deduplicates_against_pending_prewarm_after_timeout(self):
+        """GIVEN a slow prewarm that outlasts lookup_or_await's timeout
+        WHEN ensure_session_cache falls to slow path THEN joins the pending
+        task via start_prewarm instead of creating a duplicate cache."""
+        import asyncio
+        from video_research_mcp.tools.video_cache import ensure_session_cache
+
+        mock_cached = MagicMock()
+        mock_cached.name = "cachedContents/dedup-789"
+
+        create_count = 0
+
+        async def slow_create(*args, **kwargs):
+            nonlocal create_count
+            create_count += 1
+            await asyncio.sleep(0.2)
+            return mock_cached
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = slow_create
+
+        # Capture the REAL lookup_or_await before patching
+        real_lookup_or_await = cc_mod.lookup_or_await
+
+        async def short_timeout_lookup(content_id, model, timeout=5.0):
+            """Delegate to real function with a very short timeout."""
+            return await real_lookup_or_await(content_id, model, timeout=0.05)
+
+        with (
+            patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client),
+            patch.object(cc_mod, "lookup_or_await", side_effect=short_timeout_lookup),
+        ):
+            # Start a slow prewarm (as if video_analyze just fired it)
+            from google.genai import types as gtypes
+            warm_parts = [gtypes.Part(file_data=gtypes.FileData(file_uri=TEST_URL))]
+            cfg = cfg_mod.get_config()
+            cc_mod.start_prewarm(TEST_VIDEO_ID, warm_parts, cfg.default_model)
+
+            # ensure_session_cache: resolve_session_cache times out → slow path
+            # slow path calls start_prewarm → returns same task (dedup)
+            cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, TEST_URL)
+
+        assert cache_name == "cachedContents/dedup-789"
+        # Only ONE create call — the slow path joined the pending task
+        assert create_count == 1
 
 
 class TestVideoAnalyzePrewarm:
@@ -98,13 +206,36 @@ class TestCreateSessionCache:
         assert session.cache_name == TEST_CACHE_NAME
         assert session.model == cfg.default_model
 
-    async def test_create_session_returns_uncached_when_registry_empty(
+    async def test_create_session_creates_cache_on_demand_when_registry_empty(
         self, mock_gemini_client, _mock_session_store
     ):
-        """GIVEN empty registry WHEN video_create_session called THEN cache_status=uncached."""
+        """GIVEN empty registry WHEN video_create_session called THEN creates cache on-demand."""
         mock_gemini_client["generate"].return_value = "Test Title"
 
-        result = await video_create_session(url=TEST_URL)
+        mock_cached = MagicMock()
+        mock_cached.name = "cachedContents/on-demand-123"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(return_value=mock_cached)
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            result = await video_create_session(url=TEST_URL)
+
+        assert result["cache_status"] == "cached"
+        session = _mock_session_store.get(result["session_id"])
+        assert session.cache_name == "cachedContents/on-demand-123"
+
+    async def test_create_session_returns_uncached_when_both_lookup_and_create_fail(
+        self, mock_gemini_client, _mock_session_store
+    ):
+        """GIVEN empty registry AND create fails WHEN video_create_session called THEN uncached."""
+        mock_gemini_client["generate"].return_value = "Test Title"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(side_effect=Exception("API error"))
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            result = await video_create_session(url=TEST_URL)
 
         assert result["cache_status"] == "uncached"
         session = _mock_session_store.get(result["session_id"])
