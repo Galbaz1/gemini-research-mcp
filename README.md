@@ -63,11 +63,14 @@ Google Search via Gemini grounding with source citations.
 ### Recall past work
 
 ```
-/gr:recall fuzzy         # concepts you're unsure about
-/gr:recall "kubernetes"  # search across all notes
+/gr:recall                          # overview: knowledge store stats + saved analyses
+/gr:recall "kubernetes"             # semantic search (Weaviate) + filesystem grep
+/gr:recall fuzzy                    # concepts you're unsure about
+/gr:recall ask "what do I know about X?"  # AI-powered Q&A with source citations
+/gr:recall research                 # filter by category
 ```
 
-Searches your analysis memory. Each analysis tracks knowledge states (know / fuzzy / unknown) in YAML frontmatter, so you can find gaps.
+When Weaviate is configured, keyword searches use semantic matching — find "gradient descent tuning" even when you searched for "ML optimization". Without Weaviate, recall falls back to exact keyword grep.
 
 ### Build up knowledge while you code
 
@@ -155,6 +158,8 @@ Seven collections are created on first connection:
 | `SessionTranscripts` | `video_continue_session` |
 | `WebSearchResults` | `web_search` |
 | `ResearchPlans` | `research_plan` |
+
+Knowledge tools are also accessible through `/gr:recall`, which combines semantic search with filesystem browsing in one interface.
 
 Seven knowledge tools let you query this data: hybrid search, semantic similarity, fetch by UUID, manual ingest, collection stats. Two additional tools (`knowledge_ask` and `knowledge_query`) use Weaviate's QueryAgent for AI-generated answers with source citations -- these require the optional `weaviate-agents` package:
 

@@ -507,7 +507,13 @@ Uses the flash model with `GoogleSearch()` tool wiring. Returns query, response 
 | `action` | `CacheAction` | `"stats"` | `"stats"`, `"list"`, or `"clear"` |
 | `content_id` | `str \| None` | `None` | Scope clear to specific ID |
 
-Returns: cache statistics, entry list, or removed count depending on action.
+Returns depend on `action`:
+
+| Action | Returns |
+|--------|---------|
+| `stats` | `{cache_dir, total_files, total_size_mb, ttl_days}` |
+| `list` | `{entries: [{file, content_id, tool, cached_at}, ...]}` sorted by `cached_at` descending |
+| `clear` | `{removed: int}` — number of files deleted (scoped to `content_id` if provided) |
 
 **`infra_configure`** -- Reconfigure the server at runtime.
 
@@ -748,6 +754,29 @@ Eight tools provide read/write/query access to the knowledge store:
 
 All tools gracefully degrade when `weaviate_enabled` is `False` (return empty result models, not errors). The QueryAgent tools additionally return an error hint when `weaviate-agents` is not installed.
 
+### Unified Recall Architecture
+
+`/gr:recall` bridges two storage layers:
+
+| Layer | Storage | Search Method | Unique Data |
+|-------|---------|---------------|-------------|
+| Filesystem | `~/.claude/projects/*/memory/gr/` | Glob + Grep (exact) | Knowledge states, visualizations, full markdown |
+| Weaviate | 7 collections | Hybrid/semantic/keyword | Cross-collection search, AI Q&A, similarity |
+
+Availability detection: `knowledge_stats()` at command start. Returns immediately when Weaviate is not configured (no network call). If unavailable, pure filesystem mode.
+
+Category-to-collection mapping:
+
+| Filesystem dir | Weaviate collections |
+|---------------|---------------------|
+| `gr/research/` | ResearchFindings, ResearchPlans |
+| `gr/video/` | VideoAnalyses, VideoMetadata |
+| `gr/video-chat/` | SessionTranscripts |
+| `gr/analysis/` | ContentAnalyses |
+| (none) | WebSearchResults |
+
+Results from `/gr:` commands exist in both layers (filesystem via memory save, Weaviate via write-through). Results from direct MCP tool calls exist only in Weaviate. Recall surfaces both.
+
 ---
 
 ## 8. Session Management
@@ -812,7 +841,19 @@ This ensures the file is available for multi-turn replay without re-uploading.
 
 ## 9. Caching
 
-The file-based JSON cache (`cache.py`) stores tool results on disk to avoid redundant Gemini API calls.
+Three cache layers work together, each at a different level of the stack:
+
+| Layer | Module | Scope | Storage | TTL | Purpose |
+|-------|--------|-------|---------|-----|---------|
+| **Analysis cache** | `cache.py` | Tool output (JSON) | Local filesystem | 30 days (file mtime) | Avoid re-analyzing identical content+instruction pairs |
+| **Context cache** | `context_cache.py` | Uploaded video content | Gemini API (server-side) | 1 hour (API-managed) | Avoid re-uploading video for multi-tool workflows |
+| **Cache bridge** | `tools/video_cache.py` | Orchestration glue | -- | -- | Connects analysis → context cache for video tools |
+
+**Typical flow**: `video_analyze` checks the analysis cache first. On miss, it calls Gemini, saves the result, and fires a context cache prewarm. A subsequent `video_create_session` for the same video reuses the pre-warmed context cache via `lookup_or_await()`, skipping re-upload.
+
+### Analysis Cache (`cache.py`)
+
+The file-based JSON cache stores tool results on disk to avoid redundant Gemini API calls.
 
 ### Key Structure
 
@@ -887,6 +928,18 @@ Gemini's context caching lets the server reuse uploaded video content across mul
 **Token suppression**: The `_suppressed` set tracks `(content_id, model)` pairs where caching failed (e.g., video too short to benefit). Once suppressed, the module skips further cache attempts for that pair.
 
 **TTL**: Gemini context caches expire naturally (default 1 hour). No manual cleanup is needed during normal operation. The `clear_cache_on_shutdown` config flag (default `False`) triggers `context_cache.clear()` during the lifespan shutdown hook.
+
+### Cache Bridge (`tools/video_cache.py`)
+
+Thin orchestration layer that wires the context cache into video tool workflows. Three helpers:
+
+| Function | Called by | What it does |
+|----------|-----------|--------------|
+| `prewarm_cache()` | `video_analyze` (after successful analysis) | Fires `context_cache.start_prewarm()` with a `file_data` Part |
+| `resolve_session_cache()` | `video_create_session` | Calls `context_cache.lookup_or_await()` to find a pre-warmed cache |
+| `prepare_cached_request()` | `video_continue_session` | Checks cache liveness via `refresh_ttl()`, builds request contents accordingly |
+
+When a cache is alive, `prepare_cached_request()` sends only the text prompt (no video re-upload). When it expires, the function falls back to re-attaching the video `file_data` Part.
 
 ---
 

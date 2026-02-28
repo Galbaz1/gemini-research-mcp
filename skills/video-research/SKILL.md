@@ -27,6 +27,9 @@ Tools accept an `instruction` parameter instead of fixed modes. Write specific, 
 | Search the web for current info | `web_search` |
 | Check or clear the cache | `infra_cache` |
 | Change model/thinking/temperature | `infra_configure` |
+| Find past analyses and research | `/gr:recall "topic"` (semantic search when Weaviate configured) |
+| Get AI answer from past work | `/gr:recall ask "question"` (requires Weaviate + weaviate-agents) |
+| Browse knowledge gaps | `/gr:recall fuzzy` or `/gr:recall unknown` |
 
 ## Tool Reference
 
@@ -209,6 +212,13 @@ infra_configure(model=None, thinking_level=None, temperature=None)
 3. Or use sessions for iterative exploration:
    - `video_create_session(url)` > get session_id
    - `video_continue_session(session_id, "What libraries are used?")` > follow up
+
+### Recall & Knowledge Retrieval
+
+`/gr:recall` is the unified entry point. It uses `knowledge_search` for semantic queries
+when Weaviate is configured, and falls back to filesystem grep otherwise.
+Knowledge states (fuzzy/unknown) and visualization browsing are always filesystem-based.
+Direct MCP tool calls remain available for programmatic use.
 
 ### Compare multiple videos (orchestrated by you)
 1. Call `video_analyze` on each URL with the same instruction
