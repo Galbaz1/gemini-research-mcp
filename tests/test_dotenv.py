@@ -121,6 +121,19 @@ class TestLoadDotenv:
         assert os.environ["_TEST_EMPTY"] == "from-config"
         assert injected == {"_TEST_EMPTY": "from-config"}
 
+    def test_overrides_self_placeholder(self, tmp_path, monkeypatch):
+        """GIVEN an unresolved ${VAR} placeholder THEN load_dotenv overrides it."""
+        monkeypatch.setenv("_TEST_PLACEHOLDER", "${_TEST_PLACEHOLDER}")
+        env = tmp_path / ".env"
+        env.write_text("_TEST_PLACEHOLDER=from-config\n")
+
+        injected = load_dotenv(env)
+
+        import os
+
+        assert os.environ["_TEST_PLACEHOLDER"] == "from-config"
+        assert injected == {"_TEST_PLACEHOLDER": "from-config"}
+
     def test_missing_file_returns_empty(self, tmp_path):
         injected = load_dotenv(tmp_path / "missing")
         assert injected == {}
@@ -152,10 +165,22 @@ class TestConfigIntegration:
         """GIVEN both .env file and env var WHEN get_config() THEN env var wins."""
         env = tmp_path / ".env"
         env.write_text("WEAVIATE_URL=from-file\n")
-        monkeypatch.setenv("WEAVIATE_URL", "from-env")
+        monkeypatch.setenv("WEAVIATE_URL", "https://from-env")
         monkeypatch.setattr("video_research_mcp.dotenv.DEFAULT_ENV_PATH", env)
 
         from video_research_mcp.config import get_config
 
         cfg = get_config()
-        assert cfg.weaviate_url == "from-env"
+        assert cfg.weaviate_url == "https://from-env"
+
+    def test_placeholder_env_gets_replaced_by_dotenv(self, tmp_path, monkeypatch, clean_config):
+        """GIVEN WEAVIATE_URL=${WEAVIATE_URL} WHEN get_config() THEN .env value wins."""
+        env = tmp_path / ".env"
+        env.write_text("WEAVIATE_URL=http://localhost:8080\n")
+        monkeypatch.setenv("WEAVIATE_URL", "${WEAVIATE_URL}")
+        monkeypatch.setattr("video_research_mcp.dotenv.DEFAULT_ENV_PATH", env)
+
+        from video_research_mcp.config import get_config
+
+        cfg = get_config()
+        assert cfg.weaviate_url == "http://localhost:8080"

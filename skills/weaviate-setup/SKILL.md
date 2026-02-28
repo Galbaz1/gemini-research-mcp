@@ -60,25 +60,19 @@ services:
 
 ### Step 3: Configure Environment
 
-Once you have the URL (and optionally API key), tell the user to set the environment variables. There are two ways:
+Once you have the URL (and optionally API key), tell the user to configure the shared server config file (recommended) or shell env:
 
-**Option A -- In `.mcp.json` (recommended for plugin users):**
-The MCP server config in `~/.claude/.mcp.json` or `.mcp.json` should include:
-```json
-{
-  "mcpServers": {
-    "video-research": {
-      "command": "uvx",
-      "args": ["video-research-mcp"],
-      "env": {
-        "GEMINI_API_KEY": "${GEMINI_API_KEY}",
-        "WEAVIATE_URL": "<their-url>",
-        "WEAVIATE_API_KEY": "<their-key-if-any>"
-      }
-    }
-  }
-}
+**Option A -- Shared config file (recommended for plugin users):**
+Edit `~/.config/video-research-mcp/.env`:
+```bash
+GEMINI_API_KEY=<their-gemini-key>
+WEAVIATE_URL=<their-url>
+WEAVIATE_API_KEY=<their-key-if-any>
 ```
+
+Notes:
+- Use a full URL with scheme (`https://...` for cloud, `http://localhost:8080` for local).
+- Keep `.mcp.json` free of unresolved placeholders like `${WEAVIATE_URL}`.
 
 **Option B -- Shell environment:**
 ```bash
