@@ -172,4 +172,7 @@ All other config (thinking level, temperature, cache dir/TTL, session limits, re
 | `docs/tutorials/KNOWLEDGE_STORE.md` | Weaviate setup, 7 collections, 8 knowledge tools |
 | `docs/PLUGIN_DISTRIBUTION.md` | Two-package architecture, FILE_MAP, discovery, full inventory |
 | `docs/WEAVIATE_PLUGIN_RECOMMENDATION.md` | Gap analysis and roadmap for knowledge store plugin assets |
+| `docs/PUBLISHING.md` | Dual-registry publishing guide with version sync policy |
+| `docs/RELEASE_CHECKLIST.md` | Copy-paste checklist for each release |
+| `CHANGELOG.md` | Release history in Keep a Changelog format |
 | `docs/plans/` | Design docs for planned features — linked from `ROADMAP.md` and GitHub issues |
