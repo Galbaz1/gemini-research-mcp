@@ -45,6 +45,7 @@ async def analyze_video(
     output_schema: dict | None = None,
     thinking_level: str = "high",
     use_cache: bool = True,
+    metadata_context: str | None = None,
 ) -> dict:
     """Run the video analysis pipeline shared by video_analyze and video_batch_analyze.
 
@@ -56,6 +57,7 @@ async def analyze_video(
         output_schema: Optional custom JSON Schema for the response.
         thinking_level: Gemini thinking depth.
         use_cache: Whether to check/save cache.
+        metadata_context: Optional video metadata context to prepend to the prompt.
 
     Returns:
         Dict matching VideoResult schema (default) or the custom output_schema.
@@ -81,7 +83,13 @@ async def analyze_video(
                 f"Gemini returned non-JSON for custom schema: {raw[:200]!r}"
             ) from exc
     else:
-        enriched = f"{_ANALYSIS_PREAMBLE}\n\nUser instruction: {instruction}"
+        if metadata_context:
+            enriched = (
+                f"{_ANALYSIS_PREAMBLE}\n\n{metadata_context}\n\n"
+                f"User instruction: {instruction}"
+            )
+        else:
+            enriched = f"{_ANALYSIS_PREAMBLE}\n\nUser instruction: {instruction}"
         contents = _enrich_prompt(contents, enriched)
         model_result = await GeminiClient.generate_structured(
             contents,

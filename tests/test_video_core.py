@@ -154,3 +154,47 @@ class TestPromptEnrichment:
         # Original prompt should be unchanged
         assert contents.parts[1].text == "extract items"
         assert _ANALYSIS_PREAMBLE not in contents.parts[1].text
+
+
+class TestMetadataContext:
+    @pytest.mark.asyncio
+    async def test_metadata_context_included_in_enriched_prompt(self, mock_gemini_client):
+        """Metadata context appears in the enriched prompt sent to Gemini."""
+        mock_gemini_client["generate_structured"].return_value = VideoResult(title="Test")
+
+        await analyze_video(
+            _make_video_content("summarize"),
+            instruction="summarize",
+            content_id="vid_meta",
+            source_label="https://youtube.com/watch?v=vid_meta",
+            use_cache=False,
+            metadata_context='Video context: "CLI Tutorial" by TechChannel (Education, 12:34)',
+        )
+
+        call_args = mock_gemini_client["generate_structured"].call_args
+        contents = call_args.args[0]
+        prompt_text = contents.parts[1].text
+        assert _ANALYSIS_PREAMBLE in prompt_text
+        assert "CLI Tutorial" in prompt_text
+        assert "TechChannel" in prompt_text
+        assert "User instruction: summarize" in prompt_text
+
+    @pytest.mark.asyncio
+    async def test_no_metadata_context_uses_original_enrichment(self, mock_gemini_client):
+        """None metadata_context → original enrichment without metadata section."""
+        mock_gemini_client["generate_structured"].return_value = VideoResult(title="Test")
+
+        await analyze_video(
+            _make_video_content("summarize"),
+            instruction="summarize",
+            content_id="vid_no_meta",
+            source_label="https://youtube.com/watch?v=vid_no_meta",
+            use_cache=False,
+            metadata_context=None,
+        )
+
+        call_args = mock_gemini_client["generate_structured"].call_args
+        contents = call_args.args[0]
+        prompt_text = contents.parts[1].text
+        expected = f"{_ANALYSIS_PREAMBLE}\n\nUser instruction: summarize"
+        assert prompt_text == expected

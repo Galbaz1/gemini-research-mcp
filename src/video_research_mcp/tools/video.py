@@ -18,6 +18,7 @@ from ..config import get_config
 from ..errors import make_tool_error
 from ..models.video import SessionInfo, SessionResponse
 from ..models.video_batch import BatchVideoItem, BatchVideoResult
+from ..prompts.video import METADATA_OPTIMIZER, METADATA_PREAMBLE
 from ..sessions import session_store
 from ..types import ThinkingLevel, VideoDirectoryPath, VideoFilePath, YouTubeUrl
 from ..youtube import YouTubeClient
@@ -27,10 +28,78 @@ from .video_file import (
     _video_file_content,
     _video_file_uri,
 )
-from .video_url import _extract_video_id, _normalize_youtube_url, _video_content
+from .video_url import (
+    _extract_video_id,
+    _normalize_youtube_url,
+    _video_content,
+    _video_content_with_metadata,
+)
 
 logger = logging.getLogger(__name__)
 video_server = FastMCP("video")
+
+_SHORT_VIDEO_THRESHOLD = 5 * 60  # 5 minutes
+_LONG_VIDEO_THRESHOLD = 30 * 60  # 30 minutes
+
+
+async def _youtube_metadata_pipeline(
+    video_id: str, instruction: str
+) -> tuple[str | None, float | None]:
+    """Fetch YouTube metadata and build analysis context + fps override.
+
+    Non-fatal: returns (None, None) on any failure so the caller falls back
+    to the generic pipeline.
+
+    Returns:
+        (metadata_context, fps_override) — context string for the analysis
+        prompt and optional fps sampling rate.
+    """
+    try:
+        meta = await YouTubeClient.video_metadata(video_id)
+        if not meta.title:
+            return None, None
+    except Exception:
+        logger.debug("YouTube metadata fetch failed for %s", video_id)
+        return None, None
+
+    fps_override: float | None = None
+    if meta.duration_seconds > 0:
+        if meta.duration_seconds < _SHORT_VIDEO_THRESHOLD:
+            fps_override = 2.0
+        elif meta.duration_seconds > _LONG_VIDEO_THRESHOLD:
+            fps_override = 1.0
+
+    tags_str = ", ".join(meta.tags[:10]) if meta.tags else "none"
+    desc_excerpt = (meta.description[:200] + "...") if len(meta.description) > 200 else meta.description
+
+    preamble = METADATA_PREAMBLE.format(
+        title=meta.title,
+        channel=meta.channel_title,
+        category=meta.category or "Unknown",
+        duration=meta.duration_display,
+        tags=tags_str,
+    )
+
+    try:
+        cfg = get_config()
+        optimizer_prompt = METADATA_OPTIMIZER.format(
+            title=meta.title,
+            channel=meta.channel_title,
+            category=meta.category or "Unknown",
+            duration=meta.duration_display,
+            description_excerpt=desc_excerpt,
+            tags=tags_str,
+            instruction=instruction,
+        )
+        optimized = await GeminiClient.generate(
+            optimizer_prompt, model=cfg.flash_model, thinking_level="low"
+        )
+        context = f"{preamble}\n\nOptimized extraction focus: {optimized.strip()}"
+    except Exception:
+        logger.debug("Flash optimizer failed, using preamble only")
+        context = preamble
+
+    return context, fps_override
 
 
 @video_server.tool(
@@ -82,11 +151,22 @@ async def video_analyze(
         return make_tool_error(exc)
 
     try:
+        metadata_context = None
         if url:
             clean_url = _normalize_youtube_url(url)
             content_id = _extract_video_id(url)
-            contents = _video_content(clean_url, instruction)
             source_label = clean_url
+
+            meta_ctx, fps_override = await _youtube_metadata_pipeline(
+                content_id, instruction
+            )
+            if meta_ctx:
+                metadata_context = meta_ctx
+                contents = _video_content_with_metadata(
+                    clean_url, instruction, fps=fps_override
+                )
+            else:
+                contents = _video_content(clean_url, instruction)
         else:
             contents, content_id = await _video_file_content(file_path, instruction)
             source_label = file_path
@@ -99,6 +179,7 @@ async def video_analyze(
             output_schema=output_schema,
             thinking_level=thinking_level,
             use_cache=use_cache,
+            metadata_context=metadata_context,
         )
 
     except (ValueError, FileNotFoundError) as exc:

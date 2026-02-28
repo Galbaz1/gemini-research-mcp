@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from video_research_mcp.models.video import VideoResult
+from video_research_mcp.models.youtube import VideoMetadata as YTVideoMetadata
 from video_research_mcp.tools.video import (
+    _youtube_metadata_pipeline,
     video_analyze,
     video_batch_analyze,
     video_create_session,
@@ -270,3 +272,97 @@ class TestVideoBatchAnalyze:
         assert result["total_files"] == 2
         names = [i["file_name"] for i in result["items"]]
         assert "clip.webm" not in names
+
+
+def _make_yt_metadata(
+    video_id="abc123", title="Test Video", duration_seconds=600, **kwargs
+):
+    """Create a YTVideoMetadata with sensible defaults."""
+    defaults = dict(
+        video_id=video_id,
+        title=title,
+        description="A test video about testing",
+        channel_title="TestChannel",
+        category="Science & Technology",
+        duration_seconds=duration_seconds,
+        duration_display="10:00",
+        tags=["python", "testing"],
+    )
+    defaults.update(kwargs)
+    return YTVideoMetadata(**defaults)
+
+
+class TestYoutubeMetadataPipeline:
+    @pytest.mark.asyncio
+    async def test_metadata_pipeline_enriches_analysis(self, mock_gemini_client):
+        """Metadata available → context string returned with preamble + optimized focus."""
+        mock_gemini_client["generate"].return_value = "Focus on CLI commands and setup steps"
+
+        with patch(
+            "video_research_mcp.tools.video.YouTubeClient.video_metadata",
+            new_callable=AsyncMock,
+            return_value=_make_yt_metadata(),
+        ):
+            context, fps = await _youtube_metadata_pipeline("abc123", "summarize")
+
+        assert context is not None
+        assert "Test Video" in context
+        assert "TestChannel" in context
+        assert "Focus on CLI commands" in context
+
+    @pytest.mark.asyncio
+    async def test_metadata_pipeline_fallback_on_failure(self, mock_gemini_client):
+        """YT API fails → returns (None, None), no error raised."""
+        with patch(
+            "video_research_mcp.tools.video.YouTubeClient.video_metadata",
+            new_callable=AsyncMock,
+            side_effect=Exception("API quota exceeded"),
+        ):
+            context, fps = await _youtube_metadata_pipeline("abc123", "summarize")
+
+        assert context is None
+        assert fps is None
+
+    @pytest.mark.asyncio
+    async def test_short_video_gets_higher_fps(self, mock_gemini_client):
+        """Duration <5min → fps=2.0 for more detailed frame sampling."""
+        mock_gemini_client["generate"].return_value = "Optimized prompt"
+
+        with patch(
+            "video_research_mcp.tools.video.YouTubeClient.video_metadata",
+            new_callable=AsyncMock,
+            return_value=_make_yt_metadata(duration_seconds=180),
+        ):
+            context, fps = await _youtube_metadata_pipeline("abc123", "analyze")
+
+        assert fps == 2.0
+
+    @pytest.mark.asyncio
+    async def test_long_video_gets_lower_fps(self, mock_gemini_client):
+        """Duration >30min → fps=1.0 for efficiency."""
+        mock_gemini_client["generate"].return_value = "Optimized prompt"
+
+        with patch(
+            "video_research_mcp.tools.video.YouTubeClient.video_metadata",
+            new_callable=AsyncMock,
+            return_value=_make_yt_metadata(duration_seconds=3600),
+        ):
+            context, fps = await _youtube_metadata_pipeline("abc123", "analyze")
+
+        assert fps == 1.0
+
+    @pytest.mark.asyncio
+    async def test_flash_failure_uses_preamble_only(self, mock_gemini_client):
+        """Flash optimizer fails → preamble still returned without optimizer text."""
+        mock_gemini_client["generate"].side_effect = Exception("Flash unavailable")
+
+        with patch(
+            "video_research_mcp.tools.video.YouTubeClient.video_metadata",
+            new_callable=AsyncMock,
+            return_value=_make_yt_metadata(),
+        ):
+            context, fps = await _youtube_metadata_pipeline("abc123", "summarize")
+
+        assert context is not None
+        assert "Test Video" in context
+        assert "Optimized extraction focus" not in context
