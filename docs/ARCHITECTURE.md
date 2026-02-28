@@ -22,7 +22,7 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 
 ## 1. System Overview
 
-`video-research-mcp` is an MCP (Model Context Protocol) server that exposes 23 tools for video analysis, deep research, content extraction, web search, and knowledge management. It communicates over **stdio transport** using **FastMCP** (`fastmcp>=3.0.2`) and is powered by **Gemini 3.1 Pro** via the `google-genai` SDK.
+`video-research-mcp` is an MCP (Model Context Protocol) server that exposes 25 tools for video analysis, deep research, content extraction, web search, and knowledge management. It communicates over **stdio transport** using **FastMCP** (`fastmcp>=3.0.2`) and is powered by **Gemini 3.1 Pro** via the `google-genai` SDK.
 
 ### Core Dependencies
 
@@ -62,17 +62,20 @@ src/video_research_mcp/
   youtube.py             YouTubeClient singleton (Data API v3)
   retry.py               Exponential backoff for transient Gemini errors
   weaviate_client.py     WeaviateClient singleton
-  weaviate_schema.py     7 collection definitions (dataclass-based)
-  weaviate_store.py      Write-through store functions (one per collection)
+  weaviate_schema/       11 collection definitions (dataclass-based, split by domain)
+  weaviate_store/        Write-through store functions (one per collection)
   models/
     video.py             VideoResult, SessionInfo, SessionResponse
     video_batch.py       BatchVideoItem, BatchVideoResult
     research.py          Finding, ResearchReport, ResearchPlan, EvidenceAssessment
+    research_document.py DocumentSource, DocumentMap, DocumentFinding, CrossReferenceMap, DocumentResearchReport (+ 4 more)
     content.py           ContentResult
+    content_batch.py     BatchContentItem, BatchContentResult
     youtube.py           VideoMetadata, PlaylistInfo
     knowledge.py         KnowledgeHit, KnowledgeSearchResult, KnowledgeStatsResult, KnowledgeAskResult, KnowledgeQueryResult
   prompts/
     research.py          Deep research system prompt + phase templates
+    research_document.py DOCUMENT_RESEARCH_SYSTEM + 4 phase prompts (map, evidence, cross-ref, synthesis)
     content.py           STRUCTURED_EXTRACT template
   tools/
     video.py             video_server (4 tools)
@@ -82,14 +85,17 @@ src/video_research_mcp/
     video_url.py         YouTube URL validation + Content builder
     video_file.py        Local video file handling, File API upload
     youtube.py           youtube_server (3 tools)
-    research.py          research_server (3 tools)
-    content.py           content_server (2 tools)
+    research.py          research_server (4 tools)
+    research_document.py research_document tool + 4-phase orchestration (split from research.py)
+    research_document_file.py Document File API upload + URL download helpers
+    content.py           content_server (3 tools)
+    content_batch.py     content_batch_analyze tool (split from content.py)
     search.py            search_server (1 tool)
     infra.py             infra_server (2 tools)
     knowledge/           knowledge_server (8 tools: search, retrieval, ingest, QueryAgent)
 ```
 
-**Tool count**: 4 + 3 + 3 + 2 + 1 + 2 + 8 = **23 tools** across 7 sub-servers.
+**Tool count**: 4 + 3 + 4 + 3 + 1 + 2 + 8 = **25 tools** across 7 sub-servers.
 
 ---
 
@@ -103,13 +109,15 @@ The server uses FastMCP's **mount** pattern to compose a root server from indepe
 app = FastMCP("video-research", instructions="...", lifespan=_lifespan)
 
 app.mount(video_server)       # tools/video.py       4 tools
-app.mount(research_server)    # tools/research.py     3 tools
-app.mount(content_server)     # tools/content.py      2 tools
+_ensure_document_tool()       # deferred: research_document registers on research_server
+app.mount(research_server)    # tools/research.py     4 tools
+_ensure_batch_tool()          # deferred: content_batch_analyze registers on content_server
+app.mount(content_server)     # tools/content.py      3 tools
 app.mount(search_server)      # tools/search.py       1 tool
 app.mount(infra_server)       # tools/infra.py        2 tools
 app.mount(youtube_server)     # tools/youtube.py      3 tools
 app.mount(knowledge_server)   # tools/knowledge/       8 tools
-#                                                     ── 23 tools total
+#                                                     ── 25 tools total
 ```
 
 ### Lifespan Hook
@@ -318,7 +326,7 @@ Every tool has a docstring with `Args:` and `Returns:` sections.
 
 ### Write-Through to Weaviate
 
-When Weaviate is configured (`WEAVIATE_URL`), every result-producing tool automatically stores its output via a `store_*` function from `weaviate_store.py`. This is the primary mechanism for building the knowledge base -- it requires no action from the MCP client.
+When Weaviate is configured (`WEAVIATE_URL`), every result-producing tool automatically stores its output via a `store_*` function from `weaviate_store/`. This is the primary mechanism for building the knowledge base -- it requires no action from the MCP client.
 
 **Pattern**: import the store function inside the tool, call after the result is ready:
 
@@ -340,7 +348,9 @@ return result
 | `research_deep` | `store_research_finding` | `ResearchFindings` |
 | `research_plan` | `store_research_plan` | `ResearchPlans` |
 | `research_assess_evidence` | `store_evidence_assessment` | `ResearchFindings` |
+| `research_document` | `store_research_finding` | `ResearchFindings` |
 | `content_analyze` | `store_content_analysis` | `ContentAnalyses` |
+| `content_batch_analyze` | `store_content_analysis` (per file) | `ContentAnalyses` |
 | `web_search` | `store_web_search` | `WebSearchResults` |
 
 Tools not in this table (`content_extract`, `video_comments`, `video_playlist`, `infra_cache`, `infra_configure`, and the knowledge tools) do not write through.
@@ -348,11 +358,11 @@ Tools not in this table (`content_extract`, `video_comments`, `video_playlist`, 
 **Key guarantees**:
 - **Non-fatal**: All store functions catch exceptions and log warnings. Tool results are never lost due to Weaviate failures.
 - **Guard check**: `_is_enabled()` returns immediately when `weaviate_enabled` is `False`.
-- **New tool convention**: When adding a tool that produces analytical results, add a corresponding `store_*` function to `weaviate_store.py` and call it from the tool.
+- **New tool convention**: When adding a tool that produces analytical results, add a corresponding `store_*` function to `weaviate_store/` and call it from the tool.
 
 ---
 
-## 5. Tool Reference (23 tools)
+## 5. Tool Reference (25 tools)
 
 ### Video Server (4 tools)
 
@@ -429,7 +439,7 @@ Returns: dict with `video_id`, `comments` list (text, like count, author), and `
 
 Returns: `PlaylistInfo` dict. Costs 1 YouTube API unit per page.
 
-### Research Server (3 tools)
+### Research Server (4 tools)
 
 **`research_deep`** -- Run multi-phase deep research with evidence-tier labeling.
 
@@ -463,7 +473,21 @@ Returns: `ResearchPlan` dict with phases, task decomposition, model assignments.
 
 Returns: `EvidenceAssessment` dict with tier, confidence (0-1), reasoning. Writes to `ResearchFindings`.
 
-### Content Server (2 tools)
+**`research_document`** -- Run multi-phase evidence-tiered research grounded in source documents.
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `instruction` | `str` | (required) | Research question |
+| `file_paths` | `list[str] \| None` | `None` | Local PDF/document paths |
+| `urls` | `list[str] \| None` | `None` | URLs to downloadable documents |
+| `scope` | `Scope` | `"moderate"` | Research depth |
+| `thinking_level` | `ThinkingLevel` | `"high"` | Gemini thinking depth |
+
+4-phase pipeline: Document Mapping (`DocumentMap` per doc, parallel) → Evidence Extraction (`DocumentFindingsContainer` per doc, parallel) → Cross-Reference (`CrossReferenceMap`, all docs in one call) → Synthesis (`DocumentResearchReport`). Scope `quick` skips phases 2–4; phase 3 is skipped for single-document `moderate` scope.
+
+Documents are always uploaded via File API (`research_document_file.py`) regardless of size — amortizes upload cost across all 3–4 Gemini calls. URL documents are downloaded to a temp dir first via `httpx`, then uploaded. Registration uses deferred import pattern (`_ensure_document_tool()` called from `server.py`) to avoid circular import. Writes to `ResearchFindings`.
+
+### Content Server (3 tools)
 
 **`content_analyze`** -- Analyze content (file, URL, or text) with any instruction.
 
@@ -477,6 +501,21 @@ Returns: `EvidenceAssessment` dict with tier, confidence (0-1), reasoning. Write
 | `thinking_level` | `ThinkingLevel` | `"medium"` | Gemini thinking depth |
 
 Exactly one source required. URL path uses `UrlContext()` tool wiring with two-step fallback (fetch unstructured, then reshape). Writes to `ContentAnalyses`.
+
+**`content_batch_analyze`** -- Batch-analyze multiple content files from a directory or file list.
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `instruction` | `str` | comprehensive analysis | What to analyze |
+| `directory` | `str \| None` | `None` | Directory to scan |
+| `file_paths` | `list[str] \| None` | `None` | Explicit file list |
+| `glob_pattern` | `str` | `"*"` | Filter within directory |
+| `mode` | `"compare" \| "individual"` | `"compare"` | Analysis mode |
+| `output_schema` | `dict \| None` | `None` | Custom JSON Schema |
+| `thinking_level` | `ThinkingLevel` | `"high"` | Gemini thinking depth |
+| `max_files` | `int` | `20` | File cap (1–50) |
+
+Supports PDF, TXT, MD, HTML, XML, JSON, CSV. Two modes: `compare` sends all files as separate `Part` objects (with `"--- File: name ---"` label parts for disambiguation) in one `types.Content` → single Gemini call; `individual` processes each file via `asyncio.Semaphore(3)`. Registration uses deferred import pattern (`_ensure_batch_tool()` in `server.py`) to avoid circular import. Writes to `ContentAnalyses` per file.
 
 **`content_extract`** -- Extract structured data using a JSON Schema.
 
@@ -528,7 +567,7 @@ Changes take effect immediately. Returns current config, active preset, and avai
 
 ### Knowledge Server (8 tools)
 
-All knowledge tools gracefully degrade when Weaviate is not configured (return empty results, not errors). The last two tools (`knowledge_ask`, `knowledge_query`) require the optional `weaviate-agents` package.
+All knowledge tools gracefully degrade when Weaviate is not configured (return empty results, not errors). `knowledge_ask` requires the optional `weaviate-agents` package. `knowledge_query` is **deprecated** — use `knowledge_search` instead.
 
 **`knowledge_search`** -- Search across knowledge collections (hybrid, semantic, or keyword).
 
@@ -540,7 +579,7 @@ All knowledge tools gracefully degrade when Weaviate is not configured (return e
 | `limit` | `int` | `10` | Max results per collection (1-100) |
 | `alpha` | `float` | `0.5` | Hybrid balance: 0=BM25, 1=vector (hybrid mode only) |
 
-Search types: `hybrid` fuses BM25 + vector scores; `semantic` uses `near_text` for pure vector similarity; `keyword` uses `bm25` for pure keyword matching. Returns: `KnowledgeSearchResult` with merged, score-sorted results.
+Search types: `hybrid` fuses BM25 + vector scores; `semantic` uses `near_text` for pure vector similarity; `keyword` uses `bm25` for pure keyword matching. When `COHERE_API_KEY` is set, results are reranked via Cohere (overfetch 3x, rerank, sort by rerank_score). When `FLASH_SUMMARIZE` is not `false`, Gemini Flash post-processes hits with relevance scoring, one-line summaries, and property trimming. Returns: `KnowledgeSearchResult` with merged, score-sorted results.
 
 **`knowledge_related`** -- Find semantically related objects via near-object vector search.
 
@@ -587,7 +626,7 @@ Returns: `KnowledgeFetchResult` with `found` boolean and object `properties`.
 
 Requires the optional `weaviate-agents` package (`pip install video-research-mcp[agents]`). Uses Weaviate's QueryAgent to search across collections and synthesize an answer. Returns: `KnowledgeAskResult` with `answer` text and `sources` list (collection + object UUID per source). Returns a clear error hint when `weaviate-agents` is not installed.
 
-**`knowledge_query`** -- Retrieve objects using natural-language queries via QueryAgent.
+**`knowledge_query`** -- **[Deprecated]** Retrieve objects using natural-language queries via QueryAgent. Use `knowledge_search` instead, which now includes Cohere reranking and Flash summarization.
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -595,7 +634,7 @@ Requires the optional `weaviate-agents` package (`pip install video-research-mcp
 | `collections` | `list[KnowledgeCollection] \| None` | `None` | Collections to search (all if omitted) |
 | `limit` | `int` | `10` | Max results (1-100) |
 
-Requires the optional `weaviate-agents` package. Unlike `knowledge_search` (which uses explicit search modes), this tool translates the natural-language query into optimized Weaviate queries via QueryAgent. Returns: `KnowledgeQueryResult` with matched objects.
+Requires the optional `weaviate-agents` package. Returns: `KnowledgeQueryResult` with `_deprecated: true` flag.
 
 **QueryAgent lifecycle**: The QueryAgent instance is lazily created on first call and cached as a module-level singleton, keyed by the frozenset of target collection names. If the collection set changes between calls, a new QueryAgent is created.
 
@@ -666,7 +705,7 @@ The knowledge layer uses Weaviate as a vector database for persistent, searchabl
 Tool produces result
   -> weaviate_store.store_*()     # write-through (non-fatal)
      -> WeaviateClient.get()      # lazy connect + schema ensure
-        -> weaviate_schema.py     # 7 collection definitions
+        -> weaviate_schema/       # 11 collection definitions
      -> collection.data.insert()  # async via to_thread
 ```
 
@@ -684,9 +723,9 @@ All connection paths include `AdditionalConfig(timeout=Timeout(init=30, query=60
 
 On first connection, `ensure_collections()` iterates all 7 `CollectionDef` objects and creates any that don't exist using the v4 `Property()` API (not `create_from_dict`). Existing collections are evolved by adding missing properties via `_evolve_collection()`.
 
-### Schema (`weaviate_schema.py`)
+### Schema (`weaviate_schema/`)
 
-Seven collections, each defined as a `CollectionDef` dataclass:
+Eleven collections, each defined as a `CollectionDef` dataclass:
 
 | Collection | Source Tool(s) | Vectorized Fields |
 |------------|---------------|-------------------|
@@ -697,6 +736,10 @@ Seven collections, each defined as a `CollectionDef` dataclass:
 | `SessionTranscripts` | `video_continue_session` | video_title, turn_prompt, turn_response |
 | `WebSearchResults` | `web_search` | query, response |
 | `ResearchPlans` | `research_plan` | topic, task_decomposition |
+| `CommunityReactions` | comment analysis agent | video_id, sentiment, themes |
+| `ConceptKnowledge` | concept extraction | name, description, domain |
+| `RelationshipEdges` | relationship mapping | source, target, relationship_type |
+| `CallNotes` | call/meeting analysis | title, summary, action_items |
 
 Every collection includes common properties:
 - `created_at` (date, skip vectorization, range-indexed)
@@ -709,7 +752,7 @@ Every collection includes common properties:
 
 Fields marked `skip_vectorization=True` are stored but not included in the vector embedding (IDs, timestamps, raw JSON blobs).
 
-### Write-Through Store (`weaviate_store.py`)
+### Write-Through Store (`weaviate_store/`)
 
 One async function per collection, all following the same pattern:
 
@@ -761,7 +804,7 @@ All tools gracefully degrade when `weaviate_enabled` is `False` (return empty re
 | Layer | Storage | Search Method | Unique Data |
 |-------|---------|---------------|-------------|
 | Filesystem | `~/.claude/projects/*/memory/gr/` | Glob + Grep (exact) | Knowledge states, visualizations, full markdown |
-| Weaviate | 7 collections | Hybrid/semantic/keyword | Cross-collection search, AI Q&A, similarity |
+| Weaviate | 11 collections | Hybrid/semantic/keyword | Cross-collection search, AI Q&A, similarity |
 
 Availability detection: `knowledge_stats()` at command start. Returns immediately when Weaviate is not configured (no network call). If unavailable, pure filesystem mode.
 
@@ -849,7 +892,7 @@ Three cache layers work together, each at a different level of the stack:
 | **Context cache** | `context_cache.py` | Uploaded video content | Gemini API (server-side) | 1 hour (API-managed) | Avoid re-uploading video for multi-tool workflows |
 | **Cache bridge** | `tools/video_cache.py` | Orchestration glue | -- | -- | Connects analysis → context cache for video tools |
 
-**Typical flow**: `video_analyze` checks the analysis cache first. On miss, it calls Gemini, saves the result, and fires a context cache prewarm. A subsequent `video_create_session` for the same video reuses the pre-warmed context cache via `lookup_or_await()`, skipping re-upload.
+**Typical flow**: `video_analyze` checks the analysis cache first. On miss, it calls Gemini, saves the result, and fires a context cache prewarm. A subsequent `video_create_session` for the same video reuses the pre-warmed context cache via `ensure_session_cache()`, skipping re-upload. This works for both YouTube (via download + File API upload) and local files (File API URI from upload). Small local files (<20MB) use inline bytes and skip caching.
 
 ### Analysis Cache (`cache.py`)
 
@@ -931,12 +974,13 @@ Gemini's context caching lets the server reuse uploaded video content across mul
 
 ### Cache Bridge (`tools/video_cache.py`)
 
-Thin orchestration layer that wires the context cache into video tool workflows. Three helpers:
+Thin orchestration layer that wires the context cache into video tool workflows. Four helpers:
 
 | Function | Called by | What it does |
 |----------|-----------|--------------|
-| `prewarm_cache()` | `video_analyze` (after successful analysis) | Fires `context_cache.start_prewarm()` with a `file_data` Part |
-| `resolve_session_cache()` | `video_create_session` | Calls `context_cache.lookup_or_await()` to find a pre-warmed cache |
+| `prewarm_cache()` | `video_analyze` (after successful analysis) | Fires `context_cache.start_prewarm()` with a `file_data` Part. Skips YouTube URLs (can't be cached); works for File API URIs from local file uploads |
+| `ensure_session_cache()` | `video_create_session` (local files + YouTube download) | Looks up pre-warmed cache, or creates one on-demand. Returns `(cache_name, model, reason)` |
+| `resolve_session_cache()` | `ensure_session_cache` (fast path) | Calls `context_cache.lookup_or_await()` to find a pre-warmed cache |
 | `prepare_cached_request()` | `video_continue_session` | Checks cache liveness via `refresh_ttl()`, builds request contents accordingly |
 
 When a cache is alive, `prepare_cached_request()` sends only the text prompt (no video re-upload). When it expires, the function falls back to re-attaching the video `file_data` Part.
