@@ -632,7 +632,9 @@ class TestFailureReason:
         with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
             await cc_mod.get_or_create("vid1", _video_parts(), "gemini-pro")
 
-        assert cc_mod._last_failure[("vid1", "gemini-pro")] == "api_error:RuntimeError"
+        reason = cc_mod._last_failure[("vid1", "gemini-pro")]
+        assert reason.startswith("api_error:RuntimeError:")
+        assert "quota exceeded" in reason
 
     async def test_get_or_create_records_stale_eviction(self):
         """GIVEN a stale registry entry WHEN validation fails THEN records stale_cache_evicted."""
