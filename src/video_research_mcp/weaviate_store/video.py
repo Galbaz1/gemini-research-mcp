@@ -57,19 +57,17 @@ async def store_video_analysis(
                 det_uuid = weaviate.util.generate_uuid5(f"analysis:{content_id}:{instruction_hash}")
                 try:
                     collection.data.replace(uuid=det_uuid, properties=props)
-                    return str(det_uuid)
                 except Exception:
-                    return str(collection.data.insert(properties=props, uuid=det_uuid))
-
-            uuid = collection.data.insert(properties=props)
-            # Cross-ref to VideoMetadata (non-fatal)
-            if content_id:
+                    collection.data.insert(properties=props, uuid=det_uuid)
+                # Cross-ref to VideoMetadata (non-fatal)
                 try:
                     meta_uuid = weaviate.util.generate_uuid5(content_id)
-                    collection.data.reference_add(from_uuid=uuid, from_property="has_metadata", to=meta_uuid)
+                    collection.data.reference_add(from_uuid=det_uuid, from_property="has_metadata", to=meta_uuid)
                 except Exception:
                     pass
-            return str(uuid)
+                return str(det_uuid)
+
+            return str(collection.data.insert(properties=props))
 
         return await asyncio.to_thread(_insert)
     except Exception as exc:

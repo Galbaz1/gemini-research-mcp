@@ -88,12 +88,11 @@ class TestStoreWhenEnabled:
         assert call_props["sentiment"] == "neutral"
 
     async def test_store_video_adds_cross_ref(self, mock_weaviate_client, clean_config, monkeypatch):
-        """store_video_analysis with empty content_id falls back to insert + cross-ref."""
+        """store_video_analysis adds has_metadata cross-ref in deterministic UUID path."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
         from video_research_mcp.weaviate_store import store_video_analysis
-        # Use empty content_id to trigger the non-deterministic path with cross-ref
-        await store_video_analysis({"title": "V"}, "", "analyze")
-        mock_weaviate_client["collection"].data.insert.assert_called_once()
+        await store_video_analysis({"title": "V"}, "vid1", "analyze")
+        mock_weaviate_client["collection"].data.reference_add.assert_called_once()
 
     async def test_store_video_cross_ref_failure_nonfatal(self, mock_weaviate_client, clean_config, monkeypatch):
         """store_video_analysis succeeds even if cross-ref fails."""

@@ -93,12 +93,18 @@ class TestNewStoreWhenEnabled:
         assert len(result) == 2
         mock_weaviate_client["collection"].data.insert_many.assert_called_once()
 
-    async def test_store_edges_empty_returns_empty(self, mock_weaviate_disabled):
-        """store_relationship_edges returns empty list for empty input when disabled."""
+    async def test_store_edges_disabled_returns_none(self, mock_weaviate_disabled):
+        """store_relationship_edges returns None when disabled."""
         from video_research_mcp.weaviate_store import store_relationship_edges
         result = await store_relationship_edges([])
-        # When disabled, returns None; when enabled with empty input, returns []
         assert result is None
+
+    async def test_store_edges_empty_returns_empty(self, mock_weaviate_client, clean_config, monkeypatch):
+        """store_relationship_edges returns [] for empty input when enabled."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        from video_research_mcp.weaviate_store import store_relationship_edges
+        result = await store_relationship_edges([])
+        assert result == []
 
     async def test_store_calls_returns_uuid(self, mock_weaviate_client, clean_config, monkeypatch):
         """store_call_notes returns UUID string when successful."""
