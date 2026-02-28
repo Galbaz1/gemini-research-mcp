@@ -238,3 +238,12 @@ async def content_extract(
         return {"raw_response": resp, "error": "Failed to parse JSON from model response"}
     except Exception as exc:
         return make_tool_error(exc)
+
+
+def _ensure_batch_tool() -> None:
+    """Import content_batch to register its tool on content_server.
+
+    Deferred to avoid circular import — content_batch imports from this module.
+    Called by server.py after content_server is fully initialised.
+    """
+    from . import content_batch  # noqa: F401

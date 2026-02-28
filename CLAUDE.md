@@ -6,7 +6,7 @@ Do not import `AGENTS.md` (for example via `@AGENTS.md` or `@../AGENTS.md`) from
 
 ## What This Is
 
-An MCP server (stdio transport, FastMCP) exposing 23 tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
+An MCP server (stdio transport, FastMCP) exposing 25 tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
 
 ## Commands
 
@@ -45,8 +45,8 @@ Priority when multiple states can apply:
 |------------|-------|------|
 | video | `video_analyze`, `video_create_session`, `video_continue_session`, `video_batch_analyze` | `tools/video.py` |
 | youtube | `video_metadata`, `video_comments`, `video_playlist` | `tools/youtube.py` |
-| research | `research_deep`, `research_plan`, `research_assess_evidence` | `tools/research.py` |
-| content | `content_analyze`, `content_extract` | `tools/content.py` |
+| research | `research_deep`, `research_plan`, `research_assess_evidence`, `research_document` | `tools/research.py` |
+| content | `content_analyze`, `content_extract`, `content_batch_analyze` | `tools/content.py` |
 | search | `web_search` | `tools/search.py` |
 | infra | `infra_cache`, `infra_configure` | `tools/infra.py` |
 | knowledge | `knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_ingest`, `knowledge_fetch`, `knowledge_ask`, `knowledge_query` | `tools/knowledge/` |
@@ -58,7 +58,7 @@ Supporting modules: `video_cache.py` (context cache warming), `video_batch.py` (
 - **Structured output** — `GeminiClient.generate_structured(contents, schema=ModelClass)` returns validated Pydantic models
 - **Error handling** — tools never raise; return `make_tool_error()` dicts with `error`, `category`, `hint`, `retryable`
 - **Write-through storage** — every tool auto-stores results to Weaviate when configured; store calls are non-fatal
-- **Context caching** — `context_cache.py` pre-warms Gemini caches after `video_analyze`; `video_create_session` reuses them via `lookup_or_await()`
+- **Context caching** — `context_cache.py` pre-warms Gemini caches after `video_analyze` (YouTube + local files with File API URIs); `video_create_session` reuses or creates them via `ensure_session_cache()`
 
 **Key singletons:** `GeminiClient` (client.py), `get_config()` (config.py), `session_store` (sessions.py, optional SQLite via persistence.py), `cache` (cache.py), `WeaviateClient` (weaviate_client.py).
 
@@ -113,6 +113,7 @@ Pin to the **major version we actually use**. No cross-major constraints — a c
 | `fastmcp` | `>=3.0.2` | 3.0.2 | `FastMCP`, `.mount()`, `.tool()`, `.run()`, `@asynccontextmanager` lifespan | 3.x preserves tool callability; 2.x wraps in non-callable `FunctionTool` |
 | `google-genai` | `>=1.57` | 1.65.0 | `genai.Client`, `ThinkingConfig`, `cached_content`, Gemini 3.1 model strings, async `generate_content` | 1.56 added ThinkingConfig; 1.57 added Gemini 3 model support. Preview/beta SDK versions are fine for this project |
 | `google-api-python-client` | `>=2.100` | 2.190.0 | YouTube Data API v3 via `build("youtube", "v3")` | Pure REST wrapper; API stable within v2. `>=2.100` is fine |
+| `httpx` | `>=0.27` | 0.28.1 | `AsyncClient` for URL document downloads in `research_document_file.py` | Async API stable since 0.27. Also a transitive dep of google-genai |
 | `pydantic` | `>=2.0` | 2.12.5 | v2 only: `BaseModel`, `Field`, `model_validator`, `ConfigDict`, `model_dump()` | No v1 patterns anywhere. v3 doesn't exist yet. `>=2.0` is correct |
 | `weaviate-client` | `>=4.19.2` | 4.20.1 | v4 collections API: `client.collections.get()`, `weaviate.classes.*`, `AsyncQueryAgent` | v4 is a complete rewrite from v3. Constraint correctly pins v4 |
 | `pytest` | `>=8.0` | 9.0.2 | Standard API | pytest 9.x is backwards compatible. `>=8.0` is fine |
@@ -144,7 +145,7 @@ Agent configuration: `.claude/rules/` contains project-specific conventions that
 
 ## Testing
 
-417 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
+520 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
 
 **Key fixtures** (`conftest.py`): `mock_gemini_client` (mocks `.get()`, `.generate()`, `.generate_structured()`), `clean_config` (isolates config), `_unwrap_fastmcp_tools` (session-scoped, ensures tool callability), autouse `GEMINI_API_KEY=test-key-not-real`.
 
@@ -192,7 +193,7 @@ All other config (thinking level, temperature, cache dir/TTL, session limits, re
 | `docs/tutorials/GETTING_STARTED.md` | Install, configure, first tool call |
 | `docs/tutorials/ADDING_A_TOOL.md` | Step-by-step tool creation with checklist |
 | `docs/tutorials/WRITING_TESTS.md` | Fixtures, patterns, running tests |
-| `docs/tutorials/KNOWLEDGE_STORE.md` | Weaviate setup, 7 collections, 8 knowledge tools |
+| `docs/tutorials/KNOWLEDGE_STORE.md` | Weaviate setup, 11 collections, 8 knowledge tools |
 | `docs/PLUGIN_DISTRIBUTION.md` | Two-package architecture, FILE_MAP, discovery, full inventory |
 | `docs/CODE_REVIEW_AUTOMATION.md` | Git-state trigger matrix for uncommitted, commit-range, and PR-context reviews |
 | `docs/WEAVIATE_PLUGIN_RECOMMENDATION.md` | Gap analysis and roadmap for knowledge store plugin assets |
