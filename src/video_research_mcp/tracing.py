@@ -1,12 +1,14 @@
-"""Optional MLflow tracing integration via ``mlflow.gemini.autolog()``.
+"""Optional MLflow tracing integration.
+
+Provides two instrumentation layers:
+
+1. **Autolog** — ``mlflow.gemini.autolog()`` patches the google-genai SDK to
+   capture every ``generate_content`` call as a ``CHAT_MODEL`` span.
+2. **Tool spans** — the ``trace()`` decorator wraps MCP tool entrypoints,
+   producing ``TOOL`` root spans that parent the autolog child spans.
 
 Guarded import — the server runs fine without ``mlflow-tracing`` installed.
-When enabled, every ``genai.models.AsyncModels.generate_content`` call is
-automatically traced (all 23 tools go through ``GeminiClient.generate``).
-
-Configuration is read from :class:`~video_research_mcp.config.ServerConfig`
-(which loads ``~/.config/video-research-mcp/.env``), so new users can add
-``MLFLOW_TRACKING_URI`` to their ``.env`` file just like ``WEAVIATE_URL``.
+Configuration is read from :class:`~video_research_mcp.config.ServerConfig`.
 
 Env vars (all optional):
     MLFLOW_TRACKING_URI: Where to store traces. Empty = tracing disabled.
@@ -17,6 +19,8 @@ Env vars (all optional):
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +40,25 @@ def is_enabled() -> bool:
     from .config import get_config
 
     return get_config().tracing_enabled
+
+
+def trace(
+    func: Callable | None = None,
+    *,
+    name: str | None = None,
+    span_type: str | None = None,
+    attributes: dict[str, Any] | None = None,
+) -> Callable:
+    """Drop-in replacement for ``@mlflow.trace`` — identity when tracing is off.
+
+    Usage::
+
+        @trace(name="video_analyze", span_type="TOOL")
+        async def video_analyze(...): ...
+    """
+    if not is_enabled():
+        return func if func is not None else (lambda f: f)
+    return mlflow.trace(func, name=name, span_type=span_type, attributes=attributes)
 
 
 def setup() -> None:

@@ -13,6 +13,7 @@ from pydantic import Field
 from ..errors import make_tool_error
 from ..types import PlaylistUrl, YouTubeUrl
 from ..youtube import YouTubeClient
+from ..tracing import trace
 from .video_url import _extract_video_id, _is_youtube_host
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,7 @@ def _extract_playlist_id(url: str) -> str:
         openWorldHint=True,
     )
 )
+@trace(name="video_metadata", span_type="TOOL")
 async def video_metadata(
     url: YouTubeUrl,
 ) -> dict:
@@ -113,6 +115,7 @@ async def video_metadata(
         openWorldHint=True,
     )
 )
+@trace(name="video_comments", span_type="TOOL")
 async def video_comments(
     url: YouTubeUrl,
     max_comments: Annotated[int, Field(
@@ -155,6 +158,7 @@ async def video_comments(
         openWorldHint=True,
     )
 )
+@trace(name="video_playlist", span_type="TOOL")
 async def video_playlist(
     url: PlaylistUrl,
     max_items: Annotated[int, Field(

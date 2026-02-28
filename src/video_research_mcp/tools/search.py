@@ -13,6 +13,7 @@ from pydantic import Field
 from ..client import GeminiClient
 from ..retry import with_retry
 from ..config import get_config
+from ..tracing import trace
 from ..errors import make_tool_error
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ search_server = FastMCP("search")
 
 
 @search_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
+@trace(name="web_search", span_type="TOOL")
 async def web_search(
     query: Annotated[str, Field(min_length=2, description="Search query")],
     num_results: Annotated[int, Field(ge=1, le=20, description="Number of results")] = 5,

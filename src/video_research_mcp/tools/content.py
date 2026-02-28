@@ -13,6 +13,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from ..client import GeminiClient
+from ..tracing import trace
 from ..errors import make_tool_error
 from ..models.content import ContentResult
 from ..prompts.content import STRUCTURED_EXTRACT
@@ -56,6 +57,7 @@ def _build_content_parts(
 
 
 @content_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
+@trace(name="content_analyze", span_type="TOOL")
 async def content_analyze(
     instruction: Annotated[str, Field(
         description="What to analyze — e.g. 'summarize key findings', "
@@ -208,6 +210,7 @@ async def _reshape_to_schema(
 
 
 @content_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
+@trace(name="content_extract", span_type="TOOL")
 async def content_extract(
     content: Annotated[str, Field(min_length=1, description="Text content to extract from")],
     schema: Annotated[dict, Field(description="JSON Schema defining the extraction structure")],
