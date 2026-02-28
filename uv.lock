@@ -1636,6 +1636,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+agents = [
+    { name = "weaviate-agents" },
+]
 dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -1651,9 +1654,10 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
+    { name = "weaviate-agents", marker = "extra == 'agents'", specifier = ">=1.2.0" },
     { name = "weaviate-client", specifier = ">=4.19.2" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["agents", "dev"]
 
 [[package]]
 name = "watchfiles"
@@ -1740,6 +1744,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/bd/95/615e72cd27b85b61eec764a5ca51bd94d40b5adea5ff47567d9ebc4d275a/watchfiles-1.1.1-pp311-pypy311_pp73-macosx_11_0_arm64.whl", hash = "sha256:89eef07eee5e9d1fda06e38822ad167a044153457e6fd997f8a858ab7564a336", size = 396117, upload-time = "2025-10-14T15:06:11.28Z" },
     { url = "https://files.pythonhosted.org/packages/c9/81/e7fe958ce8a7fb5c73cc9fb07f5aeaf755e6aa72498c57d760af760c91f8/watchfiles-1.1.1-pp311-pypy311_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ce19e06cbda693e9e7686358af9cd6f5d61312ab8b00488bc36f5aabbaf77e24", size = 450493, upload-time = "2025-10-14T15:06:12.321Z" },
     { url = "https://files.pythonhosted.org/packages/6e/d4/ed38dd3b1767193de971e694aa544356e63353c33a85d948166b5ff58b9e/watchfiles-1.1.1-pp311-pypy311_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3e6f39af2eab0118338902798b5aa6664f46ff66bc0280de76fca67a7f262a49", size = 457546, upload-time = "2025-10-14T15:06:13.372Z" },
+]
+
+[[package]]
+name = "weaviate-agents"
+version = "1.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx-sse" },
+    { name = "rich" },
+    { name = "weaviate-client" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b7/65/4424f392fdf112681a277f468ea8f32465c97a56e15f01a4d6fadfff2177/weaviate_agents-1.3.0.tar.gz", hash = "sha256:d574fc15a3f331d68b3ceb992dcbe5e3056e9c41f256f917e62a721c91b2c817", size = 104617, upload-time = "2026-02-27T12:02:45.262Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/37/bf/cfd0f99664ea09389c2e1eb75c131a64745838d54097d8200a2a869fb733/weaviate_agents-1.3.0-py3-none-any.whl", hash = "sha256:6f477f5f143c69b25fbf37b4aaeb7d9f55ff7251fea0ad2da0aa1472fe403836", size = 46477, upload-time = "2026-02-27T12:02:44.245Z" },
 ]
 
 [[package]]
