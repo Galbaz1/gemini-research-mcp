@@ -19,6 +19,8 @@ class KnowledgeHit(BaseModel):
     collection: str = Field(description="Source collection name")
     object_id: str = Field(description="Weaviate object UUID")
     score: float = Field(default=0.0, description="Relevance score")
+    rerank_score: float | None = Field(default=None, description="Cohere reranker score")
+    summary: str | None = Field(default=None, description="Flash-generated relevance summary")
     properties: dict = Field(default_factory=dict, description="Object properties")
 
 
@@ -32,6 +34,8 @@ class KnowledgeSearchResult(BaseModel):
     total_results: int = Field(default=0, description="Total results returned")
     results: list[KnowledgeHit] = Field(default_factory=list)
     filters_applied: dict[str, str] | None = Field(default=None, description="Active filters")
+    reranked: bool = Field(default=False, description="Whether Cohere reranking was applied")
+    flash_processed: bool = Field(default=False, description="Whether Flash summarization was applied")
 
 
 class KnowledgeRelatedResult(BaseModel):
@@ -102,8 +106,29 @@ class KnowledgeAskResult(BaseModel):
 
 
 class KnowledgeQueryResult(BaseModel):
-    """Output schema for knowledge_query — natural language object retrieval."""
+    """Output schema for knowledge_query — natural language object retrieval.
+
+    .. deprecated::
+        knowledge_query is deprecated. Use knowledge_search for all retrieval needs.
+    """
 
     query: str = Field(description="Original search query")
     total_results: int = Field(default=0)
     results: list[KnowledgeHit] = Field(default_factory=list)
+
+
+class HitSummary(BaseModel):
+    """Flash-generated summary for a single search hit."""
+
+    object_id: str = Field(description="Weaviate object UUID")
+    relevance: float = Field(ge=0.0, le=1.0, description="Relevance score 0-1")
+    summary: str = Field(description="One-line relevance summary")
+    useful_properties: list[str] = Field(
+        default_factory=list, description="Property names worth keeping",
+    )
+
+
+class HitSummaryBatch(BaseModel):
+    """Batch of Flash-generated summaries."""
+
+    summaries: list[HitSummary] = Field(default_factory=list)

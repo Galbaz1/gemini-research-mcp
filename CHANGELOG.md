@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Cohere reranking** — optional server-side reranking via Cohere when `COHERE_API_KEY` is set. Auto-detected; disable with `RERANKER_ENABLED=false`
+- **Flash summarization** — Gemini Flash post-processes search hits to score relevance, generate one-line summaries, and trim unnecessary properties. Disable with `FLASH_SUMMARIZE=false`
+- **MCP serialization fix** — `knowledge_ingest` and `knowledge_search` now handle JSON-stringified dict/list params from MCP JSON-RPC transport
+
+### Deprecated
+
+- **`knowledge_query`** — use `knowledge_search` instead, which now includes Cohere reranking and Flash summarization for better results with lower token usage. `knowledge_ask` (AI-powered Q&A) is unaffected
+
 ## [0.2.0] - 2026-02-28
 
 ### Added
@@ -13,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Knowledge tools** — `knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_fetch`, `knowledge_ingest` for querying stored results
 - **QueryAgent tools** — `knowledge_ask` and `knowledge_query` powered by `weaviate-agents` (optional dependency)
 - **YouTube tools** — `video_metadata`, `video_comments`, `video_playlist` via YouTube Data API v3
-- **Context caching** — automatic Gemini cache pre-warming after `video_analyze`; session reuse via `lookup_or_await()`
+- **Context caching** — automatic Gemini cache pre-warming after `video_analyze` for both YouTube and local files; session reuse via `ensure_session_cache()`. Large local files (>=20MB) are context-cached automatically on session creation
 - **Session persistence** — optional SQLite backend for video Q&A sessions (`GEMINI_SESSION_DB`)
 - **Plugin installer** — npm package that copies commands, skills, and agents to `~/.claude/` and configures MCP server
 - **Diagnostics** — `/gr:doctor` command for MCP wiring, API key, and Weaviate connectivity checks

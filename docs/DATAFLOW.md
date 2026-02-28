@@ -7,12 +7,12 @@ Comprehensive reference for every command, tool, agent, skill, storage path, and
 ## Table of Contents
 
 1. [System Overview](#1-system-overview)
-2. [Complete Tool Inventory (21 tools)](#2-complete-tool-inventory-21-tools)
-3. [Complete Command Inventory (7 commands)](#3-complete-command-inventory-7-commands)
+2. [Complete Tool Inventory (23 tools)](#2-complete-tool-inventory-23-tools)
+3. [Complete Command Inventory (8 commands)](#3-complete-command-inventory-8-commands)
 4. [Agent Inventory (4 agents)](#4-agent-inventory-4-agents)
 5. [Skill Inventory (3 skills)](#5-skill-inventory-3-skills)
 6. [Data Flow Diagrams](#6-data-flow-diagrams)
-7. [Weaviate Storage Map (7 collections)](#7-weaviate-storage-map-7-collections)
+7. [Weaviate Storage Map (11 collections)](#7-weaviate-storage-map-11-collections)
 8. [Write-Through Storage Pattern](#8-write-through-storage-pattern)
 9. [Knowledge Query Path](#9-knowledge-query-path)
 10. [Plugin Asset Inventory](#10-plugin-asset-inventory)
@@ -88,7 +88,7 @@ graph TB
 
 ---
 
-## 2. Complete Tool Inventory (21 tools)
+## 2. Complete Tool Inventory (23 tools)
 
 ### video sub-server (4 tools) — `tools/video.py`
 
@@ -182,7 +182,7 @@ Notes:
 
 ---
 
-## 3. Complete Command Inventory (7 commands)
+## 3. Complete Command Inventory (8 commands)
 
 All commands live in `commands/` and are installed to `~/.claude/commands/gr/` by the npm installer.
 
@@ -375,7 +375,7 @@ flowchart TD
 sequenceDiagram
     participant Tool as MCP Tool
     participant Gemini as Gemini API
-    participant Store as weaviate_store.py
+    participant Store as weaviate_store/
     participant WC as WeaviateClient
     participant W as Weaviate DB
 
@@ -489,9 +489,9 @@ graph LR
 
 ---
 
-## 7. Weaviate Storage Map (7 collections)
+## 7. Weaviate Storage Map (11 collections)
 
-All collections are defined in `weaviate_schema.py` and created idempotently by `WeaviateClient.ensure_collections()` on first connection. Vectorizer: `text2vec-weaviate` (Weaviate Cloud native).
+All collections are defined in `weaviate_schema/` and created idempotently by `WeaviateClient.ensure_collections()` on first connection. Vectorizer: `text2vec-weaviate` (Weaviate Cloud native).
 
 ### Common properties (all collections)
 
@@ -622,7 +622,7 @@ Written by: `web_search` (via `store_web_search`)
 
 ## 8. Write-Through Storage Pattern
 
-Every tool that calls Gemini follows this pattern (defined in `weaviate_store.py`):
+Every tool that calls Gemini follows this pattern (defined in `weaviate_store/`):
 
 1. Tool calls Gemini and gets a result dict
 2. Tool calls the corresponding `store_*()` function with the result
@@ -727,10 +727,10 @@ Verified during this audit:
 
 | Area | CLAUDE.md / Docs claim | Actual code | Impact |
 |------|----------------------|------------|--------|
-| Tool count | CLAUDE.md says "20 tools" | 21 tools (knowledge has 7, not 5: adds `knowledge_ask` + `knowledge_query`) | CLAUDE.md tool count is outdated |
-| Knowledge tools in CLAUDE.md table | Lists 5: `knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_ingest`, `knowledge_fetch` | 7: also includes `knowledge_ask`, `knowledge_query` (in `agent.py`) | CLAUDE.md knowledge tool list incomplete |
-| Knowledge `__init__.py` docstring | Says "8 tools" | 7 tools registered | Docstring off by one |
-| video-research SKILL.md | Says "13 tools" | 21 tools exist; skill only documents the original 13 (pre-knowledge expansion) | Skill guide missing all knowledge tools |
-| weaviate-setup SKILL.md | Says "13 existing tools automatically write" and "4 knowledge query tools" | 9 tools write to Weaviate; 7 knowledge tools exist | Both numbers outdated |
-| Model presets in `commands/models.md` | Says `stable` uses "3 Pro" | `config.py` shows `stable` uses `gemini-3-pro-preview` | Consistent, but note 3 Pro EOL 2026-03-09 |
-| Test count in CLAUDE.md | Says "303 tests" | May have changed — verify with `pytest --collect-only` | Potentially stale |
+| Tool count | CLAUDE.md says "23 tools" | 23 tools | **Resolved** |
+| Knowledge tools in CLAUDE.md table | Lists 7 knowledge tools | 7 tools registered (8 including `knowledge_ask`) | **Resolved** |
+| Knowledge `__init__.py` docstring | Says "8 tools" | 8 tools registered (7 search/CRUD + `knowledge_ask` alias) | Consistent |
+| video-research SKILL.md | Says "13 tools" | 23 tools exist; skill only documents the original 13 (pre-knowledge expansion) | Skill guide missing knowledge tools |
+| weaviate-setup SKILL.md | Says "13 existing tools automatically write" and "4 knowledge query tools" | 9 tools write to Weaviate; 8 knowledge tools exist | Both numbers outdated |
+| Model presets in `commands/models.md` | Says `stable` uses "3 Pro" | `config.py` shows `stable` uses `gemini-3-pro-preview` | Consistent |
+| Test count in CLAUDE.md | Says "473 tests" | 473 tests (verified) | **Resolved** |

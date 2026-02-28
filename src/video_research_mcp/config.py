@@ -98,6 +98,9 @@ class ServerConfig(BaseModel):
     weaviate_url: str = Field(default="")
     weaviate_api_key: str = Field(default="")
     weaviate_enabled: bool = Field(default=False)
+    reranker_enabled: bool = Field(default=False)
+    reranker_provider: str = Field(default="cohere")
+    flash_summarize: bool = Field(default=True)
     context_cache_ttl_seconds: int = Field(default=3600)
     clear_cache_on_shutdown: bool = Field(default=False)
 
@@ -138,6 +141,8 @@ class ServerConfig(BaseModel):
 
         cache_default = str(Path.home() / ".cache" / "video-research-mcp")
         weaviate_url = _normalize_weaviate_url(os.getenv("WEAVIATE_URL", ""))
+        _cohere_key = os.environ.get("COHERE_API_KEY", "")
+        _reranker_flag = os.getenv("RERANKER_ENABLED", "").lower()
         return cls(
             gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
             default_model=os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview"),
@@ -157,6 +162,12 @@ class ServerConfig(BaseModel):
             weaviate_url=weaviate_url,
             weaviate_api_key=os.getenv("WEAVIATE_API_KEY", ""),
             weaviate_enabled=bool(weaviate_url),
+            reranker_enabled=(
+                _reranker_flag == "true"
+                or (bool(_cohere_key) and _reranker_flag != "false")
+            ),
+            reranker_provider=os.getenv("RERANKER_PROVIDER", "cohere"),
+            flash_summarize=os.getenv("FLASH_SUMMARIZE", "true").lower() != "false",
             context_cache_ttl_seconds=int(os.getenv("GEMINI_CONTEXT_CACHE_TTL", "3600")),
             clear_cache_on_shutdown=os.getenv("CLEAR_CACHE_ON_SHUTDOWN", "").lower() in ("1", "true", "yes"),
         )
