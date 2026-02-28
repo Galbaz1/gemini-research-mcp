@@ -37,7 +37,7 @@ class TestNewStoreWhenEnabled:
     """Test that new store functions write to Weaviate when enabled."""
 
     async def test_store_community_dedup_uuid(self, mock_weaviate_client, clean_config, monkeypatch):
-        """store_community_reaction uses deterministic UUID for dedup."""
+        """store_community_reaction uses deterministic UUID and adds cross-ref on replace path."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
         from video_research_mcp.weaviate_store import store_community_reaction
         result = await store_community_reaction({
@@ -55,6 +55,8 @@ class TestNewStoreWhenEnabled:
         assert result is not None
         # Should try replace first (deterministic UUID pattern)
         mock_weaviate_client["collection"].data.replace.assert_called_once()
+        # Cross-ref to VideoMetadata must run on BOTH replace and insert paths
+        mock_weaviate_client["collection"].data.reference_add.assert_called_once()
 
     async def test_store_concept_dedup_uuid(self, mock_weaviate_client, clean_config, monkeypatch):
         """store_concept_knowledge uses deterministic UUID from source_url + concept_name."""

@@ -50,18 +50,17 @@ async def store_community_reaction(reaction: dict) -> str | None:
                 det_uuid = weaviate.util.generate_uuid5(f"community:{video_id}")
                 try:
                     collection.data.replace(uuid=det_uuid, properties=props)
-                    return str(det_uuid)
                 except Exception:
-                    uuid = str(collection.data.insert(properties=props, uuid=det_uuid))
-                    # Cross-ref to VideoMetadata (non-fatal)
-                    try:
-                        meta_uuid = weaviate.util.generate_uuid5(video_id)
-                        collection.data.reference_add(
-                            from_uuid=det_uuid, from_property="for_video", to=meta_uuid,
-                        )
-                    except Exception:
-                        pass
-                    return uuid
+                    collection.data.insert(properties=props, uuid=det_uuid)
+                # Cross-ref to VideoMetadata (non-fatal, runs for both paths)
+                try:
+                    meta_uuid = weaviate.util.generate_uuid5(video_id)
+                    collection.data.reference_add(
+                        from_uuid=det_uuid, from_property="for_video", to=meta_uuid,
+                    )
+                except Exception:
+                    pass
+                return str(det_uuid)
 
             return str(collection.data.insert(properties=props))
 
