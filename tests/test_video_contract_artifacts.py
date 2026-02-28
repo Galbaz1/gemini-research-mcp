@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import time
-from pathlib import Path
-
-import pytest
 
 from video_research_mcp.contract.quality import (
     _check_artifacts_exist,
