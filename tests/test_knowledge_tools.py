@@ -30,11 +30,11 @@ class TestKnowledgeSearch:
     async def test_searches_all_collections_by_default(
         self, mock_weaviate_client, clean_config, monkeypatch
     ):
-        """knowledge_search queries all 7 collections when none specified."""
+        """knowledge_search queries all 11 collections when none specified."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
         from video_research_mcp.tools.knowledge import knowledge_search
         await knowledge_search(query="test")
-        assert mock_weaviate_client["client"].collections.get.call_count == 7
+        assert mock_weaviate_client["client"].collections.get.call_count == 11
 
     async def test_respects_collection_filter(
         self, mock_weaviate_client, clean_config, monkeypatch
@@ -173,8 +173,8 @@ class TestKnowledgeStats:
 
         from video_research_mcp.tools.knowledge import knowledge_stats
         result = await knowledge_stats()
-        assert len(result["collections"]) == 7
-        assert result["total_objects"] == 35
+        assert len(result["collections"]) == 11
+        assert result["total_objects"] == 55
 
     async def test_returns_stats_for_single_collection(
         self, mock_weaviate_client, clean_config, monkeypatch
