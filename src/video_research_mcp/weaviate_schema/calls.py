@@ -35,5 +35,9 @@ CALL_NOTES = CollectionDef(
             "meeting_date", ["text"], "Date of the meeting",
             skip_vectorization=True, index_searchable=False,
         ),
+        PropertyDef(
+            "local_filepath", ["text"], "Local filesystem path to the call recording file",
+            skip_vectorization=True, index_searchable=False,
+        ),
     ],
 )

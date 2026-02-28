@@ -71,6 +71,14 @@ VIDEO_ANALYSES = CollectionDef(
             "sentiment", ["text"], "Overall sentiment",
             skip_vectorization=True, index_searchable=False,
         ),
+        PropertyDef(
+            "local_filepath", ["text"], "Local filesystem path to downloaded video file",
+            skip_vectorization=True, index_searchable=False,
+        ),
+        PropertyDef(
+            "screenshot_dir", ["text"], "Local filesystem path to screenshot directory",
+            skip_vectorization=True, index_searchable=False,
+        ),
     ],
     references=[
         ReferenceDef("has_metadata", "VideoMetadata", "Link to video metadata"),
@@ -96,6 +104,10 @@ CONTENT_ANALYSES = CollectionDef(
         ),
         PropertyDef("structure_notes", ["text"], "Content structure observations"),
         PropertyDef("quality_assessment", ["text"], "Content quality assessment"),
+        PropertyDef(
+            "local_filepath", ["text"], "Local filesystem path to the analyzed content file",
+            skip_vectorization=True, index_searchable=False,
+        ),
     ],
 )
 
@@ -167,6 +179,10 @@ SESSION_TRANSCRIPTS = CollectionDef(
         ),
         PropertyDef("turn_prompt", ["text"], "User prompt for this turn"),
         PropertyDef("turn_response", ["text"], "Model response for this turn"),
+        PropertyDef(
+            "local_filepath", ["text"], "Local filesystem path to the session's video file",
+            skip_vectorization=True, index_searchable=False,
+        ),
     ],
 )
 

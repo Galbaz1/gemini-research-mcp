@@ -10,7 +10,7 @@ from ._base import _is_enabled, _now, logger
 
 
 async def store_content_analysis(
-    result: dict, source: str, instruction: str
+    result: dict, source: str, instruction: str, local_filepath: str = ""
 ) -> str | None:
     """Persist a content_analyze result to the ContentAnalyses collection.
 
@@ -18,6 +18,7 @@ async def store_content_analysis(
         result: Serialised ContentResult dict.
         source: URL, file path, or "(text)" for inline text input.
         instruction: The analysis instruction used.
+        local_filepath: Local filesystem path when source is a local file.
 
     Returns:
         Weaviate object UUID, or None if disabled/failed.
@@ -40,6 +41,7 @@ async def store_content_analysis(
                 "raw_result": json.dumps(result),
                 "structure_notes": result.get("structure_notes", ""),
                 "quality_assessment": result.get("quality_assessment", ""),
+                "local_filepath": local_filepath,
             }))
 
         return await asyncio.to_thread(_insert)
