@@ -10,6 +10,8 @@ import pytest
 from video_explainer_mcp.errors import SubprocessError
 from video_explainer_mcp.runner import SubprocessResult, run_cli
 
+pytestmark = pytest.mark.unit
+
 
 class TestSubprocessResult:
     """Tests for the SubprocessResult dataclass."""

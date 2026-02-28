@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Annotated
 
 from fastmcp import FastMCP
@@ -19,16 +18,6 @@ from ..types import ProjectId
 
 logger = logging.getLogger(__name__)
 project_server = FastMCP("project")
-
-
-def _require_explainer() -> str | None:
-    """Return an error dict if explainer is not configured, else None."""
-    cfg = get_config()
-    if not cfg.explainer_enabled:
-        return None
-    if not Path(cfg.explainer_path).is_dir():
-        return None
-    return cfg.explainer_path
 
 
 @project_server.tool(annotations=ToolAnnotations(readOnlyHint=False, openWorldHint=False))
@@ -123,6 +112,11 @@ async def explainer_status(
         ProjectInfo dict with step completion status.
     """
     try:
+        cfg = get_config()
+        if not cfg.explainer_enabled:
+            return make_tool_error(
+                FileNotFoundError("EXPLAINER_PATH not configured")
+            )
         info = await scan_project(project_id)
         if info is None:
             return make_tool_error(

@@ -12,6 +12,8 @@ from video_explainer_mcp.jobs import (
     update_job,
 )
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture(autouse=True)
 def _clean_jobs():

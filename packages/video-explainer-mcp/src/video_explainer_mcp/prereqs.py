@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 
@@ -65,7 +66,6 @@ def check_prereqs() -> PrereqReport:
     ))
 
     # Explainer path
-    from pathlib import Path
     explainer_ok = bool(cfg.explainer_path) and Path(cfg.explainer_path).is_dir()
     checks.append(PrereqStatus(
         name="explainer_path",

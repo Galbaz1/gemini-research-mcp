@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from video_explainer_mcp.tools.quality import (
     explainer_factcheck,
     explainer_feedback,
     explainer_refine,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def _mock_result(stdout: str = "OK"):

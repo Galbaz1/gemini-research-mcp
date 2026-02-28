@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from video_explainer_mcp.tools.audio import explainer_music, explainer_sound
+
+pytestmark = pytest.mark.unit
 
 
 def _mock_result(stdout: str = "OK"):

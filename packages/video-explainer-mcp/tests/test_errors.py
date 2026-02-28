@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import pytest
+
 from video_explainer_mcp.errors import (
     ErrorCategory,
     SubprocessError,
     categorize_error,
     make_tool_error,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class TestSubprocessError:

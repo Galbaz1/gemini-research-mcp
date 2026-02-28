@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from video_explainer_mcp.tools.project import (
     explainer_create,
     explainer_inject,
     explainer_list,
     explainer_status,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class TestExplainerCreate:
@@ -92,6 +96,7 @@ class TestExplainerStatus:
             project_id="status-test",
             completed_steps=["script", "narration"],
         )
+        monkeypatch.setenv("EXPLAINER_PATH", str(project.parent.parent))
         monkeypatch.setenv("EXPLAINER_PROJECTS_PATH", str(project.parent))
         result = await explainer_status(project_id="status-test")
         assert result["project_id"] == "status-test"
@@ -101,8 +106,15 @@ class TestExplainerStatus:
         """Returns error for missing project."""
         projects = tmp_path / "projects"
         projects.mkdir()
+        monkeypatch.setenv("EXPLAINER_PATH", str(tmp_path))
         monkeypatch.setenv("EXPLAINER_PROJECTS_PATH", str(projects))
         result = await explainer_status(project_id="nope")
+        assert "error" in result
+
+    async def test_not_configured(self, monkeypatch):
+        """Returns error when EXPLAINER_PATH is not set."""
+        monkeypatch.delenv("EXPLAINER_PATH", raising=False)
+        result = await explainer_status(project_id="test")
         assert "error" in result
 
 

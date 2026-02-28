@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from video_explainer_mcp.jobs import clear_jobs
+from video_explainer_mcp.jobs import JobStatus, clear_jobs, get_job
 from video_explainer_mcp.tools.pipeline import (
     explainer_generate,
     explainer_render,
     explainer_render_poll,
+    explainer_render_start,
     explainer_short,
     explainer_step,
 )
+
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture(autouse=True)
@@ -120,6 +124,65 @@ class TestExplainerRender:
         with patch("video_explainer_mcp.tools.pipeline.run_cli", return_value=_mock_cli_result()) as mock_cli:
             await explainer_render(project_id="test")
         assert "--fast" in mock_cli.call_args.args
+
+
+class TestExplainerRenderStart:
+    """Tests for background render start."""
+
+    async def test_returns_job_id(self, monkeypatch):
+        """Returns a job_id and running status immediately."""
+        monkeypatch.setenv("EXPLAINER_PATH", "/fake")
+        with patch("video_explainer_mcp.tools.pipeline.run_cli", return_value=_mock_cli_result()):
+            result = await explainer_render_start(project_id="test")
+        assert "job_id" in result
+        assert len(result["job_id"]) == 12
+        assert result["status"] == "running"
+
+    async def test_job_is_running_immediately(self, monkeypatch):
+        """Job status is RUNNING right after start."""
+        monkeypatch.setenv("EXPLAINER_PATH", "/fake")
+        with patch("video_explainer_mcp.tools.pipeline.run_cli", return_value=_mock_cli_result()):
+            result = await explainer_render_start(project_id="test")
+        job = get_job(result["job_id"])
+        assert job is not None
+        assert job.status == JobStatus.RUNNING
+
+    async def test_successful_background_render(self, monkeypatch, tmp_path):
+        """Background render transitions job to COMPLETED with output file."""
+        projects = tmp_path / "projects"
+        project = projects / "test"
+        output = project / "output"
+        output.mkdir(parents=True)
+        (output / "video.mp4").write_text("")
+        monkeypatch.setenv("EXPLAINER_PATH", str(tmp_path))
+        monkeypatch.setenv("EXPLAINER_PROJECTS_PATH", str(projects))
+
+        # Patch must stay active while the background task runs
+        with patch("video_explainer_mcp.tools.pipeline.run_cli", return_value=_mock_cli_result()):
+            result = await explainer_render_start(project_id="test")
+            # Let the background task complete within the patch scope
+            await asyncio.sleep(0.1)
+        job = get_job(result["job_id"])
+        assert job is not None
+        assert job.status == JobStatus.COMPLETED
+        assert job.output_file.endswith(".mp4")
+
+    async def test_failed_background_render(self, monkeypatch):
+        """Background render failure transitions job to FAILED with error."""
+        monkeypatch.setenv("EXPLAINER_PATH", "/fake")
+        from video_explainer_mcp.errors import SubprocessError
+
+        # Patch must stay active while the background task runs
+        with patch(
+            "video_explainer_mcp.tools.pipeline.run_cli",
+            side_effect=SubprocessError(["cli"], 1, stderr="render crash"),
+        ):
+            result = await explainer_render_start(project_id="test")
+            await asyncio.sleep(0.1)
+        job = get_job(result["job_id"])
+        assert job is not None
+        assert job.status == JobStatus.FAILED
+        assert "exited with code 1" in job.error
 
 
 class TestExplainerRenderPoll:

@@ -21,6 +21,10 @@ from ..types import PipelineStep, ProjectId, RenderResolution
 logger = logging.getLogger(__name__)
 pipeline_server = FastMCP("pipeline")
 
+# Prevent background render tasks from being garbage-collected mid-execution.
+# See: https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
+_background_tasks: set[asyncio.Task] = set()
+
 
 def _tts_args() -> list[str]:
     """Build TTS-related CLI arguments from config."""
@@ -200,7 +204,9 @@ async def explainer_render_start(
                     duration_seconds=round(time.monotonic() - start, 2),
                 )
 
-        asyncio.create_task(_render_background())
+        task = asyncio.create_task(_render_background())
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
         return {
             "job_id": job.job_id,
             "project_id": project_id,

@@ -7,6 +7,9 @@ import pytest
 from video_explainer_mcp.config import ServerConfig, get_config, update_config
 import video_explainer_mcp.config as cfg_mod
 
+pytestmark = pytest.mark.unit
+
+
 
 @pytest.fixture(autouse=True)
 def _clean_config():
@@ -38,6 +41,14 @@ class TestServerConfig:
         assert cfg.tts_provider == "elevenlabs"
         assert cfg.timeout == 300
         assert cfg.explainer_enabled is True
+
+    def test_from_env_non_numeric_timeout_uses_default(self, monkeypatch):
+        """Non-numeric EXPLAINER_TIMEOUT falls back to default instead of crashing."""
+        monkeypatch.setenv("EXPLAINER_TIMEOUT", "600s")
+        monkeypatch.setenv("EXPLAINER_RENDER_TIMEOUT", "not-a-number")
+        cfg = ServerConfig.from_env()
+        assert cfg.timeout == 600
+        assert cfg.render_timeout == 1800
 
     def test_invalid_tts_provider(self):
         """Invalid TTS provider raises ValueError."""

@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import pytest
+
 from video_explainer_mcp.scanner import (
     PIPELINE_STEPS,
     list_projects,
     project_exists,
     scan_project,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class TestScanProject:

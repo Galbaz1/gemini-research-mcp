@@ -58,12 +58,19 @@ class ServerConfig(BaseModel):
     @classmethod
     def from_env(cls) -> ServerConfig:
         """Build config from environment variables."""
+
+        def _int(key: str, default: int) -> int:
+            try:
+                return int(os.getenv(key, str(default)))
+            except (ValueError, TypeError):
+                return default
+
         return cls(
             explainer_path=os.getenv("EXPLAINER_PATH", ""),
             projects_path=os.getenv("EXPLAINER_PROJECTS_PATH", ""),
             tts_provider=os.getenv("EXPLAINER_TTS_PROVIDER", "mock"),
-            timeout=int(os.getenv("EXPLAINER_TIMEOUT", "600")),
-            render_timeout=int(os.getenv("EXPLAINER_RENDER_TIMEOUT", "1800")),
+            timeout=_int("EXPLAINER_TIMEOUT", 600),
+            render_timeout=_int("EXPLAINER_RENDER_TIMEOUT", 1800),
             explainer_python=os.getenv("EXPLAINER_PYTHON", "python3"),
             elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", ""),
             openai_api_key=os.getenv("OPENAI_API_KEY", ""),
