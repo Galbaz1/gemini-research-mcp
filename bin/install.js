@@ -15,7 +15,7 @@ const {
   deleteManifest,
   computeActions,
 } = require('./lib/manifest');
-const { getConfigPath, mergeConfig, removeFromConfig } = require('./lib/config');
+const { getConfigPath, mergeConfig, removeFromConfig, ensureEnvFile } = require('./lib/config');
 
 const VERSION = require('../package.json').version;
 
@@ -205,6 +205,18 @@ async function install(mode, force) {
     ui.warn(`MCP config not updated: ${err.message}`);
   }
 
+  // Ensure shared env file exists
+  try {
+    const envResult = ensureEnvFile();
+    if (envResult?.created) {
+      ui.success(`Created config template: ${envResult.path}`);
+    } else if (envResult?.added > 0) {
+      ui.success(`Added ${envResult.added} new key(s) to ${envResult.path}`);
+    }
+  } catch {
+    // Non-fatal — server works without it
+  }
+
   // Write manifest — preserve old hash for user-modified files so uninstall
   // can still detect the modification and skip removal.
   const userModified = new Set(
@@ -238,11 +250,13 @@ async function install(mode, force) {
 
   // Next steps
   ui.header('Next steps');
-  const stepNum = process.env.GEMINI_API_KEY ? 1 : 2;
+  let stepNum = 1;
   if (!process.env.GEMINI_API_KEY) {
-    ui.step('1. Set your API key:');
-    ui.step('   export GEMINI_API_KEY="your-key-here"');
+    ui.step(`${stepNum}. Add your API key to the config file:`);
+    ui.step('   ~/.config/video-research-mcp/.env');
+    ui.step('   (This file stays on your machine — never uploaded or shared)');
     ui.blank();
+    stepNum++;
   }
   ui.step(`${stepNum}. Start Claude Code and try:`);
   ui.step('   /gr:search "latest MCP protocol updates"');

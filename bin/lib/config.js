@@ -9,11 +9,6 @@ const MCP_SERVERS = {
   'video-research': {
     command: 'uvx',
     args: ['video-research-mcp'],
-    env: {
-      GEMINI_API_KEY: '${GEMINI_API_KEY}',
-      WEAVIATE_URL: '${WEAVIATE_URL}',
-      WEAVIATE_API_KEY: '${WEAVIATE_API_KEY}',
-    },
   },
   playwright: {
     command: 'npx',
@@ -88,4 +83,80 @@ function removeFromConfig(configPath) {
   return removed;
 }
 
-module.exports = { MCP_SERVERS, getConfigPath, readConfig, mergeConfig, removeFromConfig };
+/**
+ * Template for ~/.config/video-research-mcp/.env.
+ * Keys listed here will be appended (commented) if missing from an existing file.
+ */
+const ENV_TEMPLATE_KEYS = [
+  'GEMINI_API_KEY',
+  'YOUTUBE_API_KEY',
+  'WEAVIATE_URL',
+  'WEAVIATE_API_KEY',
+  'WEAVIATE_GRPC_URL',
+];
+
+/**
+ * Ensure ~/.config/video-research-mcp/.env exists with a commented template.
+ * If the file already exists, append any new keys that are missing.
+ * Returns the path to the env file.
+ */
+function ensureEnvFile() {
+  const home = process.env.HOME || process.env.USERPROFILE;
+  if (!home) return null;
+
+  const envDir = path.join(home, '.config', 'video-research-mcp');
+  const envPath = path.join(envDir, '.env');
+
+  fs.mkdirSync(envDir, { recursive: true });
+
+  if (!fs.existsSync(envPath)) {
+    const lines = [
+      '# video-research-mcp shared configuration',
+      '# ─────────────────────────────────────────────────────────────',
+      '# This file is read by the MCP server at startup.',
+      '# It lives on YOUR machine only — it is NOT uploaded anywhere.',
+      '# Process env vars always take precedence over values here.',
+      '#',
+      '# Security:',
+      '#   - This file is stored in your user config dir (chmod 600 recommended)',
+      '#   - It is never committed to git or sent to any remote service',
+      '#   - The server reads it locally at startup, that\'s it',
+      '# ─────────────────────────────────────────────────────────────',
+      '',
+      '# Required — get yours at https://aistudio.google.com/apikey',
+      '# GEMINI_API_KEY=',
+      '',
+      '# Optional — falls back to GEMINI_API_KEY if not set',
+      '# YOUTUBE_API_KEY=',
+      '',
+      '# Optional — knowledge store (leave commented to disable)',
+      '# WEAVIATE_URL=',
+      '# WEAVIATE_API_KEY=',
+      '# WEAVIATE_GRPC_URL=',
+      '',
+    ];
+    fs.writeFileSync(envPath, lines.join('\n'), { mode: 0o600 });
+    return { path: envPath, created: true, added: 0 };
+  }
+
+  // Append missing keys
+  const existing = fs.readFileSync(envPath, 'utf8');
+  const missing = ENV_TEMPLATE_KEYS.filter(
+    (k) => !existing.includes(`${k}=`),
+  );
+  if (missing.length > 0) {
+    const suffix =
+      '\n# Added by installer\n' + missing.map((k) => `# ${k}=`).join('\n') + '\n';
+    fs.appendFileSync(envPath, suffix);
+  }
+  return { path: envPath, created: false, added: missing.length };
+}
+
+module.exports = {
+  MCP_SERVERS,
+  getConfigPath,
+  readConfig,
+  mergeConfig,
+  removeFromConfig,
+  ensureEnvFile,
+};

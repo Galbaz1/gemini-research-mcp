@@ -57,6 +57,34 @@ export WEAVIATE_API_KEY=""
 
 The full list lives in `src/video_research_mcp/config.py:ServerConfig.from_env()`.
 
+### Shared config file
+
+The server auto-loads `~/.config/video-research-mcp/.env` at startup, so keys are available in **any workspace** without direnv or shell profile changes.
+
+**Loading order** (first wins):
+1. Process environment variables (set by shell, direnv, or MCP `env` block)
+2. `~/.config/video-research-mcp/.env` config file
+3. Built-in defaults in `ServerConfig`
+
+**Security**: This file lives on your machine only. It is never uploaded, committed to git, or sent to any remote service. The server reads it locally at startup — that's it. We recommend `chmod 600` so only your user can read it.
+
+Create the file manually or let the npm installer generate a template:
+
+```bash
+# Manual
+mkdir -p ~/.config/video-research-mcp
+cat > ~/.config/video-research-mcp/.env << 'EOF'
+GEMINI_API_KEY=your-key
+# YOUTUBE_API_KEY=          # falls back to GEMINI_API_KEY
+# WEAVIATE_URL=             # empty = knowledge tools disabled
+# WEAVIATE_API_KEY=
+EOF
+chmod 600 ~/.config/video-research-mcp/.env
+
+# Or via installer (creates a commented template with mode 600)
+npx video-research-mcp@latest
+```
+
 ## Running the Server
 
 ### Standalone (stdio transport)

@@ -112,9 +112,25 @@ _config: ServerConfig | None = None
 
 
 def get_config() -> ServerConfig:
-    """Return the global config singleton, creating it on first access."""
+    """Return the global config singleton, creating it on first access.
+
+    Loads ``~/.config/video-research-mcp/.env`` before reading env vars.
+    Process environment always takes precedence over the config file.
+    """
     global _config
     if _config is None:
+        import logging
+
+        from .dotenv import load_dotenv
+
+        injected = load_dotenv()
+        if injected:
+            logger = logging.getLogger(__name__)
+            logger.info(
+                "Loaded %d var(s) from config: %s",
+                len(injected),
+                ", ".join(injected.keys()),
+            )
         _config = ServerConfig.from_env()
     return _config
 

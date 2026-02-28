@@ -2,10 +2,7 @@
   "mcpServers": {
     "video-research": {
       "command": "uvx",
-      "args": ["video-research-mcp"],
-      "env": {
-        "GEMINI_API_KEY": "${GEMINI_API_KEY}"
-      }
+      "args": ["video-research-mcp"]
     },
     "playwright": {
       "command": "npx",

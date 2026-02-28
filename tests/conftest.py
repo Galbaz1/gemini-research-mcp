@@ -14,6 +14,15 @@ def _set_dummy_api_key(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_dotenv(tmp_path, monkeypatch):
+    """Prevent tests from loading the user's real ~/.config/video-research-mcp/.env."""
+    monkeypatch.setattr(
+        "video_research_mcp.dotenv.DEFAULT_ENV_PATH",
+        tmp_path / "nonexistent.env",
+    )
+
+
+@pytest.fixture(autouse=True)
 def _isolate_upload_cache(tmp_path, monkeypatch):
     """Point upload cache to a temp directory so tests never share filesystem state."""
     cache_dir = tmp_path / "upload_cache"
