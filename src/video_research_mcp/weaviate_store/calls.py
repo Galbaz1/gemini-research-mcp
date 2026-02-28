@@ -38,6 +38,7 @@ async def store_call_notes(notes: dict) -> str | None:
                 "topics_discussed": notes.get("topics_discussed", []),
                 "duration": notes.get("duration", ""),
                 "meeting_date": notes.get("meeting_date", ""),
+                "local_filepath": notes.get("local_filepath", ""),
             }))
 
         return await asyncio.to_thread(_insert)

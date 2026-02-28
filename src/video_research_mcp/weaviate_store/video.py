@@ -13,7 +13,12 @@ from ._base import _is_enabled, _now, logger
 
 
 async def store_video_analysis(
-    result: dict, content_id: str, instruction: str, source_url: str = ""
+    result: dict,
+    content_id: str,
+    instruction: str,
+    source_url: str = "",
+    local_filepath: str = "",
+    screenshot_dir: str = "",
 ) -> str | None:
     """Persist a video_analyze result to the VideoAnalyses collection.
 
@@ -26,6 +31,8 @@ async def store_video_analysis(
         content_id: YouTube video ID or file content hash.
         instruction: The analysis instruction used.
         source_url: Original URL or file path.
+        local_filepath: Local filesystem path to downloaded/source video.
+        screenshot_dir: Local directory containing extracted screenshots.
 
     Returns:
         Weaviate object UUID, or None if disabled/failed.
@@ -49,6 +56,8 @@ async def store_video_analysis(
                 "timestamps_json": json.dumps(result.get("timestamps", [])),
                 "topics": result.get("topics", []),
                 "sentiment": result.get("sentiment", ""),
+                "local_filepath": local_filepath,
+                "screenshot_dir": screenshot_dir,
             }
 
             # Deterministic UUID for dedup when content_id is available

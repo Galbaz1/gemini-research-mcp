@@ -118,7 +118,13 @@ Extract the question (everything after "ask ").
 3. Present in two sections:
 
    **Semantic Results (Knowledge Store)**
-   Per hit: collection, score, title/topic/summary (first non-empty field)
+   Per hit: collection, score, summary (if present from Flash processing, else first non-empty of title/topic/claim)
+   If `rerank_score` is present, show alongside base score: `score: 0.85 (rerank: 0.92)`
+   If `properties.local_filepath` exists and points to an existing file:
+   - Show: `Video lokaal beschikbaar: <path>`
+   - Offer: `Chat ermee: /gr:video-chat <path>`
+   If `properties.screenshot_dir` exists and directory is present:
+   - Show: `Screenshots beschikbaar in <path>`
    Offer: "Fetch full result?" → `knowledge_fetch`
    Offer: "Find related?" → `knowledge_related`
 
@@ -153,8 +159,14 @@ When the user picks a filesystem result (by name or number):
 When the user picks a Weaviate result (by number or object_id):
 
 1. Call `knowledge_fetch(object_id="<uuid>", collection="<collection>")`
-2. Present all properties in a readable format
-3. Offer: "Find related?" → `knowledge_related(object_id=..., collection=...)`
+2. Present all properties in a readable format.
+3. If `local_filepath` is present:
+   - Check existence and report either:
+     - "Video is lokaal beschikbaar. Wil je ermee chatten?"
+     - "Video was eerder gedownload maar bestand is niet meer aanwezig."
+4. If `screenshot_dir` is present:
+   - Show available frame files and timestamps (if manifest is present).
+5. Offer: "Find related?" → `knowledge_related(object_id=..., collection=...)`
 
 ## Opening Visualizations
 
