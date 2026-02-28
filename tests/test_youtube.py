@@ -286,6 +286,68 @@ class TestVideoMetadataTool:
         assert "category" in result
 
 
+class TestVideoCommentsTool:
+    """video_comments() MCP tool tests."""
+
+    async def test_valid_url(self, mock_youtube_service):
+        """GIVEN a YouTube URL WHEN calling tool THEN returns comments dict."""
+        from video_research_mcp.tools.youtube import video_comments
+
+        mock_youtube_service.commentThreads().list().execute.return_value = {
+            "items": [
+                {
+                    "snippet": {
+                        "topLevelComment": {
+                            "snippet": {
+                                "textDisplay": "Great video!",
+                                "likeCount": 42,
+                                "authorDisplayName": "Alice",
+                            }
+                        }
+                    }
+                },
+            ]
+        }
+        mock_youtube_service.commentThreads().list_next.return_value = None
+
+        result = await video_comments(
+            url="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        )
+
+        assert result["video_id"] == "dQw4w9WgXcQ"
+        assert result["count"] == 1
+        assert result["comments"][0]["text"] == "Great video!"
+        assert "error" not in result
+
+    async def test_invalid_url(self):
+        """GIVEN a non-YouTube URL WHEN calling tool THEN returns error."""
+        from video_research_mcp.tools.youtube import video_comments
+
+        result = await video_comments(url="https://example.com/not-youtube")
+
+        assert "error" in result
+        assert "category" in result
+
+    async def test_api_403_returns_hint(self, mock_youtube_service):
+        """GIVEN a 403 HttpError WHEN calling tool THEN returns YOUTUBE_API_KEY hint."""
+        from googleapiclient.errors import HttpError
+        from video_research_mcp.tools.youtube import video_comments
+
+        resp = MagicMock()
+        resp.status = 403
+        mock_youtube_service.commentThreads().list().execute.side_effect = (
+            HttpError(resp, b"forbidden")
+        )
+
+        result = await video_comments(
+            url="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        )
+
+        assert "error" in result
+        assert result["category"] == "API_PERMISSION_DENIED"
+        assert "YOUTUBE_API_KEY" in result["hint"]
+
+
 class TestVideoPlaylistTool:
     """video_playlist() MCP tool tests."""
 

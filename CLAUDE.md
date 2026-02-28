@@ -2,7 +2,7 @@
 
 ## What This Is
 
-An MCP server (stdio transport, FastMCP) exposing 22 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
+An MCP server (stdio transport, FastMCP) exposing 23 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
 
 ## Commands
 
@@ -21,7 +21,7 @@ GEMINI_API_KEY=... uv run video-research-mcp                         # run serve
 | Sub-server | Tools | File |
 |------------|-------|------|
 | video | `video_analyze`, `video_create_session`, `video_continue_session`, `video_batch_analyze` | `tools/video.py` |
-| youtube | `video_metadata`, `video_playlist` | `tools/youtube.py` |
+| youtube | `video_metadata`, `video_comments`, `video_playlist` | `tools/youtube.py` |
 | research | `research_deep`, `research_plan`, `research_assess_evidence` | `tools/research.py` |
 | content | `content_analyze`, `content_extract` | `tools/content.py` |
 | search | `web_search` | `tools/search.py` |

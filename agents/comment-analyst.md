@@ -1,7 +1,7 @@
 ---
 name: comment-analyst
 description: Fetch YouTube video comments and analyze them via Gemini Flash for sentiment and key opinions (runs in background)
-tools: Read, Write, Glob, Bash, mcp__jina__read_url, mcp__video-research__content_analyze, mcp__video-research__video_metadata
+tools: Read, Write, Glob, Bash, mcp__jina__read_url, mcp__video-research__content_analyze, mcp__video-research__video_metadata, mcp__video-research__video_comments
 model: haiku
 color: orange
 ---
@@ -33,48 +33,14 @@ mcp__video-research__video_metadata(url="<video_url>")
 ```
 If `comment_count` is 0, skip to Step 2 ("No comments available").
 
-Then fetch comments via Python (the `google-api-python-client` library is a project dependency — no separate install needed):
-
+Then fetch comments via the MCP tool:
 ```
-Bash: python3 -c "
-from googleapiclient.discovery import build
-import re, json, os
-
-url = '<video_url>'
-video_id = re.search(r'(?:v=|youtu\.be/)([\w-]+)', url)
-if not video_id:
-    print('ERROR: Could not extract video ID')
-    exit(1)
-video_id = video_id.group(1)
-
-api_key = os.environ.get('GEMINI_API_KEY', '')
-youtube = build('youtube', 'v3', developerKey=api_key)
-
-comments = []
-request = youtube.commentThreads().list(
-    part='snippet',
-    videoId=video_id,
-    order='relevance',
-    maxResults=100,
-    textFormat='plainText'
-)
-
-while request and len(comments) < 200:
-    response = request.execute()
-    for item in response['items']:
-        snippet = item['snippet']['topLevelComment']['snippet']
-        comments.append({
-            'text': snippet['textDisplay'],
-            'likes': snippet['likeCount'],
-            'author': snippet['authorDisplayName'],
-        })
-    request = youtube.commentThreads().list_next(request, response)
-
-print(json.dumps(comments))
-"
+mcp__video-research__video_comments(url="<video_url>", max_comments=200)
 ```
 
-**If this fails** (API not enabled, quota exceeded), fall through to Method B.
+Returns `{"video_id": "...", "comments": [{"text": "...", "likes": N, "author": "..."}], "count": N}`.
+
+**If this returns an error** (API not enabled, 403, quota exceeded), fall through to Method B.
 
 #### Method B: Jina read_url (fallback)
 

@@ -88,6 +88,60 @@ async def video_metadata(
         openWorldHint=True,
     )
 )
+async def video_comments(
+    url: YouTubeUrl,
+    max_comments: Annotated[int, Field(
+        ge=1, le=500, description="Maximum comments to fetch (sorted by relevance)"
+    )] = 200,
+) -> dict:
+    """Fetch top YouTube comments sorted by relevance.
+
+    Returns comment text, like count, and author for each comment.
+    Costs 1+ YouTube API units, 0 Gemini units.
+
+    Args:
+        url: YouTube video URL.
+        max_comments: Maximum number of comments to return.
+
+    Returns:
+        Dict with video_id, comments list, and count, or error via make_tool_error().
+    """
+    try:
+        video_id = _extract_video_id(url)
+    except ValueError as exc:
+        return make_tool_error(exc)
+
+    try:
+        comments = await YouTubeClient.video_comments(video_id, max_comments)
+        return {
+            "video_id": video_id,
+            "comments": comments,
+            "count": len(comments),
+        }
+    except Exception as exc:
+        from googleapiclient.errors import HttpError
+
+        if isinstance(exc, HttpError) and exc.resp.status == 403:
+            return {
+                "error": str(exc),
+                "category": "API_PERMISSION_DENIED",
+                "hint": (
+                    "YouTube Data API returned 403. Set YOUTUBE_API_KEY env var "
+                    "or enable YouTube Data API v3 for your API key in GCP Console."
+                ),
+                "retryable": False,
+            }
+        return make_tool_error(exc)
+
+
+@youtube_server.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+)
 async def video_playlist(
     url: PlaylistUrl,
     max_items: Annotated[int, Field(
