@@ -333,6 +333,23 @@ class TestCreateSessionCache:
         # Session should use File API URI even without cache
         assert session.url == FILE_API_URI
 
+    async def test_download_true_handles_non_runtime_error(
+        self, mock_gemini_client, _mock_session_store
+    ):
+        """GIVEN download raises OSError WHEN download=True THEN degrades gracefully."""
+        mock_gemini_client["generate"].return_value = "Test Title"
+
+        with patch(
+            "video_research_mcp.tools.video.download_youtube_video",
+            new_callable=AsyncMock,
+            side_effect=OSError("Permission denied"),
+        ):
+            result = await video_create_session(url=TEST_URL, download=True)
+
+        assert result["cache_status"] == "uncached"
+        assert result["download_status"] == "failed"
+        assert "error" not in result
+
 
 class TestContinueSessionCache:
     @pytest.fixture()

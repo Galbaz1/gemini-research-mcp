@@ -207,7 +207,7 @@ async def _download_and_cache(
     """
     try:
         local_path = await download_youtube_video(video_id)
-    except RuntimeError as exc:
+    except Exception as exc:
         status = "unavailable" if "not found" in str(exc).lower() else "failed"
         logger.warning("Download failed for %s: %s", video_id, exc)
         return "", "", status, ""

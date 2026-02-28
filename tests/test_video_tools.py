@@ -57,6 +57,15 @@ class TestUrlHelpers:
         with pytest.raises(ValueError):
             _extract_video_id("https://youtube.com.evil.test/watch?v=abc123")
 
+    def test_reject_path_traversal_in_video_id(self):
+        """GIVEN a crafted URL with path traversal WHEN extract called THEN raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid YouTube video ID"):
+            _extract_video_id("https://www.youtube.com/watch?v=../../tmp/pwn")
+        with pytest.raises(ValueError, match="Invalid YouTube video ID"):
+            _extract_video_id("https://www.youtube.com/watch?v=foo/bar")
+        with pytest.raises(ValueError, match="Invalid YouTube video ID"):
+            _extract_video_id("https://www.youtube.com/watch?v=id%00null")
+
 
 class TestVideoAnalyze:
     @pytest.mark.asyncio
