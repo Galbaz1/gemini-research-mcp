@@ -47,6 +47,7 @@ All tests mock the Gemini API via the `mock_gemini_client` fixture. No test shou
 
 1. Check [existing issues](https://github.com/Galbaz1/video-research-mcp/issues) to avoid duplicate work
 2. For larger changes, open an issue first to discuss the approach
+3. Check the [ROADMAP.md](ROADMAP.md) for planned features — design docs are linked from each item
 
 ### Pull Request Process
 

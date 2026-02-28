@@ -125,3 +125,4 @@ All other config (thinking level, temperature, cache dir/TTL, session limits, re
 | `docs/tutorials/KNOWLEDGE_STORE.md` | Weaviate setup, 7 collections, 8 knowledge tools |
 | `docs/PLUGIN_DISTRIBUTION.md` | Two-package architecture, FILE_MAP, discovery, full inventory |
 | `docs/WEAVIATE_PLUGIN_RECOMMENDATION.md` | Gap analysis and roadmap for knowledge store plugin assets |
+| `docs/plans/` | Design docs for planned features — linked from `ROADMAP.md` and GitHub issues |

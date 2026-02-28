@@ -13,7 +13,7 @@ npx video-research-mcp@latest
 export GEMINI_API_KEY="your-key-here"
 ```
 
-That's it. The installer copies 7 commands, 3 skills, and 4 agents to `~/.claude/` and configures the MCP server to run via `uvx` from PyPI.
+That's it. The installer copies 8 commands, 3 skills, and 4 agents to `~/.claude/` and configures the MCP server to run via `uvx` from PyPI.
 
 ```bash
 npx video-research-mcp@latest --check     # show install status
@@ -109,6 +109,7 @@ The 21 tools are standard MCP -- any MCP client can call them. Point your app at
 | `/gr:search <query>` | Web search via Gemini grounding |
 | `/gr:recall [filter]` | Browse past analyses from memory |
 | `/gr:models [preset]` | Switch Gemini model preset (best/stable/budget) |
+| `/gr:doctor [quick|full]` | Diagnose MCP wiring, API keys, and Weaviate connectivity (`quick` is compact, `full` is verbose) |
 
 ### How a command runs
 
@@ -321,7 +322,7 @@ uv run ruff check src/ tests/  # lint
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and PR guidelines. Report security issues via [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and PR guidelines. See [ROADMAP.md](ROADMAP.md) for planned features and contribution opportunities. Report security issues via [SECURITY.md](SECURITY.md).
 
 ## Author
 
