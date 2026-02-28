@@ -45,6 +45,10 @@ def mock_gemini_client():
             "video_research_mcp.client.GeminiClient.generate_structured",
             new_callable=AsyncMock,
         ) as mock_structured,
+        patch(
+            "video_research_mcp.client.GeminiClient.generate_json_validated",
+            new_callable=AsyncMock,
+        ) as mock_json_validated,
     ):
         client = MagicMock()
         mock_get.return_value = client
@@ -52,6 +56,7 @@ def mock_gemini_client():
             "get": mock_get,
             "generate": mock_gen,
             "generate_structured": mock_structured,
+            "generate_json_validated": mock_json_validated,
             "client": client,
         }
 

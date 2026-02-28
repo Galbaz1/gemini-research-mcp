@@ -14,11 +14,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+strict = ["jsonschema>=4.0"]
 agents = ["weaviate-agents>=1.2.0"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "ruff>=0.9",
+    "jsonschema>=4.0",
 ]
 
 [project.scripts]

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import Any
 
 from google import genai
 from google.genai import types
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from .config import VALID_THINKING_LEVELS, get_config
 from .retry import with_retry
@@ -56,6 +57,7 @@ class GeminiClient:
         temperature: float | None = None,
         system_instruction: str | None = None,
         tools: list[types.Tool] | None = None,
+        cached_content: str | None = None,
         **kwargs: Any,
     ) -> str:
         """Generate text via Gemini with thinking support and optional structured output.
@@ -72,6 +74,7 @@ class GeminiClient:
             temperature: Override temperature (defaults to config's default).
             system_instruction: System-level instruction prepended to the prompt.
             tools: Gemini tool wiring (e.g. GoogleSearch, UrlContext).
+            cached_content: Gemini context cache resource name to reference.
             **kwargs: Forwarded to the underlying generate_content call.
 
         Returns:
@@ -92,6 +95,8 @@ class GeminiClient:
             config.response_json_schema = response_schema
         if tools:
             config.tools = tools
+        if cached_content:
+            config.cached_content = cached_content
 
         client = cls.get()
         response = await with_retry(
@@ -118,6 +123,7 @@ class GeminiClient:
         thinking_level: str | None = None,
         system_instruction: str | None = None,
         tools: list[types.Tool] | None = None,
+        cached_content: str | None = None,
         **kwargs: Any,
     ) -> BaseModel:
         """Generate and validate into a Pydantic model via response_json_schema.
@@ -132,6 +138,7 @@ class GeminiClient:
             thinking_level: Override thinking level.
             system_instruction: System-level instruction for the model.
             tools: Gemini tool wiring (e.g. GoogleSearch, UrlContext).
+            cached_content: Gemini context cache resource name to reference.
             **kwargs: Forwarded to ``generate()``.
 
         Returns:
@@ -143,10 +150,83 @@ class GeminiClient:
             thinking_level=thinking_level,
             system_instruction=system_instruction,
             tools=tools,
+            cached_content=cached_content,
             response_schema=schema.model_json_schema(),
             **kwargs,
         )
         return schema.model_validate_json(raw)
+
+    @classmethod
+    async def generate_json_validated(
+        cls,
+        contents: Any,
+        *,
+        schema: type[BaseModel] | dict,
+        model: str | None = None,
+        thinking_level: str | None = None,
+        system_instruction: str | None = None,
+        strict: bool = False,
+        **kwargs: Any,
+    ) -> dict:
+        """Generate JSON and validate against a Pydantic model or JSON Schema dict.
+
+        Dual-path validation:
+        - Pydantic model: uses TypeAdapter for zero-dependency validation.
+        - dict (JSON Schema): lazy-imports jsonschema; skips on ImportError.
+
+        Args:
+            contents: Prompt contents.
+            schema: Pydantic model class or JSON Schema dict.
+            model: Override model ID.
+            thinking_level: Override thinking level.
+            system_instruction: System instruction.
+            strict: True = raise on failure; False = log warning, return unvalidated.
+            **kwargs: Forwarded to generate().
+
+        Returns:
+            Parsed and optionally validated dict.
+
+        Raises:
+            ValueError: If strict=True and validation fails.
+        """
+        if isinstance(schema, type) and issubclass(schema, BaseModel):
+            response_schema = schema.model_json_schema()
+        else:
+            response_schema = schema
+
+        raw = await cls.generate(
+            contents,
+            model=model,
+            thinking_level=thinking_level,
+            system_instruction=system_instruction,
+            response_schema=response_schema,
+            **kwargs,
+        )
+
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            if strict:
+                raise ValueError(f"Gemini returned non-JSON: {raw[:200]!r}") from exc
+            logger.warning("generate_json_validated: non-JSON response, returning raw")
+            return {"raw": raw}
+
+        # Validate
+        try:
+            if isinstance(schema, type) and issubclass(schema, BaseModel):
+                TypeAdapter(schema).validate_python(parsed)
+            else:
+                try:
+                    import jsonschema
+                    jsonschema.validate(parsed, schema)
+                except ImportError:
+                    logger.debug("jsonschema not installed, skipping dict schema validation")
+        except Exception as exc:
+            if strict:
+                raise ValueError(f"Schema validation failed: {exc}") from exc
+            logger.warning("generate_json_validated: validation failed: %s", exc)
+
+        return parsed
 
     @classmethod
     async def close_all(cls) -> int:
