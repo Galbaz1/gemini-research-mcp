@@ -17,6 +17,7 @@ const FILE_MAP = {
   'commands/search.md':     'commands/gr/search.md',
   'commands/recall.md':     'commands/gr/recall.md',
   'commands/models.md':     'commands/gr/models.md',
+  'commands/doctor.md':     'commands/gr/doctor.md',
 
   'skills/video-research/SKILL.md':                              'skills/video-research/SKILL.md',
   'skills/gemini-visualize/SKILL.md':                             'skills/gemini-visualize/SKILL.md',

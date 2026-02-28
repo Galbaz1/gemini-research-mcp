@@ -22,7 +22,7 @@ The npm package contains zero Python code. The PyPI package contains zero JavaSc
 ```
 npx video-research-mcp@latest
         │
-        ├── Copies 7 commands  → ~/.claude/commands/gr/
+        ├── Copies 8 commands  → ~/.claude/commands/gr/
         ├── Copies 6 skill files → ~/.claude/skills/
         ├── Copies 4 agents    → ~/.claude/agents/
         ├── Writes .mcp.json   → MCP server registration
@@ -54,6 +54,7 @@ const FILE_MAP = {
   'commands/search.md':     'commands/gr/search.md',
   'commands/recall.md':     'commands/gr/recall.md',
   'commands/models.md':     'commands/gr/models.md',
+  'commands/doctor.md':     'commands/gr/doctor.md',
 
   // Skills → context injection
   'skills/video-research/SKILL.md':                              'skills/video-research/SKILL.md',
@@ -91,12 +92,7 @@ The installer writes `~/.claude/gr-file-manifest.json` containing SHA-256 hashes
   "mcpServers": {
     "video-research": {
       "command": "uvx",
-      "args": ["video-research-mcp"],
-      "env": {
-        "GEMINI_API_KEY": "${GEMINI_API_KEY}",
-        "WEAVIATE_URL": "${WEAVIATE_URL}",
-        "WEAVIATE_API_KEY": "${WEAVIATE_API_KEY}"
-      }
+      "args": ["video-research-mcp"]
     },
     "playwright": {
       "command": "npx",
@@ -208,7 +204,7 @@ These run as background or foreground processes with their own tool restrictions
 
 ## Current Plugin Inventory
 
-### Commands (7)
+### Commands (8)
 
 | File | Slash Command | Tools | Model |
 |------|---------------|-------|-------|
@@ -219,6 +215,7 @@ These run as background or foreground processes with their own tool restrictions
 | `commands/search.md` | `/gr:search` | web_search | sonnet |
 | `commands/recall.md` | `/gr:recall` | Glob, Grep, Read (filesystem only) | sonnet |
 | `commands/models.md` | `/gr:models` | infra_configure | haiku |
+| `commands/doctor.md` | `/gr:doctor` (`quick` compact, `full` detailed) | infra_configure, video_metadata, knowledge_stats, Read/Glob/Bash | haiku |
 
 ### Skills (3)
 
