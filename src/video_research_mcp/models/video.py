@@ -51,6 +51,7 @@ class SessionInfo(BaseModel):
     status: str = "created"
     video_title: str = ""
     source_type: str = ""
+    cache_status: str = ""
 
 
 class SessionResponse(BaseModel):

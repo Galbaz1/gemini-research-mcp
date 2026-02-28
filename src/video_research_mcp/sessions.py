@@ -19,6 +19,8 @@ class VideoSession:
     url: str
     mode: str
     video_title: str = ""
+    cache_name: str = ""
+    model: str = ""
     history: list[types.Content] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
     last_active: datetime = field(default_factory=datetime.now)
@@ -39,7 +41,14 @@ class SessionStore:
         self._sessions: dict[str, VideoSession] = {}
         self._db: SessionDB | None = SessionDB(db_path) if db_path else None
 
-    def create(self, url: str, mode: str, video_title: str = "") -> VideoSession:
+    def create(
+        self,
+        url: str,
+        mode: str,
+        video_title: str = "",
+        cache_name: str = "",
+        model: str = "",
+    ) -> VideoSession:
         """Create a new session, evicting expired ones first."""
         self._evict_expired()
         cfg = get_config()
@@ -53,6 +62,8 @@ class SessionStore:
             url=url,
             mode=mode,
             video_title=video_title,
+            cache_name=cache_name,
+            model=model,
         )
         self._sessions[sid] = session
         if self._db:

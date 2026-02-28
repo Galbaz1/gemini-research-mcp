@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     url TEXT NOT NULL,
     mode TEXT NOT NULL,
     video_title TEXT NOT NULL DEFAULT '',
+    cache_name TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
     history TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
     last_active TEXT NOT NULL,
@@ -39,6 +41,17 @@ class SessionDB:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA synchronous=NORMAL")
         self._conn.executescript(_SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Add columns introduced after the initial schema."""
+        for col in ("cache_name", "model"):
+            try:
+                self._conn.execute(
+                    f"ALTER TABLE sessions ADD COLUMN {col} TEXT NOT NULL DEFAULT ''"
+                )
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
     def save_sync(self, session) -> None:
         """Persist a VideoSession to SQLite.
@@ -51,14 +64,16 @@ class SessionDB:
         ])
         self._conn.execute(
             """INSERT OR REPLACE INTO sessions
-               (session_id, url, mode, video_title, history,
-                created_at, last_active, turn_count)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (session_id, url, mode, video_title, cache_name, model,
+                history, created_at, last_active, turn_count)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 session.session_id,
                 session.url,
                 session.mode,
                 session.video_title,
+                session.cache_name,
+                session.model,
                 history_json,
                 session.created_at.isoformat(),
                 session.last_active.isoformat(),
@@ -81,15 +96,15 @@ class SessionDB:
         from .sessions import VideoSession
 
         row = self._conn.execute(
-            "SELECT session_id, url, mode, video_title, history, "
-            "created_at, last_active, turn_count "
+            "SELECT session_id, url, mode, video_title, cache_name, model, "
+            "history, created_at, last_active, turn_count "
             "FROM sessions WHERE session_id = ?",
             (session_id,),
         ).fetchone()
         if row is None:
             return None
 
-        history_dicts = json.loads(row[4])
+        history_dicts = json.loads(row[6])
         history = [_dict_to_content(d) for d in history_dicts]
 
         return VideoSession(
@@ -97,10 +112,12 @@ class SessionDB:
             url=row[1],
             mode=row[2],
             video_title=row[3],
+            cache_name=row[4],
+            model=row[5],
             history=history,
-            created_at=datetime.fromisoformat(row[5]),
-            last_active=datetime.fromisoformat(row[6]),
-            turn_count=row[7],
+            created_at=datetime.fromisoformat(row[7]),
+            last_active=datetime.fromisoformat(row[8]),
+            turn_count=row[9],
         )
 
     def load_all_ids(self) -> list[str]:
