@@ -50,6 +50,9 @@ def run_quality_gates(
         detail="; ".join(vr.issues) if vr.issues else "All semantic checks passed",
     ))
 
+    # Concept-map edge integrity
+    checks.append(_check_concept_map_edges(concept_map))
+
     # Artifact existence
     checks.append(_check_artifacts_exist(artifact_dir))
 
@@ -70,6 +73,29 @@ def run_quality_gates(
         coverage_ratio=coverage_ratio,
         checks=checks,
         duration_seconds=round(elapsed, 2),
+    )
+
+
+def _check_concept_map_edges(concept_map: dict) -> QualityCheck:
+    """Verify all concept-map edges reference existing node IDs."""
+    node_ids = {n.get("id") for n in concept_map.get("nodes", []) if n.get("id")}
+    dangling: list[str] = []
+    for edge in concept_map.get("edges", []):
+        src = edge.get("source", "")
+        tgt = edge.get("target", "")
+        if src and src not in node_ids:
+            dangling.append(f"edge source '{src}' not in nodes")
+        if tgt and tgt not in node_ids:
+            dangling.append(f"edge target '{tgt}' not in nodes")
+
+    if dangling:
+        return QualityCheck(
+            name="concept_map_edges",
+            passed=False,
+            detail="; ".join(dangling),
+        )
+    return QualityCheck(
+        name="concept_map_edges", passed=True, detail="All edges reference valid nodes",
     )
 
 
@@ -103,7 +129,10 @@ def _check_links_valid(artifact_dir: Path) -> QualityCheck:
             if not link_path:
                 continue
             target = (md_file.parent / link_path).resolve()
-            if not target.exists():
+            artifact_root = artifact_dir.resolve()
+            if not str(target).startswith(str(artifact_root)):
+                issues.append(f"{md_file.name}: link escapes artifact dir '{link}'")
+            elif not target.exists():
                 issues.append(f"{md_file.name}: broken link '{link}'")
 
     if issues:
