@@ -2,7 +2,7 @@
 
 ## Memory Source Guard
 
-Do not import `AGENTS.md` (for example via `@AGENTS.md` or `@../AGENTS.md`) from this file or any `.claude/rules/*.md` file. `AGENTS.md` is Codex-specific and keeping it out of Claude memory prevents duplicate or conflicting guidance.
+Do not import `AGENTS.md` from this file or any `.claude/rules/*.md` file. `AGENTS.md` is Codex-specific.
 
 ## What This Is
 
@@ -19,24 +19,6 @@ GEMINI_API_KEY=... uv run video-research-mcp                         # run serve
 scripts/detect_review_scope.py --json                                # auto-select review scope
 ```
 
-## Automated Review Triggers
-
-Use `scripts/detect_review_scope.py --json` to choose the review mode from git state:
-
-- `uncommitted`: there are local unstaged/staged changes (`git status --porcelain` not empty)
-- `pr`: clean working tree + branch has open PR (`gh pr view` resolves OPEN PR)
-- `commits`: clean working tree, no open PR, and branch is ahead of base (`base_branch..HEAD`)
-- `none`: nothing reviewable in current branch state
-
-Trigger this detector:
-- when user asks for a review/audit/check
-- after major git state transitions (commit, rebase, merge, branch switch)
-
-Priority when multiple states can apply:
-1. `uncommitted`
-2. `pr`
-3. `commits`
-
 ## Architecture
 
 `server.py` mounts 7 sub-servers onto a root `FastMCP("video-research")`:
@@ -51,20 +33,19 @@ Priority when multiple states can apply:
 | infra | `infra_cache`, `infra_configure` | `tools/infra.py` |
 | knowledge | `knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_ingest`, `knowledge_fetch`, `knowledge_ask`, `knowledge_query` | `tools/knowledge/` |
 
-Supporting modules: `video_cache.py` (context cache warming), `video_batch.py` (batch analysis orchestration).
-
 **Key patterns:**
-- **Instruction-driven tools** — tools accept free-text `instruction` + optional `output_schema` instead of fixed modes
+- **Instruction-driven tools** — free-text `instruction` + optional `output_schema` instead of fixed modes
 - **Structured output** — `GeminiClient.generate_structured(contents, schema=ModelClass)` returns validated Pydantic models
-- **Error handling** — tools never raise; return `make_tool_error()` dicts with `error`, `category`, `hint`, `retryable`
-- **Write-through storage** — every tool auto-stores results to Weaviate when configured; store calls are non-fatal
-- **Context caching** — `context_cache.py` pre-warms Gemini caches after `video_analyze` (YouTube + local files with File API URIs); `video_create_session` reuses or creates them via `ensure_session_cache()`
+- **Error handling** — tools never raise; return `make_tool_error()` dicts
+- **Write-through storage** — auto-stores results to Weaviate when configured; non-fatal
+- **Context caching** — `context_cache.py` pre-warms Gemini caches; sessions reuse via `ensure_session_cache()`
+- **Deferred tool registration** — `_ensure_*_tool()` functions called from `server.py` before mounting, to avoid circular imports when batch/document tool modules import from their parent
 
-**Key singletons:** `GeminiClient` (client.py), `get_config()` (config.py), `session_store` (sessions.py, optional SQLite via persistence.py), `cache` (cache.py), `WeaviateClient` (weaviate_client.py).
+**Key singletons:** `GeminiClient` (client.py), `get_config()` (config.py), `session_store` (sessions.py), `cache` (cache.py), `WeaviateClient` (weaviate_client.py).
 
-**Optional dependency:** `weaviate-agents>=1.2.0` (install via `pip install video-research-mcp[agents]`) enables `knowledge_ask` and `knowledge_query` tools powered by Weaviate's QueryAgent.
+**Optional dependency:** `weaviate-agents>=1.2.0` enables `knowledge_ask` and `knowledge_query` tools.
 
-> Deep dive: `docs/ARCHITECTURE.md` (13 sections) | `docs/DIAGRAMS.md` (4 Mermaid diagrams)
+> Deep dive: `docs/ARCHITECTURE.md` | `docs/DIAGRAMS.md`
 
 ## Conventions
 
@@ -78,7 +59,7 @@ async def my_tool(
     instruction: Annotated[str, Field(description="What to extract")],
     thinking_level: ThinkingLevel = "medium",
 ) -> dict:
-    """One-line summary of what this tool does.
+    """One-line summary.
 
     Args:
         instruction: Free-text analysis instruction.
@@ -90,82 +71,50 @@ async def my_tool(
 
 > Full walkthrough: `docs/tutorials/ADDING_A_TOOL.md`
 
-### Docstrings
-
-Google-style. Required on every module, public class, public function/method, and non-obvious private helpers. Be concise and factual — one-liner is enough when name + signature are self-explanatory. Args/Returns/Raises only when non-obvious. Pydantic models: document purpose and which tool uses them; don't duplicate `Field(description=...)`. Docstrings do NOT count toward file size limits.
-
-### File Size
-
-~300 lines of executable code per production file (docstrings/comments/blanks excluded). Split by concern, not by line count. Test files may go to 500. Reference: `video.py` / `video_url.py` split.
+Code style (docstrings, file size limits, module structure): see `.claude/rules/python.md`.
 
 ## Dependencies
 
-### Constraint Policy
+Pin to the **major version we actually use**. No cross-major constraints when APIs differ. Format: `>=MAJOR.MINOR` where MINOR is the lowest version whose API we call.
 
-Pin to the **major version we actually use**. No cross-major constraints — a constraint like `>=2.0` that accepts both 2.x and 3.x is forbidden when the major versions have breaking API changes. Rationale: overly broad constraints hide version-specific code and create silent compatibility debt (ref: FastMCP 2.x→3.x FunctionTool wrapping incident).
+| Package | Constraint | Rationale |
+|---------|-----------|-----------|
+| `fastmcp` | `>=3.0.2` | 3.x preserves tool callability; 2.x wraps in non-callable `FunctionTool` |
+| `google-genai` | `>=1.57` | 1.57 added Gemini 3 model support. Preview/beta OK |
+| `google-api-python-client` | `>=2.100` | YouTube Data API v3. Pure REST wrapper, stable within v2 |
+| `httpx` | `>=0.27` | Async document downloads in `research_document_file.py` |
+| `pydantic` | `>=2.0` | v2 only: `BaseModel`, `Field`, `model_dump()` |
+| `weaviate-client` | `>=4.19.2` | v4 collections API (complete rewrite from v3) |
 
-**Format:** `>=MAJOR.MINOR` where MINOR is the lowest version whose API surface we actually use. Never `>=MAJOR.0` unless we've verified compatibility with the .0 release.
-
-### Pinned Dependencies
-
-| Package | Constraint | Installed | API Surface We Use | Rationale |
-|---------|-----------|-----------|-------------------|-----------|
-| `fastmcp` | `>=3.0.2` | 3.0.2 | `FastMCP`, `.mount()`, `.tool()`, `.run()`, `@asynccontextmanager` lifespan | 3.x preserves tool callability; 2.x wraps in non-callable `FunctionTool` |
-| `google-genai` | `>=1.57` | 1.65.0 | `genai.Client`, `ThinkingConfig`, `cached_content`, Gemini 3.1 model strings, async `generate_content` | 1.56 added ThinkingConfig; 1.57 added Gemini 3 model support. Preview/beta SDK versions are fine for this project |
-| `google-api-python-client` | `>=2.100` | 2.190.0 | YouTube Data API v3 via `build("youtube", "v3")` | Pure REST wrapper; API stable within v2. `>=2.100` is fine |
-| `httpx` | `>=0.27` | 0.28.1 | `AsyncClient` for URL document downloads in `research_document_file.py` | Async API stable since 0.27. Also a transitive dep of google-genai |
-| `pydantic` | `>=2.0` | 2.12.5 | v2 only: `BaseModel`, `Field`, `model_validator`, `ConfigDict`, `model_dump()` | No v1 patterns anywhere. v3 doesn't exist yet. `>=2.0` is correct |
-| `weaviate-client` | `>=4.19.2` | 4.20.1 | v4 collections API: `client.collections.get()`, `weaviate.classes.*`, `AsyncQueryAgent` | v4 is a complete rewrite from v3. Constraint correctly pins v4 |
-| `pytest` | `>=8.0` | 9.0.2 | Standard API | pytest 9.x is backwards compatible. `>=8.0` is fine |
-| `pytest-asyncio` | `>=1.0` | 1.3.0 | `asyncio_mode = "auto"` (pyproject.toml) | Major rewrite in 1.0 (from 0.x). `asyncio_mode=auto` is 0.18+ but 1.x API is cleaner. Update constraint to `>=1.0` |
-| `ruff` | `>=0.9` | 0.15.4 | CLI linter/formatter | Pre-1.0; minor versions may change rules. Acceptable |
-
-### Known Defensive Patterns (Legitimate)
-
-These `getattr` patterns protect against **SDK response shape variation**, not version incompatibility — do NOT remove:
-
-- `getattr(p, "thought", False)` — Gemini thinking mode parts; `thought` attr only present when thinking is enabled
-- `getattr(cand, "grounding_metadata", None)` — search grounding; only present on grounded responses
-- `getattr(response, "final_answer", "")` in knowledge/agent.py — weaviate-agents response shape varies by query type
-- `try: from googleapiclient.errors import HttpError` in tools/youtube.py — guards error formatting when google-api-python-client isn't importable
-
-### Updating Dependencies
-
-When bumping a dependency:
-1. Update constraint in `pyproject.toml`
-2. Run `uv pip install -e ".[dev]"` to resolve
-3. Search for compatibility workarounds that may now be removable (`grep -r "2\.x\|v1\|compat\|shim\|workaround"`)
-4. Run full test suite: `uv run pytest tests/ -v`
+> Known defensive `getattr` patterns (SDK response shape variation): see `docs/ARCHITECTURE.md` §4.
 
 ## Agent Teams
 
-Default model for all subagent teams: **Claude Opus 4.6** (`model: "opus"`). This is a hard project requirement — do not use a lighter model for team agents unless the user explicitly requests it.
-
-Agent configuration: `.claude/rules/` contains project-specific conventions that agents inherit automatically via path-filtered frontmatter.
+Default model for all subagent teams: **Claude Opus 4.6** (`model: "opus"`). Hard project requirement — do not use a lighter model unless the user explicitly requests it.
 
 ## Testing
 
 520 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
 
-**Key fixtures** (`conftest.py`): `mock_gemini_client` (mocks `.get()`, `.generate()`, `.generate_structured()`), `clean_config` (isolates config), `_unwrap_fastmcp_tools` (session-scoped, ensures tool callability), autouse `GEMINI_API_KEY=test-key-not-real`.
+**Key fixtures** (`conftest.py`): `mock_gemini_client`, `clean_config`, `mock_weaviate_client`, `_unwrap_fastmcp_tools` (session-scoped), autouse `GEMINI_API_KEY=test-key-not-real`.
 
 **File naming:** `test_<domain>_tools.py` for tools, `test_<module>.py` for non-tool modules.
 
-> Full guide: `docs/tutorials/WRITING_TESTS.md` | Project-specific patterns: `.claude/rules/testing.md`
+> Patterns: `.claude/rules/testing.md` | Full guide: `docs/tutorials/WRITING_TESTS.md`
 
 ## Plugin Installer
 
 Two-package architecture: npm (installer) copies commands/skills/agents to `~/.claude/`, PyPI (server) runs via `uvx`. Same package name, different registries.
 
 ```bash
-npx video-research-mcp@latest              # install plugin (copies 17 markdown files + .mcp.json)
+npx video-research-mcp@latest              # install plugin
 npx video-research-mcp@latest --check      # dry-run
 npx video-research-mcp@latest --uninstall  # remove
 ```
 
 To add a command/skill/agent: create file, add to `FILE_MAP` in `bin/lib/copy.js`, run `node bin/install.js --global`.
 
-> Deep dive: `docs/PLUGIN_DISTRIBUTION.md` (FILE_MAP, manifest tracking, discovery mechanism, complete inventory)
+> Deep dive: `docs/PLUGIN_DISTRIBUTION.md`
 
 ## Env Vars
 
@@ -180,24 +129,10 @@ Canonical source: `config.py:ServerConfig`. Key variables:
 | `WEAVIATE_API_KEY` | `""` | Required for Weaviate Cloud |
 | `GEMINI_SESSION_DB` | `""` | Empty = in-memory only |
 
-The server auto-loads `~/.config/video-research-mcp/.env` at startup. Process env vars always take precedence over the config file. This ensures keys are available in any workspace, even without direnv.
+Auto-loads `~/.config/video-research-mcp/.env` at startup. Process env vars always take precedence.
 
-All other config (thinking level, temperature, cache dir/TTL, session limits, retry params, YouTube API key) has sensible defaults — see `config.py` or `docs/ARCHITECTURE.md` §10.
+> All config options: `config.py` or `docs/ARCHITECTURE.md` §10.
 
 ## Developer Docs
 
-| Document | Contents |
-|----------|----------|
-| `docs/ARCHITECTURE.md` | Full technical manual — 13 sections covering every pattern and module |
-| `docs/DIAGRAMS.md` | Server hierarchy, GeminiClient flow, session lifecycle, Weaviate data flow |
-| `docs/tutorials/GETTING_STARTED.md` | Install, configure, first tool call |
-| `docs/tutorials/ADDING_A_TOOL.md` | Step-by-step tool creation with checklist |
-| `docs/tutorials/WRITING_TESTS.md` | Fixtures, patterns, running tests |
-| `docs/tutorials/KNOWLEDGE_STORE.md` | Weaviate setup, 11 collections, 8 knowledge tools |
-| `docs/PLUGIN_DISTRIBUTION.md` | Two-package architecture, FILE_MAP, discovery, full inventory |
-| `docs/CODE_REVIEW_AUTOMATION.md` | Git-state trigger matrix for uncommitted, commit-range, and PR-context reviews |
-| `docs/WEAVIATE_PLUGIN_RECOMMENDATION.md` | Gap analysis and roadmap for knowledge store plugin assets |
-| `docs/PUBLISHING.md` | Dual-registry publishing guide with version sync policy |
-| `docs/RELEASE_CHECKLIST.md` | Copy-paste checklist for each release |
-| `CHANGELOG.md` | Release history in Keep a Changelog format |
-| `docs/plans/` | Design docs for planned features — linked from `ROADMAP.md` and GitHub issues |
+All docs live in `docs/`. Key entry points: `ARCHITECTURE.md` (full technical manual), `tutorials/` (getting started, adding tools, writing tests, knowledge store), `PLUGIN_DISTRIBUTION.md`, `plans/` (design docs for planned features).

@@ -42,13 +42,13 @@ Do not mix review scopes in one pass unless explicitly requested.
 
 - `tools/video.py`: video analysis/session/batch tools
 - `tools/youtube.py`: metadata/comments/playlist tools
-- `tools/research.py`: deep research/planning/evidence tools
-- `tools/content.py`: content analyze/extract tools
+- `tools/research.py`: deep research/planning/evidence + `research_document` (via deferred import)
+- `tools/content.py`: content analyze/extract + `content_batch_analyze` (via deferred import)
 - `tools/search.py`: web search tool
 - `tools/infra.py`: infra/cache/config tools
 - `tools/knowledge/`: knowledge tools
 
-Supporting modules include `video_cache.py` and `video_batch.py`.
+Supporting modules: `video_cache.py`, `video_batch.py`, `research_document_file.py` (File API upload + URL download).
 
 Core project patterns:
 - Instruction-driven tools (`instruction` + optional `output_schema`)
@@ -85,6 +85,7 @@ Key constraints in this project:
 - `fastmcp >=3.0.2`
 - `google-genai >=1.57`
 - `google-api-python-client >=2.100`
+- `httpx >=0.27`
 - `pydantic >=2.0`
 - `weaviate-client >=4.19.2`
 - `pytest >=8.0`
