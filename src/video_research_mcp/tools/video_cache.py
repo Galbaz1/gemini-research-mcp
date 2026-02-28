@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from google.genai import types
@@ -63,16 +64,18 @@ async def ensure_session_cache(video_id: str, video_url: str) -> tuple[str, str]
     if cache_name:
         return cache_name, model
 
-    # Slow path: create cache inline (prewarm failed or never ran)
+    # Slow path: create/join cache via start_prewarm (deduplicates against
+    # any concurrent prewarm task to avoid creating duplicate caches)
     try:
         cfg = get_config()
         video_parts = [types.Part(file_data=types.FileData(file_uri=video_url))]
-        cache_name = await context_cache.get_or_create(
-            video_id, video_parts, cfg.default_model
-        ) or ""
+        task = context_cache.start_prewarm(video_id, video_parts, cfg.default_model)
+        cache_name = await asyncio.wait_for(asyncio.shield(task), timeout=60.0) or ""
         if cache_name:
             logger.info("Created context cache on-demand for session: %s", video_id)
             return cache_name, cfg.default_model
+    except asyncio.TimeoutError:
+        logger.debug("On-demand cache creation timed out for %s", video_id)
     except Exception:
         logger.debug("On-demand cache creation failed for %s", video_id, exc_info=True)
     return "", ""

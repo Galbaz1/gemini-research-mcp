@@ -122,6 +122,30 @@ class TestEnsureSessionCache:
         # get_or_create should skip (suppressed), so no client needed
         mock_get.assert_not_called()
 
+    async def test_deduplicates_against_pending_prewarm(self):
+        """GIVEN a pending prewarm task WHEN ensure_session_cache called THEN joins it (no duplicate)."""
+        from video_research_mcp.tools.video_cache import ensure_session_cache
+
+        mock_cached = MagicMock()
+        mock_cached.name = "cachedContents/dedup-789"
+
+        mock_client = MagicMock()
+        mock_client.aio.caches.create = AsyncMock(return_value=mock_cached)
+
+        with patch("video_research_mcp.context_cache.GeminiClient.get", return_value=mock_client):
+            # Simulate a pending prewarm (as if video_analyze just fired it)
+            from google.genai import types as gtypes
+            warm_parts = [gtypes.Part(file_data=gtypes.FileData(file_uri=TEST_URL))]
+            cfg = cfg_mod.get_config()
+            cc_mod.start_prewarm(TEST_VIDEO_ID, warm_parts, cfg.default_model)
+
+            # ensure_session_cache should join the pending task, not create a second
+            cache_name, model = await ensure_session_cache(TEST_VIDEO_ID, TEST_URL)
+
+        assert cache_name == "cachedContents/dedup-789"
+        # Only ONE create call — the pending prewarm, not a duplicate
+        assert mock_client.aio.caches.create.call_count == 1
+
 
 class TestVideoAnalyzePrewarm:
     async def test_video_analyze_prewarms_context_cache(self, mock_gemini_client):
