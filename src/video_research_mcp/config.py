@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+from ipaddress import ip_address
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -27,6 +29,54 @@ MODEL_PRESETS: dict[str, dict[str, str]] = {
 }
 
 
+def _is_env_placeholder(value: str) -> bool:
+    """Return True when *value* looks like an unresolved shell placeholder."""
+    if value.startswith("${") and value.endswith("}"):
+        inner = value[2:-1].strip()
+        if ":-" in inner:
+            inner = inner.split(":-", 1)[0].strip()
+        return bool(inner) and all(ch.isalnum() or ch == "_" for ch in inner)
+    if value.startswith("$"):
+        inner = value[1:].strip()
+        return bool(inner) and all(ch.isalnum() or ch == "_" for ch in inner)
+    return False
+
+
+def _normalize_weaviate_url(raw: str) -> str:
+    """Normalize WEAVIATE_URL from env.
+
+    Accepts bare hostnames by adding a default scheme:
+    - local/private hosts -> ``http://``
+    - everything else -> ``https://``
+
+    Unresolved placeholder values (``${WEAVIATE_URL}``) are treated as unset.
+    """
+    value = raw.strip()
+    if not value or _is_env_placeholder(value):
+        return ""
+
+    if "://" in value:
+        return value
+
+    host = (urlparse(f"//{value}").hostname or "").lower()
+    if not host:
+        return ""
+
+    is_local_or_private = host == "localhost"
+    if not is_local_or_private:
+        try:
+            ip = ip_address(host)
+            is_local_or_private = ip.is_loopback or ip.is_private
+        except ValueError:
+            is_local_or_private = False
+
+    scheme = "http" if is_local_or_private else "https"
+    normalized = f"{scheme}://{value}"
+
+    # Defensive: if parsing still yields no host, disable instead of crashing later.
+    return normalized if urlparse(normalized).hostname else ""
+
+
 class ServerConfig(BaseModel):
     """Runtime configuration resolved from environment."""
 
@@ -48,6 +98,7 @@ class ServerConfig(BaseModel):
     weaviate_url: str = Field(default="")
     weaviate_api_key: str = Field(default="")
     weaviate_enabled: bool = Field(default=False)
+    context_cache_ttl_seconds: int = Field(default=3600)
 
     @field_validator("default_thinking_level")
     @classmethod
@@ -58,7 +109,7 @@ class ServerConfig(BaseModel):
             raise ValueError(f"Invalid thinking level '{value}'. Allowed: {allowed}")
         return level
 
-    @field_validator("cache_ttl_days", "max_sessions", "session_timeout_hours", "session_max_turns")
+    @field_validator("cache_ttl_days", "max_sessions", "session_timeout_hours", "session_max_turns", "context_cache_ttl_seconds")
     @classmethod
     def validate_positive_ints(cls, value: int) -> int:
         if value < 1:
@@ -85,6 +136,7 @@ class ServerConfig(BaseModel):
         from pathlib import Path
 
         cache_default = str(Path.home() / ".cache" / "video-research-mcp")
+        weaviate_url = _normalize_weaviate_url(os.getenv("WEAVIATE_URL", ""))
         return cls(
             gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
             default_model=os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview"),
@@ -101,9 +153,10 @@ class ServerConfig(BaseModel):
             retry_max_delay=float(os.getenv("GEMINI_RETRY_MAX_DELAY", "60.0")),
             youtube_api_key=os.getenv("YOUTUBE_API_KEY", ""),
             session_db_path=os.getenv("GEMINI_SESSION_DB", ""),
-            weaviate_url=os.getenv("WEAVIATE_URL", ""),
+            weaviate_url=weaviate_url,
             weaviate_api_key=os.getenv("WEAVIATE_API_KEY", ""),
-            weaviate_enabled=bool(os.getenv("WEAVIATE_URL", "")),
+            weaviate_enabled=bool(weaviate_url),
+            context_cache_ttl_seconds=int(os.getenv("GEMINI_CONTEXT_CACHE_TTL", "3600")),
         )
 
 
