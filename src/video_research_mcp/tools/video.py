@@ -23,7 +23,7 @@ from ..prompts.video import METADATA_OPTIMIZER, METADATA_PREAMBLE
 from ..sessions import session_store
 from ..types import ThinkingLevel, VideoFilePath, YouTubeUrl
 from ..youtube import YouTubeClient
-from .video_cache import prewarm_cache, resolve_session_cache, prepare_cached_request
+from .video_cache import ensure_session_cache, prewarm_cache, prepare_cached_request
 from .video_core import analyze_video
 from .video_file import _video_file_content, _video_file_uri
 from .video_url import (
@@ -256,10 +256,13 @@ async def video_create_session(
         except Exception:
             title = Path(file_path).stem if file_path else ""
 
-    # Look up pre-warmed context cache, awaiting pending prewarm if needed
+    # Look up or create context cache — falls back to on-demand creation
+    # if the fire-and-forget prewarm from video_analyze failed or never ran
     cache_name, cache_model = "", ""
     if source_type == "youtube":
-        cache_name, cache_model = await resolve_session_cache(_extract_video_id(url))
+        cache_name, cache_model = await ensure_session_cache(
+            _extract_video_id(url), clean_url
+        )
 
     session = session_store.create(
         clean_url, "general",
