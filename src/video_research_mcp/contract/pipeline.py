@@ -169,6 +169,7 @@ async def run_strict_pipeline(
         if quality_report.status != "pass":
             logger.warning("Quality gates failed for %s: %s", content_id, quality_report.checks)
             shutil.rmtree(tmp_dir, ignore_errors=True)
+            shutil.rmtree(output_dir, ignore_errors=True)
             return {
                 "error": "Quality gates failed",
                 "category": ErrorCategory.QUALITY_GATE_FAILED.value,
@@ -191,6 +192,7 @@ async def run_strict_pipeline(
 
     except Exception as exc:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+        shutil.rmtree(output_dir, ignore_errors=True)
         return make_tool_error(exc)
 
     return {

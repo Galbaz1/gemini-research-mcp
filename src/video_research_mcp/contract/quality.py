@@ -98,7 +98,11 @@ def _check_links_valid(artifact_dir: Path) -> QualityCheck:
             link = match.group(1)
             if link.startswith(("http://", "https://", "#")):
                 continue
-            target = (md_file.parent / link).resolve()
+            # Strip anchor fragments and query strings before resolving
+            link_path = link.split("#")[0].split("?")[0]
+            if not link_path:
+                continue
+            target = (md_file.parent / link_path).resolve()
             if not target.exists():
                 issues.append(f"{md_file.name}: broken link '{link}'")
 
