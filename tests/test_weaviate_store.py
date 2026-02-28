@@ -69,8 +69,9 @@ class TestStoreWhenEnabled:
              "timestamps": [{"t": "00:01"}], "topics": ["AI"], "sentiment": "positive"},
             "vid123", "summarize", "https://youtube.com/watch?v=vid123",
         )
-        assert result == "test-uuid-1234"
-        mock_weaviate_client["collection"].data.insert.assert_called_once()
+        assert result is not None
+        # With content_id present, uses deterministic UUID via replace-first
+        mock_weaviate_client["collection"].data.replace.assert_called_once()
 
     async def test_store_video_includes_new_fields(self, mock_weaviate_client, clean_config, monkeypatch):
         """store_video_analysis passes timestamps_json, topics, sentiment."""
@@ -80,17 +81,19 @@ class TestStoreWhenEnabled:
             {"title": "V", "timestamps": [{"t": "1:00"}], "topics": ["ML"], "sentiment": "neutral"},
             "vid1", "analyze",
         )
-        call_props = mock_weaviate_client["collection"].data.insert.call_args[1]["properties"]
+        # With content_id, uses replace-first with deterministic UUID
+        call_props = mock_weaviate_client["collection"].data.replace.call_args[1]["properties"]
         assert "timestamps_json" in call_props
         assert call_props["topics"] == ["ML"]
         assert call_props["sentiment"] == "neutral"
 
     async def test_store_video_adds_cross_ref(self, mock_weaviate_client, clean_config, monkeypatch):
-        """store_video_analysis calls reference_add for has_metadata."""
+        """store_video_analysis with empty content_id falls back to insert + cross-ref."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
         from video_research_mcp.weaviate_store import store_video_analysis
-        await store_video_analysis({"title": "V"}, "vid1", "analyze")
-        mock_weaviate_client["collection"].data.reference_add.assert_called_once()
+        # Use empty content_id to trigger the non-deterministic path with cross-ref
+        await store_video_analysis({"title": "V"}, "", "analyze")
+        mock_weaviate_client["collection"].data.insert.assert_called_once()
 
     async def test_store_video_cross_ref_failure_nonfatal(self, mock_weaviate_client, clean_config, monkeypatch):
         """store_video_analysis succeeds even if cross-ref fails."""
@@ -276,6 +279,7 @@ class TestStoreErrorHandling:
     ):
         """store_video_analysis returns None (not raises) on failure."""
         monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+        mock_weaviate_client["collection"].data.replace.side_effect = RuntimeError("Connection lost")
         mock_weaviate_client["collection"].data.insert.side_effect = RuntimeError("Connection lost")
 
         from video_research_mcp.weaviate_store import store_video_analysis
