@@ -2,7 +2,7 @@
 
 ## What This Is
 
-An MCP server (stdio transport, FastMCP) exposing 23 tools for video analysis, deep research, content extraction, and web search. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
+An MCP server (stdio transport, FastMCP) exposing 22 tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3. Built with Pydantic v2, hatchling. Python >= 3.11.
 
 ## Commands
 
@@ -28,11 +28,14 @@ GEMINI_API_KEY=... uv run video-research-mcp                         # run serve
 | infra | `infra_cache`, `infra_configure` | `tools/infra.py` |
 | knowledge | `knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_ingest`, `knowledge_fetch`, `knowledge_ask`, `knowledge_query` | `tools/knowledge/` |
 
+Supporting modules: `video_cache.py` (context cache warming), `video_batch.py` (batch analysis orchestration).
+
 **Key patterns:**
 - **Instruction-driven tools** — tools accept free-text `instruction` + optional `output_schema` instead of fixed modes
 - **Structured output** — `GeminiClient.generate_structured(contents, schema=ModelClass)` returns validated Pydantic models
 - **Error handling** — tools never raise; return `make_tool_error()` dicts with `error`, `category`, `hint`, `retryable`
 - **Write-through storage** — every tool auto-stores results to Weaviate when configured; store calls are non-fatal
+- **Context caching** — `context_cache.py` pre-warms Gemini caches after `video_analyze`; `video_create_session` reuses them via `lookup_or_await()`
 
 **Key singletons:** `GeminiClient` (client.py), `get_config()` (config.py), `session_store` (sessions.py, optional SQLite via persistence.py), `cache` (cache.py), `WeaviateClient` (weaviate_client.py).
 
@@ -109,6 +112,12 @@ When bumping a dependency:
 2. Run `uv pip install -e ".[dev]"` to resolve
 3. Search for compatibility workarounds that may now be removable (`grep -r "2\.x\|v1\|compat\|shim\|workaround"`)
 4. Run full test suite: `uv run pytest tests/ -v`
+
+## Agent Teams
+
+Default model for all subagent teams: **Claude Opus 4.6** (`model: "opus"`). This is a hard project requirement — do not use a lighter model for team agents unless the user explicitly requests it.
+
+Agent configuration: `.claude/rules/` contains project-specific conventions that agents inherit automatically via path-filtered frontmatter.
 
 ## Testing
 

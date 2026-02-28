@@ -4,7 +4,7 @@ Give Claude Code a Gemini-powered research partner that can watch videos, read p
 
 ## Why
 
-Claude Code has no native way to analyze video, run multi-source research with evidence grading, or keep findings across sessions. This plugin adds those capabilities through 21 MCP tools powered by Gemini 3.1 Pro, with optional persistent storage via Weaviate.
+Claude Code has no native way to analyze video, run multi-source research with evidence grading, or keep findings across sessions. This plugin adds those capabilities through 22 MCP tools powered by Gemini 3.1 Pro, with optional persistent storage via Weaviate.
 
 ## Install
 
@@ -84,7 +84,7 @@ knowledge_ask(query="What did I learn about ef_construction?")  # AI-generated s
 
 ### Use it as an MCP server in your own application
 
-The 21 tools are standard MCP -- any MCP client can call them. Point your app at the server and you get Gemini-powered video analysis, research, and knowledge retrieval as API calls. No Claude Code required.
+The 22 tools are standard MCP -- any MCP client can call them. Point your app at the server and you get Gemini-powered video analysis, research, and knowledge retrieval as API calls. No Claude Code required.
 
 ```json
 {
@@ -176,7 +176,7 @@ export WEAVIATE_API_KEY="your-key"
 ```
 
 <details>
-<summary><strong>All 21 tools</strong></summary>
+<summary><strong>All 22 tools</strong></summary>
 
 ### Video (4)
 
@@ -187,11 +187,12 @@ export WEAVIATE_API_KEY="your-key"
 | `video_continue_session` | Ask follow-up questions within a session |
 | `video_batch_analyze` | Analyze all video files in a directory concurrently |
 
-### YouTube (2)
+### YouTube (3)
 
 | Tool | Description |
 |------|-------------|
 | `video_metadata` | Fetch video metadata (title, views, duration, tags) via YouTube Data API |
+| `video_comments` | Fetch top-level comments with like counts and reply counts |
 | `video_playlist` | List videos in a YouTube playlist |
 
 ### Research (3)
@@ -303,8 +304,26 @@ node bin/install.js --global
 ```bash
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
-uv run pytest tests/ -v        # 325 tests, all mocked
+uv run pytest tests/ -v        # 417 tests, all mocked
 uv run ruff check src/ tests/  # lint
+```
+
+## Agent Teams
+
+This project uses Claude Code agent teams powered by **Claude Opus 4.6** for parallel development workflows. Every subagent team defaults to Opus 4.6 unless the user explicitly specifies otherwise.
+
+| Workflow | Agents | What they do |
+|----------|--------|-------------|
+| Dependency audit | 3 parallel | Constraint analysis, compatibility scanning, API surface verification |
+| Code review | 3 parallel | Security, architecture, test coverage |
+| Feature development | 2-4 parallel | Implementation with file ownership boundaries |
+
+Agent teams are spawned via Claude Code's `Agent` tool with `model: "opus"`. The team lead coordinates task decomposition, file ownership, and result synthesis. Teammates communicate through the built-in messaging system and share a task list for coordination.
+
+To change the default model for a specific task:
+```python
+# In Agent tool call
+"model": "sonnet"  # override for lightweight tasks
 ```
 
 ## Troubleshooting
