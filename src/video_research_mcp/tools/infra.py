@@ -11,6 +11,7 @@ from pydantic import Field
 from .. import cache as cache_mod
 from ..config import MODEL_PRESETS, update_config
 from ..errors import make_tool_error
+from ..tracing import trace
 from ..types import CacheAction, ModelPreset, ThinkingLevel
 
 infra_server = FastMCP("infra")
@@ -24,6 +25,7 @@ infra_server = FastMCP("infra")
         openWorldHint=False,
     )
 )
+@trace(name="infra_cache", span_type="TOOL")
 async def infra_cache(
     action: CacheAction = "stats",
     content_id: Annotated[str | None, Field(description="Scope clear to a specific content ID")] = None,
@@ -59,9 +61,10 @@ async def infra_cache(
         openWorldHint=False,
     )
 )
+@trace(name="infra_configure", span_type="TOOL")
 async def infra_configure(
     preset: Annotated[ModelPreset | None, Field(
-        description='Named model preset: "best" (3.1 Pro), "stable" (2.5 Pro), or "budget" (2.5 Flash)',
+        description='Named model preset: "best" (3.1 Pro), "stable" (3 Pro), or "budget" (3 Flash)',
     )] = None,
     model: Annotated[str | None, Field(description="Gemini model ID override (takes precedence over preset)")] = None,
     thinking_level: ThinkingLevel | None = None,

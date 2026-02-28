@@ -13,6 +13,7 @@ from pydantic import Field
 
 from ..errors import make_tool_error
 from ..models.content_batch import BatchContentItem, BatchContentResult
+from ..tracing import trace
 from ..types import ThinkingLevel
 from ..weaviate_store import store_content_analysis
 from .content import _analyze_parts, _build_content_parts, content_server
@@ -160,6 +161,7 @@ async def _individual_files(
 
 
 @content_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
+@trace(name="content_batch_analyze", span_type="TOOL")
 async def content_batch_analyze(
     instruction: Annotated[str, Field(
         description="What to analyze — e.g. 'compare methodologies', "
