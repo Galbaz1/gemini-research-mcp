@@ -7,7 +7,7 @@ A step-by-step guide to installing, configuring, and running the video-research-
 - **Python 3.11+** -- check with `python3 --version`
 - **uv** -- the fast Python package manager ([install](https://docs.astral.sh/uv/getting-started/installation/))
 - **Gemini API key** -- get one at [Google AI Studio](https://aistudio.google.com/apikey)
-- **YouTube Data API key** (optional) -- for `video_metadata` and `video_playlist` tools. Falls back to `GEMINI_API_KEY` if not set
+- **YouTube Data API v3** enabled for your GCP project -- required for `video_metadata`, `video_comments`, and `video_playlist` tools. See [YouTube API 403 errors](#youtube-api-403-errors) if you hit issues
 
 ## Installation
 
@@ -105,7 +105,7 @@ Add the server to your MCP configuration. For global access across all projects,
 
 For project-local configuration, create `.mcp.json` in the project root with the same structure.
 
-After saving, restart Claude Code. All 18 tools will appear automatically in Claude's tool list.
+After saving, restart Claude Code. All 23 tools will appear automatically in Claude's tool list.
 
 ## First Tool Calls
 
@@ -194,6 +194,22 @@ Set `GEMINI_API_KEY` in your environment or MCP config's `env` block.
 ### "Could not extract video ID" error
 
 The URL must be a real YouTube domain (`youtube.com`, `youtu.be`, `m.youtube.com`). The server rejects spoofed domains like `youtube.com.evil.test` to prevent URL injection.
+
+### YouTube API 403 errors
+
+All YouTube tools (`video_metadata`, `video_comments`, `video_playlist`) require YouTube Data API v3 access. A 403 error means your API key can't reach this API.
+
+**Common causes:**
+
+1. **AI Studio key restriction** -- Keys from [Google AI Studio](https://aistudio.google.com/apikey) are often restricted to `generativelanguage.googleapis.com` only. They work for Gemini but not YouTube Data API.
+2. **YouTube Data API v3 not enabled** -- The API must be explicitly enabled in your GCP project.
+3. **Different keys in different contexts** -- If you use direnv/dotenv, the key in your `.env` may differ from the one in your shell profile (`~/.zshrc`). The MCP server gets the key from Claude Code's process environment, not from `.env`.
+
+**Fix:**
+
+1. Visit [YouTube Data API v3](https://console.cloud.google.com/apis/library/youtube.googleapis.com) and click **Enable** for the GCP project that owns your API key
+2. Or set a separate `YOUTUBE_API_KEY` env var pointing to a key with YouTube Data API v3 scope
+3. Verify with: `video_metadata(url="https://www.youtube.com/watch?v=dQw4w9WgXcQ")` -- should return metadata, not an error
 
 ### Rate limit / quota errors
 

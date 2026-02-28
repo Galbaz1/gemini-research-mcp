@@ -286,6 +286,27 @@ class TestVideoMetadataTool:
         assert "category" in result
 
 
+    async def test_api_403_returns_youtube_hint(self, mock_youtube_service):
+        """GIVEN a 403 HttpError WHEN calling tool THEN returns YouTube-specific hint."""
+        from googleapiclient.errors import HttpError
+        from video_research_mcp.tools.youtube import video_metadata
+
+        resp = MagicMock()
+        resp.status = 403
+        mock_youtube_service.videos().list().execute.side_effect = (
+            HttpError(resp, b"forbidden")
+        )
+
+        result = await video_metadata(
+            url="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        )
+
+        assert "error" in result
+        assert result["category"] == "API_PERMISSION_DENIED"
+        assert "YOUTUBE_API_KEY" in result["hint"]
+        assert "console.cloud.google.com" in result["hint"]
+
+
 class TestVideoCommentsTool:
     """video_comments() MCP tool tests."""
 
@@ -346,6 +367,7 @@ class TestVideoCommentsTool:
         assert "error" in result
         assert result["category"] == "API_PERMISSION_DENIED"
         assert "YOUTUBE_API_KEY" in result["hint"]
+        assert "console.cloud.google.com" in result["hint"]
 
 
 class TestVideoPlaylistTool:

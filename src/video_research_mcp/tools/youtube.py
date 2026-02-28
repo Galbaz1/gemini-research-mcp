@@ -18,6 +18,31 @@ from .video_url import _extract_video_id, _is_youtube_host
 logger = logging.getLogger(__name__)
 youtube_server = FastMCP("youtube")
 
+_YT_403_HINT = (
+    "YouTube Data API returned 403. Common causes:\n"
+    "1. API key from Google AI Studio is restricted to generativelanguage.googleapis.com\n"
+    "2. YouTube Data API v3 is not enabled in your GCP project\n"
+    "Fix: visit https://console.cloud.google.com/apis/library/youtube.googleapis.com "
+    "to enable it, or set YOUTUBE_API_KEY to a key with YouTube Data API v3 scope."
+)
+
+
+def _youtube_api_error(exc: Exception) -> dict:
+    """Return a structured error for YouTube API failures, with 403-specific hint."""
+    try:
+        from googleapiclient.errors import HttpError
+    except ImportError:
+        return make_tool_error(exc)
+
+    if isinstance(exc, HttpError) and exc.resp.status == 403:
+        return {
+            "error": str(exc),
+            "category": "API_PERMISSION_DENIED",
+            "hint": _YT_403_HINT,
+            "retryable": False,
+        }
+    return make_tool_error(exc)
+
 
 def _extract_playlist_id(url: str) -> str:
     """Extract playlist ID from a YouTube playlist or video+playlist URL.
@@ -77,7 +102,7 @@ async def video_metadata(
         await store_video_metadata(meta_dict)
         return meta_dict
     except Exception as exc:
-        return make_tool_error(exc)
+        return _youtube_api_error(exc)
 
 
 @youtube_server.tool(
@@ -119,19 +144,7 @@ async def video_comments(
             "count": len(comments),
         }
     except Exception as exc:
-        from googleapiclient.errors import HttpError
-
-        if isinstance(exc, HttpError) and exc.resp.status == 403:
-            return {
-                "error": str(exc),
-                "category": "API_PERMISSION_DENIED",
-                "hint": (
-                    "YouTube Data API returned 403. Set YOUTUBE_API_KEY env var "
-                    "or enable YouTube Data API v3 for your API key in GCP Console."
-                ),
-                "retryable": False,
-            }
-        return make_tool_error(exc)
+        return _youtube_api_error(exc)
 
 
 @youtube_server.tool(
@@ -169,4 +182,4 @@ async def video_playlist(
         info = await YouTubeClient.playlist_items(playlist_id, max_items)
         return info.model_dump()
     except Exception as exc:
-        return make_tool_error(exc)
+        return _youtube_api_error(exc)
