@@ -122,4 +122,4 @@ def list_entries() -> list[dict]:
             )
         except (json.JSONDecodeError, OSError):
             continue
-    return sorted(entries, key=lambda x: x.get("cached_at", ""), reverse=True)
+    return sorted(entries, key=lambda x: x.get("cached_at") or "", reverse=True)

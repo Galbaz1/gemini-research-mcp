@@ -67,6 +67,32 @@ class TestCache:
         assert entries[0]["content_id"] == "vid1"
 
 
+    def test_list_entries_with_missing_cached_at(self, tmp_path, monkeypatch):
+        """list_entries sorts safely when cached_at is None or missing."""
+        import json
+
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir(exist_ok=True)
+
+        # Entry with cached_at = None (key exists but value is None)
+        (cache_dir / "none_entry.json").write_text(
+            json.dumps({"content_id": "vid_none", "tool": "t", "cached_at": None})
+        )
+        # Entry with cached_at missing entirely
+        (cache_dir / "missing_entry.json").write_text(
+            json.dumps({"content_id": "vid_missing", "tool": "t"})
+        )
+        # Normal entry
+        cache.save("vid_ok", "t", "m", {"x": 1})
+
+        entries = cache.list_entries()
+        assert len(entries) >= 3
+        # Should not raise — the fix ensures None values don't crash sorted()
+        ids = [e["content_id"] for e in entries]
+        assert "vid_none" in ids
+        assert "vid_missing" in ids
+
+
 class TestCacheWithInstruction:
     """Verify that instruction param differentiates cache entries."""
 
