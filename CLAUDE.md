@@ -114,11 +114,11 @@ When bumping a dependency:
 
 417 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
 
-**Key fixtures** (`conftest.py`): `mock_gemini_client` (mocks `.get()`, `.generate()`, `.generate_structured()`), `clean_config` (isolates config), autouse `GEMINI_API_KEY=test-key-not-real`.
+**Key fixtures** (`conftest.py`): `mock_gemini_client` (mocks `.get()`, `.generate()`, `.generate_structured()`), `clean_config` (isolates config), `_unwrap_fastmcp_tools` (session-scoped, ensures tool callability), autouse `GEMINI_API_KEY=test-key-not-real`.
 
 **File naming:** `test_<domain>_tools.py` for tools, `test_<module>.py` for non-tool modules.
 
-> Full guide: `docs/tutorials/WRITING_TESTS.md`
+> Full guide: `docs/tutorials/WRITING_TESTS.md` | Project-specific patterns: `.claude/rules/testing.md`
 
 ## Plugin Installer
 
