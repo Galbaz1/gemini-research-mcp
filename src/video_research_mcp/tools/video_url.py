@@ -85,3 +85,40 @@ def _video_content(url: str, prompt: str) -> types.Content:
             types.Part(text=prompt),
         ]
     )
+
+
+def _video_content_with_metadata(
+    url: str,
+    prompt: str,
+    *,
+    fps: float | None = None,
+    start_offset: str | None = None,
+    end_offset: str | None = None,
+) -> types.Content:
+    """Build Content with video FileData, optional VideoMetadata, and text prompt.
+
+    When any of fps/start_offset/end_offset is set, attaches a
+    ``types.VideoMetadata`` to the video Part for finer-grained control
+    over how Gemini processes the video frames.
+
+    Args:
+        url: Video URI (YouTube URL or File API URI).
+        prompt: Text prompt for analysis.
+        fps: Frames per second to sample. Lower = faster, higher = more detail.
+        start_offset: Start time offset (e.g. "10s", "1m30s").
+        end_offset: End time offset.
+
+    Returns:
+        Content with video part (optionally with VideoMetadata) + text part.
+    """
+    video_part = types.Part(file_data=types.FileData(file_uri=url))
+
+    if fps is not None or start_offset is not None or end_offset is not None:
+        vm = types.VideoMetadata(
+            fps=fps,
+            start_offset=start_offset,
+            end_offset=end_offset,
+        )
+        video_part.video_metadata = vm
+
+    return types.Content(parts=[video_part, types.Part(text=prompt)])
