@@ -6,6 +6,7 @@ failures return None/False and never raise.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -18,6 +19,8 @@ from .config import get_config
 logger = logging.getLogger(__name__)
 
 _registry: dict[tuple[str, str], str] = {}
+_pending: dict[tuple[str, str], asyncio.Task] = {}
+_suppressed: set[str] = set()  # content_ids that failed min-token check
 _loaded: bool = False
 _MAX_REGISTRY_ENTRIES = 200
 
@@ -78,6 +81,10 @@ async def get_or_create(
     Returns:
         Cache resource name (e.g. "cachedContents/abc123") or None on failure.
     """
+    if content_id in _suppressed:
+        logger.debug("Skipping cache for %s (suppressed: too few tokens)", content_id)
+        return None
+
     _load_registry()
     key = (content_id, model)
 
@@ -92,6 +99,7 @@ async def get_or_create(
         except Exception:
             logger.debug("Stale cache entry for %s, recreating", content_id)
             _registry.pop(key, None)
+            _save_registry()  # persist eviction even if recreate fails
 
     try:
         client = GeminiClient.get()
@@ -115,8 +123,13 @@ async def get_or_create(
                 cached.name, content_id, model, ttl,
             )
             return cached.name
-    except Exception:
-        logger.warning("Failed to create context cache for %s", content_id, exc_info=True)
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "too few tokens" in msg or "minimum" in msg:
+            _suppressed.add(content_id)
+            logger.info("Suppressing future cache attempts for %s (too few tokens)", content_id)
+        else:
+            logger.warning("Failed to create context cache for %s", content_id, exc_info=True)
 
     return None
 
@@ -144,6 +157,53 @@ def lookup(content_id: str, model: str) -> str | None:
     return _registry.get((content_id, model))
 
 
+def start_prewarm(
+    content_id: str,
+    video_parts: list[types.Part],
+    model: str,
+) -> asyncio.Task:
+    """Start a background prewarm, tracking it for later await.
+
+    Args:
+        content_id: Stable identifier (YouTube video_id or file hash).
+        video_parts: The video Part(s) to cache.
+        model: Model ID the cache will be used with.
+
+    Returns:
+        The background Task (also tracked in _pending).
+    """
+    key = (content_id, model)
+    task = asyncio.create_task(get_or_create(content_id, video_parts, model))
+    _pending[key] = task
+    task.add_done_callback(lambda _t: _pending.pop(key, None))
+    return task
+
+
+async def lookup_or_await(
+    content_id: str, model: str, timeout: float = 5.0
+) -> str | None:
+    """Registry lookup, falling back to bounded await of a pending prewarm.
+
+    Args:
+        content_id: Stable identifier.
+        model: Model ID to look up.
+        timeout: Max seconds to wait for a pending prewarm task.
+
+    Returns:
+        Cache resource name or None.
+    """
+    name = lookup(content_id, model)
+    if name:
+        return name
+    task = _pending.get((content_id, model))
+    if task:
+        try:
+            return await asyncio.wait_for(asyncio.shield(task), timeout)
+        except (asyncio.TimeoutError, Exception):
+            return None
+    return None
+
+
 async def clear() -> int:
     """Delete all tracked caches and clear the registry. Returns count cleared."""
     _load_registry()
@@ -160,6 +220,7 @@ async def clear() -> int:
             exc_info=True,
         )
         _registry.clear()
+        _suppressed.clear()
         _save_registry()
         logger.info("Cleared 0 context cache(s) (registry only)")
         return 0
@@ -171,6 +232,7 @@ async def clear() -> int:
         except Exception:
             pass
     _registry.clear()
+    _suppressed.clear()
     _save_registry()
     logger.info("Cleared %d context cache(s)", count)
     return count
