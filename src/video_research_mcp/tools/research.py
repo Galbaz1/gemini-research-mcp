@@ -10,6 +10,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from ..client import GeminiClient
+from ..tracing import trace
 from ..errors import make_tool_error
 from ..models.research import (
     EvidenceAssessment,
@@ -34,6 +35,7 @@ research_server = FastMCP("research")
 
 
 @research_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
+@trace(name="research_deep", span_type="TOOL")
 async def research_deep(
     topic: TopicParam,
     scope: Scope = "moderate",
@@ -102,6 +104,7 @@ async def research_deep(
 
 
 @research_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
+@trace(name="research_plan", span_type="TOOL")
 async def research_plan(
     topic: TopicParam,
     scope: Scope = "moderate",
@@ -157,6 +160,7 @@ async def research_plan(
 
 
 @research_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
+@trace(name="research_assess_evidence", span_type="TOOL")
 async def research_assess_evidence(
     claim: Annotated[str, Field(min_length=3, description="The claim to assess")],
     sources: Annotated[list[str], Field(min_length=1, description="Evidence sources to evaluate against")],

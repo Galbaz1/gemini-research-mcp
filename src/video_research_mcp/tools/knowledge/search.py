@@ -18,6 +18,7 @@ from ...weaviate_client import WeaviateClient
 from ..knowledge_filters import build_collection_filter
 from . import knowledge_server
 from .helpers import ALL_COLLECTION_NAMES, ALLOWED_PROPERTIES, RERANK_PROPERTY, SearchType, logger, serialize
+from ...tracing import trace
 
 
 @knowledge_server.tool(
@@ -28,6 +29,7 @@ from .helpers import ALL_COLLECTION_NAMES, ALLOWED_PROPERTIES, RERANK_PROPERTY, 
         openWorldHint=False,
     )
 )
+@trace(name="knowledge_search", span_type="TOOL")
 async def knowledge_search(
     query: Annotated[str, Field(min_length=1, description="Search query")],
     collections: Annotated[

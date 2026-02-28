@@ -16,6 +16,7 @@ from ...types import KnowledgeCollection
 from ...weaviate_client import WeaviateClient
 from . import knowledge_server
 from .helpers import ALLOWED_PROPERTIES, weaviate_not_configured
+from ...tracing import trace
 
 
 @knowledge_server.tool(
@@ -26,6 +27,7 @@ from .helpers import ALLOWED_PROPERTIES, weaviate_not_configured
         openWorldHint=False,
     )
 )
+@trace(name="knowledge_ingest", span_type="TOOL")
 async def knowledge_ingest(
     collection: KnowledgeCollection,
     properties: Annotated[dict, Field(description="Object properties to insert")],

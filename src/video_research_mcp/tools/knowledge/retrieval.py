@@ -22,6 +22,7 @@ from ...types import KnowledgeCollection
 from ...weaviate_client import WeaviateClient
 from . import knowledge_server
 from .helpers import ALL_COLLECTION_NAMES, ALLOWED_PROPERTIES, logger, serialize, weaviate_not_configured
+from ...tracing import trace
 
 
 @knowledge_server.tool(
@@ -32,6 +33,7 @@ from .helpers import ALL_COLLECTION_NAMES, ALLOWED_PROPERTIES, logger, serialize
         openWorldHint=False,
     )
 )
+@trace(name="knowledge_related", span_type="TOOL")
 async def knowledge_related(
     object_id: Annotated[str, Field(min_length=1, description="UUID of the source object")],
     collection: KnowledgeCollection,
@@ -95,6 +97,7 @@ async def knowledge_related(
         openWorldHint=False,
     )
 )
+@trace(name="knowledge_stats", span_type="TOOL")
 async def knowledge_stats(
     collection: Annotated[
         KnowledgeCollection | None,
@@ -159,6 +162,7 @@ async def knowledge_stats(
         openWorldHint=False,
     )
 )
+@trace(name="knowledge_fetch", span_type="TOOL")
 async def knowledge_fetch(
     object_id: Annotated[str, Field(min_length=1, description="Weaviate object UUID")],
     collection: KnowledgeCollection,

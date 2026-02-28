@@ -17,15 +17,15 @@ The npm package contains zero Python code. The PyPI package contains zero JavaSc
 
 ### What it does
 
-`bin/install.js` copies 17 markdown files into `~/.claude/` (global) or `.claude/` (local), then writes MCP server config to `.mcp.json`. That's it — no runtime, no daemon.
+`bin/install.js` copies 21 markdown files into `~/.claude/` (global) or `.claude/` (local), then writes MCP server config to `.mcp.json`. That's it — no runtime, no daemon.
 
 ```
 npx video-research-mcp@latest
         │
-        ├── Copies 8 commands  → ~/.claude/commands/gr/
-        ├── Copies 6 skill files → ~/.claude/skills/
+        ├── Copies 9 commands  → ~/.claude/commands/gr/
+        ├── Copies 7 skill files → ~/.claude/skills/
         ├── Copies 4 agents    → ~/.claude/agents/
-        ├── Writes .mcp.json   → MCP server registration
+        ├── Writes .mcp.json   → MCP server registration (3 servers)
         └── Writes manifest    → for upgrades/uninstall
 ```
 
@@ -36,7 +36,7 @@ npx video-research-mcp@latest
 | `bin/install.js` | CLI entry point — parses flags, orchestrates install/uninstall |
 | `bin/lib/copy.js` | `FILE_MAP` (source→dest mapping), `CLEANUP_DIRS`, copy/remove helpers |
 | `bin/lib/manifest.js` | SHA-256 hashing, upgrade diffing, user-modification detection |
-| `bin/lib/config.js` | `.mcp.json` merge — registers `video-research` + `playwright` servers |
+| `bin/lib/config.js` | `.mcp.json` merge — registers `video-research` + `playwright` + `mlflow-mcp` servers |
 | `bin/lib/ui.js` | Terminal output formatting |
 | `package.json` | npm metadata — `"bin"` points to `install.js`, `"files"` limits what gets published |
 
@@ -55,6 +55,7 @@ const FILE_MAP = {
   'commands/recall.md':     'commands/gr/recall.md',
   'commands/models.md':     'commands/gr/models.md',
   'commands/doctor.md':     'commands/gr/doctor.md',
+  'commands/traces.md':     'commands/gr/traces.md',
 
   // Skills → context injection
   'skills/video-research/SKILL.md':                              'skills/video-research/SKILL.md',
@@ -63,6 +64,7 @@ const FILE_MAP = {
   'skills/gemini-visualize/templates/research-evidence-net.md':   'skills/gemini-visualize/templates/research-evidence-net.md',
   'skills/gemini-visualize/templates/content-knowledge-graph.md': 'skills/gemini-visualize/templates/content-knowledge-graph.md',
   'skills/weaviate-setup/SKILL.md':                               'skills/weaviate-setup/SKILL.md',
+  'skills/mlflow-traces/SKILL.md':                                'skills/mlflow-traces/SKILL.md',
 
   // Agents → sub-agents
   'agents/researcher.md':      'agents/researcher.md',
@@ -85,7 +87,7 @@ The installer writes `~/.claude/gr-file-manifest.json` containing SHA-256 hashes
 
 ### MCP config merge
 
-`bin/lib/config.js` writes two MCP server entries to `.mcp.json`:
+`bin/lib/config.js` writes three MCP server entries to `.mcp.json`:
 
 ```json
 {
@@ -97,6 +99,11 @@ The installer writes `~/.claude/gr-file-manifest.json` containing SHA-256 hashes
     "playwright": {
       "command": "npx",
       "args": ["@playwright/mcp@latest", "--headless", "--caps=vision,pdf"]
+    },
+    "mlflow-mcp": {
+      "command": "uvx",
+      "args": ["--with", "mlflow[mcp]>=3.5.1", "mlflow", "mcp", "run"],
+      "env": { "MLFLOW_TRACKING_URI": "${MLFLOW_TRACKING_URI}" }
     }
   }
 }
@@ -204,7 +211,7 @@ These run as background or foreground processes with their own tool restrictions
 
 ## Current Plugin Inventory
 
-### Commands (8)
+### Commands (9)
 
 | File | Slash Command | Tools | Model |
 |------|---------------|-------|-------|
@@ -215,15 +222,17 @@ These run as background or foreground processes with their own tool restrictions
 | `commands/search.md` | `/gr:search` | web_search | sonnet |
 | `commands/recall.md` | `/gr:recall` | Glob, Grep, Read (filesystem only) | sonnet |
 | `commands/models.md` | `/gr:models` | infra_configure | haiku |
-| `commands/doctor.md` | `/gr:doctor` (`quick` compact, `full` detailed) | infra_configure, video_metadata, knowledge_stats, Read/Glob/Bash | haiku |
+| `commands/traces.md` | `/gr:traces` | mlflow-mcp search_traces, get_trace, set_trace_tag, log_feedback, evaluate_traces | sonnet |
+| `commands/doctor.md` | `/gr:doctor` (`quick` compact, `full` detailed) | infra_configure, video_metadata, knowledge_stats, mlflow-mcp search_traces, Read/Glob/Bash | haiku |
 
-### Skills (3)
+### Skills (4)
 
 | Skill | Purpose |
 |-------|---------|
 | `video-research` | Tool signatures, workflows, caching for 23 tools |
 | `gemini-visualize` | HTML visualization generation + 3 templates |
 | `weaviate-setup` | Interactive onboarding wizard for Weaviate connection |
+| `mlflow-traces` | MLflow trace debugging, field paths, `extract_fields` discipline |
 
 ### Agents (4)
 
@@ -244,7 +253,7 @@ USER: npx video-research-mcp@latest
          ▼
     bin/install.js (Node.js)
          │
-         ├── Copy 17 markdown files to ~/.claude/
+         ├── Copy 21 markdown files to ~/.claude/
          ├── Write .mcp.json (register MCP servers)
          └── Write manifest (for future upgrades)
 

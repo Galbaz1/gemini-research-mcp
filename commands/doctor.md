@@ -1,7 +1,7 @@
 ---
 description: Diagnose /gr plugin setup, MCP wiring, and API connectivity
 argument-hint: "[quick|full]"
-allowed-tools: mcp__video-research__infra_configure, mcp__video-research__video_metadata, mcp__video-research__knowledge_stats, Glob, Read, Bash
+allowed-tools: mcp__video-research__infra_configure, mcp__video-research__video_metadata, mcp__video-research__knowledge_stats, mcp__mlflow-mcp__search_traces, Glob, Read, Bash
 model: haiku
 ---
 
@@ -86,6 +86,19 @@ Call:
 For failures, include exact remediation text (URL format, API key, restart requirement).
 If any env file values are changed (for example `~/.config/video-research-mcp/.env`), explicitly require a Claude Code restart before retest.
 
+### MLflow Tracing
+
+Call:
+`search_traces(experiment_id="0", max_results=1, extract_fields="info.trace_id")`
+
+Use the `mcp__mlflow-mcp__search_traces` tool.
+
+- PASS: returns a result (MLflow MCP server connected)
+- WARN: connection refused or timeout (MLflow server not running — `mlflow server --port 5001`)
+- INFO: tool not available (mlflow-mcp not installed — run the plugin installer)
+
+Do not fail the overall health check for MLflow issues — it is an optional component.
+
 ## 4) Full mode extras
 
 If mode is `full`, also:
@@ -103,12 +116,13 @@ If mode is `full`, also:
 For `quick` mode, produce exactly 4 short sections:
 
 1. `Summary`: `PASS`, `PASS with warnings`, or `FAIL`
-2. `Checks` (no table; 5 bullets only):
+2. `Checks` (no table; 6 bullets only):
    - Active MCP config
    - Shared env file
    - Runtime config
    - YouTube API smoke test
    - Weaviate smoke test
+   - MLflow tracing smoke test
 3. `Fixes`:
    - If none: `None`
    - If needed: numbered command-ready steps (max 3)

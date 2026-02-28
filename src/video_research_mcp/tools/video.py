@@ -14,6 +14,8 @@ from google.genai import types
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from video_research_mcp.tracing import trace
+
 from ..client import GeminiClient
 from ..retry import with_retry
 from .. import context_cache
@@ -109,6 +111,7 @@ async def _youtube_metadata_pipeline(
         openWorldHint=True,
     )
 )
+@trace(name="video_analyze", span_type="TOOL")
 async def video_analyze(
     url: YouTubeUrl | None = None,
     file_path: VideoFilePath | None = None,
@@ -253,6 +256,7 @@ async def _download_and_cache(
         openWorldHint=True,
     )
 )
+@trace(name="video_create_session", span_type="TOOL")
 async def video_create_session(
     url: YouTubeUrl | None = None,
     file_path: VideoFilePath | None = None,
@@ -364,6 +368,7 @@ async def video_create_session(
         openWorldHint=True,
     )
 )
+@trace(name="video_continue_session", span_type="TOOL")
 async def video_continue_session(
     session_id: Annotated[str, Field(min_length=1, description="Session ID from video_create_session")],
     prompt: Annotated[str, Field(min_length=1, description="Follow-up question or instruction")],

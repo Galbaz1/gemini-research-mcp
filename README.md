@@ -13,7 +13,7 @@ npx video-research-mcp@latest
 export GEMINI_API_KEY="your-key-here"
 ```
 
-That's it. The installer copies 9 commands, 3 skills, and 4 agents to `~/.claude/` and configures the MCP server to run via `uvx` from PyPI.
+That's it. The installer copies 10 commands, 4 skills, and 4 agents to `~/.claude/` and configures the MCP servers to run via `uvx` from PyPI.
 
 ```bash
 npx video-research-mcp@latest --check     # show install status
@@ -130,7 +130,8 @@ The 23 tools are standard MCP -- any MCP client can call them. Point your app at
 | `/gr:search <query>` | Web search via Gemini grounding |
 | `/gr:recall [filter]` | Browse past analyses from memory |
 | `/gr:models [preset]` | Switch Gemini model preset (best/stable/budget) |
-| `/gr:doctor [quick|full]` | Diagnose MCP wiring, API keys, and Weaviate connectivity (`quick` is compact, `full` is verbose) |
+| `/gr:traces [filter]` | Query, debug, and evaluate MLflow traces from Gemini tool calls |
+| `/gr:doctor [quick|full]` | Diagnose MCP wiring, API keys, Weaviate, and MLflow connectivity |
 
 ### How a command runs
 
@@ -160,6 +161,18 @@ output/project-kickoff-2026-02-28/
 ```
 
 The same files are also saved to Claude's project memory for `/gr:recall`.
+
+### Debug Gemini traces
+
+```
+/gr:traces                       # recent traces overview
+/gr:traces errors                # filter for failed traces
+/gr:traces slow                  # filter for traces over 5 seconds
+/gr:traces tr-abc123             # get trace detail
+/gr:traces feedback tr-abc123 4  # log human feedback (score 1-5)
+```
+
+When MLflow tracing is enabled (`MLFLOW_TRACKING_URI` is set), every Gemini API call is captured automatically. The `/gr:traces` command queries these via the MLflow MCP server — no Python code needed.
 
 ## Knowledge store
 
@@ -327,6 +340,8 @@ node bin/install.js --global
 | `YOUTUBE_API_KEY` | `""` | YouTube Data API key (falls back to `GEMINI_API_KEY`) |
 | `WEAVIATE_URL` | `""` | Weaviate URL (empty = knowledge store disabled) |
 | `WEAVIATE_API_KEY` | `""` | Required for Weaviate Cloud |
+| `MLFLOW_TRACKING_URI` | `""` | MLflow server URL (empty = tracing disabled) |
+| `MLFLOW_EXPERIMENT_NAME` | `video-research-mcp` | MLflow experiment name |
 
 ## Development
 
@@ -367,6 +382,8 @@ To change the default model for a specific task:
 | Weaviate won't connect | Check `WEAVIATE_URL` and that the instance is running |
 | Knowledge tools empty | Set `WEAVIATE_URL` to enable |
 | `weaviate-agents not installed` | `uv pip install 'video-research-mcp[agents]'` |
+| MLflow tools unavailable | Set `MLFLOW_TRACKING_URI` and start `mlflow server --port 5001` |
+| No traces captured | Ensure `MLFLOW_TRACKING_URI` is set in the server environment |
 
 ## Contributing
 

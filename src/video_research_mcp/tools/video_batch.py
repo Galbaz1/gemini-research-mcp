@@ -16,6 +16,8 @@ from .video import video_server
 from .video_core import analyze_video
 from .video_file import SUPPORTED_VIDEO_EXTENSIONS, _video_file_content
 
+from video_research_mcp.tracing import trace
+
 
 @video_server.tool(
     annotations=ToolAnnotations(
@@ -25,6 +27,7 @@ from .video_file import SUPPORTED_VIDEO_EXTENSIONS, _video_file_content
         openWorldHint=False,
     )
 )
+@trace(name="video_batch_analyze", span_type="TOOL")
 async def video_batch_analyze(
     directory: VideoDirectoryPath,
     instruction: Annotated[str, Field(

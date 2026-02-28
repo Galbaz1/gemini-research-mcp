@@ -13,6 +13,7 @@ from pydantic import Field
 
 from ..client import GeminiClient
 from ..errors import make_tool_error
+from ..tracing import trace
 from ..models.research_document import (
     CrossReferenceMap,
     DocumentFindingsContainer,
@@ -36,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 @research_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
+@trace(name="research_document", span_type="TOOL")
 async def research_document(
     instruction: Annotated[str, Field(
         description="Research question or analysis instruction for the documents"

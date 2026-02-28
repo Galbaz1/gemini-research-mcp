@@ -8,11 +8,25 @@ const ui = require('./ui');
 const MCP_SERVERS = {
   'video-research': {
     command: 'uvx',
-    args: ['video-research-mcp'],
+    args: ['video-research-mcp[tracing]'],
+    env: {
+      MLFLOW_TRACKING_URI: '${MLFLOW_TRACKING_URI}',
+    },
+  },
+  'video-explainer': {
+    command: 'uvx',
+    args: ['video-explainer-mcp'],
   },
   playwright: {
     command: 'npx',
     args: ['@playwright/mcp@latest', '--headless', '--caps=vision,pdf'],
+  },
+  'mlflow-mcp': {
+    command: 'uvx',
+    args: ['--with', 'mlflow[mcp]>=3.5.1', 'mlflow', 'mcp', 'run'],
+    env: {
+      MLFLOW_TRACKING_URI: '${MLFLOW_TRACKING_URI}',
+    },
   },
 };
 
@@ -93,6 +107,12 @@ const ENV_TEMPLATE_KEYS = [
   'WEAVIATE_URL',
   'WEAVIATE_API_KEY',
   'WEAVIATE_GRPC_URL',
+  'MLFLOW_TRACKING_URI',
+  'MLFLOW_EXPERIMENT_NAME',
+  'EXPLAINER_PATH',
+  'EXPLAINER_TTS_PROVIDER',
+  'ELEVENLABS_API_KEY',
+  'OPENAI_API_KEY',
 ];
 
 /**
@@ -133,6 +153,20 @@ function ensureEnvFile() {
       '# WEAVIATE_URL=',
       '# WEAVIATE_API_KEY=',
       '# WEAVIATE_GRPC_URL=',
+      '',
+      '# Optional — MLflow tracing (leave commented to disable)',
+      '# MLFLOW_TRACKING_URI=http://127.0.0.1:5001',
+      '# MLFLOW_EXPERIMENT_NAME=video-research-mcp',
+      '',
+      '# Video Explainer — path to cloned video_explainer repo (required for /ve: commands)',
+      '# EXPLAINER_PATH=',
+      '# EXPLAINER_TTS_PROVIDER=mock',
+      '',
+      '# Optional — ElevenLabs TTS (recommended for production)',
+      '# ELEVENLABS_API_KEY=',
+      '',
+      '# Optional — OpenAI TTS (budget alternative)',
+      '# OPENAI_API_KEY=',
       '',
     ];
     fs.writeFileSync(envPath, lines.join('\n'), { mode: 0o600 });

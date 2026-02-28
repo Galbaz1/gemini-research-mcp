@@ -14,6 +14,8 @@ from typing import Annotated
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from ...tracing import trace
+
 from ...config import get_config
 from ...errors import make_tool_error
 from ...models.knowledge import (
@@ -67,6 +69,7 @@ async def _get_query_agent(collections: list[str] | None = None) -> AsyncQueryAg
         openWorldHint=True,
     )
 )
+@trace(name="knowledge_ask", span_type="TOOL")
 async def knowledge_ask(
     query: Annotated[str, Field(min_length=1, description="Question to answer from stored knowledge")],
     collections: Annotated[
@@ -121,6 +124,7 @@ async def knowledge_ask(
         openWorldHint=True,
     )
 )
+@trace(name="knowledge_query", span_type="TOOL")
 async def knowledge_query(
     query: Annotated[str, Field(min_length=1, description="Natural language search query")],
     collections: Annotated[

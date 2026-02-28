@@ -28,7 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Context caching** — automatic Gemini cache pre-warming after `video_analyze` for both YouTube and local files; session reuse via `ensure_session_cache()`. Large local files (>=20MB) are context-cached automatically on session creation
 - **Session persistence** — optional SQLite backend for video Q&A sessions (`GEMINI_SESSION_DB`)
 - **Plugin installer** — npm package that copies commands, skills, and agents to `~/.claude/` and configures MCP server
-- **Diagnostics** — `/gr:doctor` command for MCP wiring, API key, and Weaviate connectivity checks
+- **MLflow MCP plugin** — `/gr:traces` command for querying, tagging, and evaluating traces; `mlflow-traces` skill with field path reference and `extract_fields` discipline; `mlflow-mcp` server auto-installed via `uvx`; MLflow health check in `/gr:doctor`
+- **Diagnostics** — `/gr:doctor` command for MCP wiring, API key, Weaviate, and MLflow connectivity checks
 - **Retry logic** — exponential backoff with jitter for Gemini API calls
 - **Batch analysis** — `video_batch_analyze` for concurrent directory-level video processing
 - **PyPI metadata** — classifiers, project URLs, version alignment with npm
