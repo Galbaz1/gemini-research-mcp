@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from urllib.parse import parse_qs, urlparse
 
 from google.genai import types
+
+_VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 def _is_youtube_host(host: str) -> bool:
@@ -62,19 +65,34 @@ def _normalize_youtube_url(url: str) -> str:
 
 
 def _extract_video_id(url: str) -> str:
-    """Extract video ID from a YouTube URL string.
+    """Extract and validate video ID from a YouTube URL string.
 
-    Strips backslash escapes and trailing query/fragment noise from the ID.
+    Strips backslash escapes and trailing query/fragment noise, then
+    validates the ID against ``[A-Za-z0-9_-]`` to prevent path traversal
+    when the ID is used in filesystem paths.
 
     Raises:
-        ValueError: If no video ID can be extracted.
+        ValueError: If no video ID can be extracted or if the ID
+            contains invalid characters.
     """
     url = url.replace("\\", "")
     parsed = urlparse(url)
     vid = _extract_video_id_from_parsed(parsed)
     if not vid:
         raise ValueError(f"Not a YouTube URL: {url}")
-    return vid.split("&")[0].split("?")[0]
+    vid = vid.split("&")[0].split("?")[0]
+    if not _VIDEO_ID_RE.match(vid):
+        raise ValueError(f"Invalid YouTube video ID: {vid!r}")
+    return vid
+
+
+def is_youtube_url(url: str) -> bool:
+    """Check if URL is a YouTube video URL.
+
+    Recognizes youtube.com (watch, shorts, embed, live) and youtu.be short links.
+    """
+    parsed = urlparse(url.replace("\\", ""))
+    return _is_youtube_host(parsed.netloc) or _is_youtu_be_host(parsed.netloc)
 
 
 def _video_content(url: str, prompt: str) -> types.Content:

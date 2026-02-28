@@ -14,8 +14,21 @@ Start an interactive Q&A session with a video, progressively building knowledge.
 1. Determine the input type from "$ARGUMENTS":
    - If it starts with `http://` or `https://`: use `video_create_session` with `url` parameter
    - Otherwise (file path): use `video_create_session` with `file_path` parameter
-2. Use description="Interactive Q&A session" for the session creation
-3. Present the video title and session info
+
+2. **For YouTube URLs**: ask the user whether to download the video for cached sessions using `AskUserQuestion`:
+   - Question: "Download video for faster multi-turn chat?"
+   - Option 1: "Yes, download (Recommended)" — description: "~2 min setup, then each turn is faster and cheaper (cached tokens). Requires yt-dlp."
+   - Option 2: "No, stream directly" — description: "Instant start, but Gemini re-fetches the video every turn. Fine for 1-3 questions."
+   - If "Yes": pass `download=true` to `video_create_session`
+   - If "No": pass `download=false` (default)
+   - Skip this question for local files (they're already local)
+
+3. Use description="Interactive Q&A session" for the session creation
+4. Present the video title and session info. If `download_status` is present, explain:
+   - `"downloaded"` + `cache_status="cached"`: "Video downloaded and cached — each turn will be fast and cost-efficient."
+   - `"downloaded"` + `cache_status="uncached"`: "Video downloaded but cache creation failed — still faster than streaming (no re-fetch per turn)."
+   - `"unavailable"`: "yt-dlp not found. Install it with `brew install yt-dlp` for cached sessions. Continuing with streaming."
+   - `"failed"`: "Download failed. Continuing with streaming."
 
 ## Initialize Memory
 
