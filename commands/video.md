@@ -34,6 +34,20 @@ Analyze the provided video source with progressive memory saving and automatic v
 
 3. For batch (directory) analysis, use instruction="Provide a comprehensive analysis of this video."
 
+## Phase 1.5: Download to Memory (YouTube only)
+
+If the source is a YouTube URL, persist a local copy for reuse.
+
+1. Compute `video_id` from the URL and set target path: `<memory-dir>/gr/media/videos/<video_id>.mp4`
+2. If the target file is missing, download with:
+   ```bash
+   yt-dlp --no-playlist -q -f "mp4[height<=720]/mp4/best[ext=mp4]" \
+     -o "<memory-dir>/gr/media/videos/<video_id>.mp4" \
+     "https://youtube.com/watch?v=<video_id>"
+   ```
+3. Update `<memory-dir>/gr/media/videos/.manifest.json` with title, source_url, size_mb, downloaded_at.
+4. If download fails or `yt-dlp` is unavailable, continue analysis without local media.
+
 ## Phase 2: Present & Save Initial Results
 
 1. Present the structured results clearly:
@@ -89,19 +103,23 @@ concepts: []
       ```
       The comment-analyst runs alongside Phases 2.5-4. Results append to analysis.md when done. Skip for local files.
 
-## Phase 2.5: Extract Video Frames (local files only)
+## Phase 2.5: Extract Video Frames
 
-If the input is a **local file** (not a YouTube URL), extract frames at screenshot-marked timestamps using ffmpeg.
+Extract shared screenshots into `gr/media/screenshots/<content_id>/` when a local video file is available.
 
-1. Parse the analysis results for `[SCREENSHOT:MM:SS:description]` markers
-2. For each marker, extract a frame using ffmpeg:
+1. Determine video source path:
+   - Local input file: use that path directly.
+   - YouTube input: use `<memory-dir>/gr/media/videos/<video_id>.mp4` if it exists.
+   - If no local file exists, skip frame extraction gracefully.
+2. Parse analysis results for `[SCREENSHOT:MM:SS:description]` markers.
+3. For each marker, extract a frame using ffmpeg:
 
 ```
 Bash: python3 -c "
 import subprocess, os, re
 
 video_path = '<absolute-path-to-video>'
-frames_dir = '<memory-dir>/gr/video/<slug>/frames'
+frames_dir = '<memory-dir>/gr/media/screenshots/<content_id>'
 os.makedirs(frames_dir, exist_ok=True)
 
 analysis = open('<memory-dir>/gr/video/<slug>/analysis.md').read()
@@ -123,16 +141,15 @@ print(f'Extracted {len(markers)} frames')
 "
 ```
 
-3. Replace markers in `analysis.md` with embedded images:
+4. Write `<memory-dir>/gr/media/screenshots/<content_id>/manifest.json` with timestamp, description, filename entries.
+5. Replace markers in `analysis.md` with embedded images:
    - `[SCREENSHOT:12:44:SAP scherm]` becomes:
    ```markdown
-   ![SAP scherm](frames/frame_1244.png)
+   ![SAP scherm](../../media/screenshots/<content_id>/frame_1244.png)
    *12:44 — SAP scherm*
    ```
 
-4. If ffmpeg is not installed or extraction fails, leave the markers as timestamped text references: `*(12:44: SAP scherm)*`
-
-**Skip this phase** for YouTube URLs — ffmpeg can't extract frames from remote videos without downloading.
+6. If ffmpeg is not installed or extraction fails, keep markers as timestamped text references.
 
 ## Phase 3: Enrich with Relationships
 

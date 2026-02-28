@@ -15,13 +15,10 @@ Start an interactive Q&A session with a video, progressively building knowledge.
    - If it starts with `http://` or `https://`: use `video_create_session` with `url` parameter
    - Otherwise (file path): use `video_create_session` with `file_path` parameter
 
-2. **For YouTube URLs**: ask the user whether to download the video for cached sessions using `AskUserQuestion`:
-   - Question: "Download video for faster multi-turn chat?"
-   - Option 1: "Yes, download (Recommended)" — description: "~2 min setup, then each turn is faster and cheaper (cached tokens). Requires yt-dlp."
-   - Option 2: "No, stream directly" — description: "Instant start, but Gemini re-fetches the video every turn. Fine for 1-3 questions."
-   - If "Yes": pass `download=true` to `video_create_session`
-   - If "No": pass `download=false` (default)
-   - Skip this question for local files (they're already local)
+2. **For YouTube URLs**: check `<memory-dir>/gr/media/videos/<video_id>.mp4` first.
+   - If present: call `video_create_session(file_path="<that local path>")` for fastest local reuse.
+   - If missing: ask user whether to download via `video_create_session(download=true)` or stream directly.
+   - For local files, call `video_create_session(file_path=...)` directly.
 
 3. Use description="Interactive Q&A session" for the session creation
 4. Present the video title and session info. If `download_status` is present, explain:
@@ -60,22 +57,22 @@ concepts: []
 5. Tell the user: **Session notes auto-saving to `gr/video-chat/<slug>/`**
 6. Invite the user to ask questions about the video.
 
-## Frame Extraction Support (local files only)
+## Frame Extraction Support
 
-When the input is a **local file** (not YouTube), the agent can extract video frames at specific timestamps. This enables visual documentation of discussions.
+When a local video file is available (direct local input or downloaded YouTube copy), the agent can extract frames at specific timestamps.
 
 When a question or answer references a specific visual moment (screen share, diagram, demo), the agent should:
 
 1. Note the timestamp from the `video_continue_session` response
 2. Extract the frame using ffmpeg:
    ```
-   Bash: ffmpeg -y -ss 00:MM:SS -i <video-path> -frames:v 1 -q:v 2 <memory-dir>/gr/video-chat/<slug>/frames/frame_MMSS.png
+   Bash: ffmpeg -y -ss 00:MM:SS -i <video-path> -frames:v 1 -q:v 2 <memory-dir>/gr/media/screenshots/<content_id>/frame_MMSS.png
    ```
-3. Embed in the Q&A entry: `![description](frames/frame_MMSS.png)`
+3. Embed in the Q&A entry: `![description](../../media/screenshots/<content_id>/frame_MMSS.png)`
 
-Create the `frames/` directory on first extraction:
+Create the shared screenshot directory on first extraction:
 ```
-Bash: mkdir -p <memory-dir>/gr/video-chat/<slug>/frames
+Bash: mkdir -p <memory-dir>/gr/media/screenshots/<content_id>
 ```
 
 **When to extract frames:**
