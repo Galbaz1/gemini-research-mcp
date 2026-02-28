@@ -17,6 +17,7 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 11. [URL Validation](#11-url-validation)
 12. [Error Handling](#12-error-handling)
 13. [Prompt Templates](#13-prompt-templates)
+14. [Related Plans](#14-related-plans)
 
 ---
 
@@ -1060,3 +1061,11 @@ _ANALYSIS_PREAMBLE = (
 ```
 
 This is prepended to the user's instruction for default-schema video analysis.
+
+---
+
+## 14. Related Plans
+
+| Plan | Status | Description |
+|------|--------|-------------|
+| [Video Output Contract Hardening](plans/VIDEO_OUTPUT_CONTRACT_HARDENING.md) | Implemented | Server-side contract enforcement via `strict_contract=True` on `video_analyze`. Produces validated artifacts (analysis.md, strategy.md, concept-map.html) with quality gates. |

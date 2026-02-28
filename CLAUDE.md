@@ -20,7 +20,7 @@ GEMINI_API_KEY=... uv run video-research-mcp                         # run serve
 
 | Sub-server | Tools | File |
 |------------|-------|------|
-| video | `video_analyze`, `video_create_session`, `video_continue_session`, `video_batch_analyze` | `tools/video.py` |
+| video | `video_analyze`, `video_create_session`, `video_continue_session`, `video_batch_analyze` | `tools/video.py`, `tools/video_session.py` |
 | youtube | `video_metadata`, `video_comments`, `video_playlist` | `tools/youtube.py` |
 | research | `research_deep`, `research_plan`, `research_assess_evidence` | `tools/research.py` |
 | content | `content_analyze`, `content_extract` | `tools/content.py` |
@@ -30,11 +30,14 @@ GEMINI_API_KEY=... uv run video-research-mcp                         # run serve
 
 **Key patterns:**
 - **Instruction-driven tools** — tools accept free-text `instruction` + optional `output_schema` instead of fixed modes
-- **Structured output** — `GeminiClient.generate_structured(contents, schema=ModelClass)` returns validated Pydantic models
+- **Structured output** — `GeminiClient.generate_structured(contents, schema=ModelClass)` returns validated Pydantic models; `generate_json_validated()` adds dual-path validation (Pydantic TypeAdapter or jsonschema)
 - **Error handling** — tools never raise; return `make_tool_error()` dicts with `error`, `category`, `hint`, `retryable`
+- **Contract enforcement** — opt-in `strict_contract=True` on `video_analyze` produces validated artifacts with quality gates via `contract/` package
 - **Write-through storage** — every tool auto-stores results to Weaviate when configured; store calls are non-fatal
 
 **Key singletons:** `GeminiClient` (client.py), `get_config()` (config.py), `session_store` (sessions.py, optional SQLite via persistence.py), `cache` (cache.py), `WeaviateClient` (weaviate_client.py).
+
+**Contract pipeline** (`contract/`): `pipeline.py` (orchestration), `render.py` (markdown/HTML artifacts), `quality.py` (quality gates). Only loaded when `strict_contract=True`.
 
 **Optional dependency:** `weaviate-agents>=1.2.0` (install via `pip install video-research-mcp[agents]`) enables `knowledge_ask` and `knowledge_query` tools powered by Weaviate's QueryAgent.
 
@@ -74,9 +77,9 @@ Google-style. Required on every module, public class, public function/method, an
 
 ## Testing
 
-303 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
+453 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
 
-**Key fixtures** (`conftest.py`): `mock_gemini_client` (mocks `.get()`, `.generate()`, `.generate_structured()`), `clean_config` (isolates config), autouse `GEMINI_API_KEY=test-key-not-real`.
+**Key fixtures** (`conftest.py`): `mock_gemini_client` (mocks `.get()`, `.generate()`, `.generate_structured()`, `.generate_json_validated()`), `clean_config` (isolates config), autouse `GEMINI_API_KEY=test-key-not-real`.
 
 **File naming:** `test_<domain>_tools.py` for tools, `test_<module>.py` for non-tool modules.
 
@@ -108,6 +111,7 @@ Canonical source: `config.py:ServerConfig`. Key variables:
 | `WEAVIATE_URL` | `""` | Empty = knowledge store disabled |
 | `WEAVIATE_API_KEY` | `""` | Required for Weaviate Cloud |
 | `GEMINI_SESSION_DB` | `""` | Empty = in-memory only |
+| `VIDEO_OUTPUT_DIR` | `output/` | Base dir for strict-contract artifacts |
 
 The server auto-loads `~/.config/video-research-mcp/.env` at startup. Process env vars always take precedence over the config file. This ensures keys are available in any workspace, even without direnv.
 
