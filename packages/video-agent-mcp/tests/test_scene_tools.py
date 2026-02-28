@@ -11,8 +11,10 @@ from video_agent_mcp.prompts.scene import (
     title_to_component_name,
     title_to_scene_key,
 )
+from video_agent_mcp.prompts.scene_templates import generate_index_content
 from video_agent_mcp.tools.scenes import (
     _build_scene_prompt,
+    _collect_generated_scenes,
     _process_scene_result,
     _read_script,
     _read_voiceover_manifest,
@@ -40,6 +42,9 @@ class TestTitleConversions:
     def test_title_to_component_name_numbers(self):
         assert title_to_component_name("Step 1 Setup") == "Step1SetupScene"
 
+    def test_title_to_component_name_leading_number(self):
+        assert title_to_component_name("3D Overview") == "Scene3DOverviewScene"
+
     def test_title_to_scene_key_strips_article(self):
         assert title_to_scene_key("The Big Problem") == "big_problem"
 
@@ -48,6 +53,23 @@ class TestTitleConversions:
 
     def test_title_to_scene_key_special_chars(self):
         assert title_to_scene_key("What's Next?") == "whats_next"
+
+
+class TestIndexTemplate:
+    """Tests for index.ts generation helpers."""
+
+    def test_generate_index_quotes_registry_keys(self):
+        content = generate_index_content(
+            scenes=[
+                {
+                    "component_name": "Scene2025OutlookScene",
+                    "filename": "Scene2025OutlookScene.tsx",
+                    "scene_key": "2025_outlook",
+                }
+            ],
+            project_title="Demo",
+        )
+        assert '"2025_outlook": Scene2025OutlookScene,' in content
 
 
 class TestExtractCode:
@@ -162,6 +184,23 @@ class TestBuildScenePrompt:
         }
         info = _build_scene_prompt(scene, 1, tmp_path / "scenes", [])
         assert "A diagram showing" in info["prompt"]
+
+
+class TestCollectGeneratedScenes:
+    """Tests for rebuilding index metadata from existing scene files."""
+
+    def test_collects_only_existing_scene_files(self, sample_script, tmp_path):
+        scenes_dir = tmp_path / "scenes"
+        scenes_dir.mkdir()
+        (scenes_dir / "TheHookScene.tsx").write_text("export const TheHookScene = () => null;")
+        (scenes_dir / "ANewSolutionScene.tsx").write_text(
+            "export const ANewSolutionScene = () => null;"
+        )
+
+        generated = _collect_generated_scenes(sample_script, scenes_dir)
+
+        assert [entry["scene_number"] for entry in generated] == [1, 3]
+        assert [entry["scene_key"] for entry in generated] == ["hook", "new_solution"]
 
 
 # ---------------------------------------------------------------------------
@@ -363,6 +402,50 @@ class TestAgentGenerateSingleScene:
 
         assert result["success"] is True
         assert result["component_name"] == "TheHookScene"
+
+    @pytest.mark.asyncio
+    async def test_single_scene_retry_rebuilds_index(self, project_dir, monkeypatch):
+        """GIVEN a partial run WHEN retrying one scene THEN index.ts includes retried scene."""
+        monkeypatch.setenv("EXPLAINER_PATH", str(project_dir.parent))
+
+        from video_agent_mcp.config import reset_config
+        reset_config()
+
+        async def mock_parallel(queries, *, concurrency=5):
+            return [
+                AgentResult(
+                    text='```tsx\nexport const TheHookScene = () => null;\n```',
+                    success=True,
+                    duration_seconds=1.0,
+                ),
+                AgentResult(text="", success=False, error="Timed out", duration_seconds=60.0),
+                AgentResult(text="", success=False, error="Timed out", duration_seconds=60.0),
+            ]
+
+        with patch("video_agent_mcp.tools.scenes.run_parallel_queries", side_effect=mock_parallel):
+            first_result = await agent_generate_scenes(project_id=project_dir.name, force=True)
+
+        assert len(first_result["scenes"]) == 1
+        index_path = project_dir / "scenes" / "index.ts"
+        before_retry = index_path.read_text()
+        assert '"big_problem": TheBigProblemScene,' not in before_retry
+
+        async def mock_query(prompt, *, system_prompt=None, **kwargs):
+            return AgentResult(
+                text='```tsx\nexport const TheBigProblemScene = () => null;\n```',
+                success=True,
+                duration_seconds=1.0,
+            )
+
+        with patch("video_agent_mcp.tools.scenes.run_agent_query", side_effect=mock_query):
+            retry_result = await agent_generate_single_scene(
+                project_id=project_dir.name,
+                scene_number=2,
+            )
+
+        assert retry_result["success"] is True
+        after_retry = index_path.read_text()
+        assert '"big_problem": TheBigProblemScene,' in after_retry
 
     @pytest.mark.asyncio
     async def test_single_scene_out_of_range(self, project_dir, monkeypatch):

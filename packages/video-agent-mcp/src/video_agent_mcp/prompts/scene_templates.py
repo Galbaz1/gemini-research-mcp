@@ -7,6 +7,8 @@ are Python format strings (curly braces escaped for TypeScript);
 REFERENCE_TEMPLATE uses raw single braces (JSX) and is written as-is.
 """
 
+import json
+
 # ---------------------------------------------------------------------------
 # styles.ts template
 # ---------------------------------------------------------------------------
@@ -566,10 +568,11 @@ def generate_index_content(
         name = scene["component_name"]
         filename = scene["filename"].replace(".tsx", "")
         scene_key = scene["scene_key"]
+        scene_key_literal = json.dumps(scene_key)
 
         imports.append(f'import {{ {name} }} from "./{filename}";')
         exports.append(f'export {{ {name} }} from "./{filename}";')
-        registry_entries.append(f"  {scene_key}: {name},")
+        registry_entries.append(f"  {scene_key_literal}: {name},")
 
     return INDEX_TEMPLATE.format(
         project_title=project_title,

@@ -74,7 +74,18 @@ class ServerConfig(BaseModel):
             raise FileNotFoundError(
                 "EXPLAINER_PATH not set — configure it to point at the explainer projects root"
             )
-        project_dir = Path(self.explainer_path) / project_id
+        if not project_id.strip():
+            raise FileNotFoundError("Project not found: project_id cannot be empty")
+
+        explainer_root = Path(self.explainer_path).expanduser().resolve()
+        project_dir = (explainer_root / project_id).resolve()
+        try:
+            project_dir.relative_to(explainer_root)
+        except ValueError as exc:
+            raise FileNotFoundError(
+                f"Project not found: {project_id} (must be under {explainer_root})"
+            ) from exc
+
         if not project_dir.is_dir():
             raise FileNotFoundError(f"Project not found: {project_dir}")
         return project_dir

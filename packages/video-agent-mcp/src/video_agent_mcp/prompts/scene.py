@@ -1014,8 +1014,16 @@ def title_to_component_name(title: str) -> str:
         PascalCase component name with ``Scene`` suffix
         (e.g. ``"ThePixelProblemScene"``).
     """
-    words = re.sub(r"[^a-zA-Z0-9\s]", "", title).split()
-    pascal = "".join(word.capitalize() for word in words)
+    normalized_title = re.sub(r"[’']", "", title)
+    words = re.findall(r"[A-Za-z0-9]+", normalized_title)
+    pascal = "".join(
+        word if word[0].isdigit() else f"{word[0].upper()}{word[1:]}"
+        for word in words
+    )
+    if not pascal:
+        pascal = "Generated"
+    if pascal[0].isdigit():
+        pascal = f"Scene{pascal}"
     return f"{pascal}Scene"
 
 

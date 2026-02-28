@@ -193,6 +193,27 @@ def _process_scene_result(
     )
 
 
+def _collect_generated_scenes(script: dict, scenes_dir: Path) -> list[dict]:
+    """Collect generated scene descriptors from files that exist on disk."""
+    generated: list[dict] = []
+    for idx, scene in enumerate(script.get("scenes", []), start=1):
+        title = scene.get("title", f"Scene {idx}")
+        component_name = title_to_component_name(title)
+        filename = f"{component_name}.tsx"
+        if not (scenes_dir / filename).is_file():
+            continue
+        generated.append(
+            {
+                "scene_number": idx,
+                "title": title,
+                "component_name": component_name,
+                "filename": filename,
+                "scene_key": title_to_scene_key(title),
+            }
+        )
+    return generated
+
+
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
@@ -362,6 +383,12 @@ async def agent_generate_single_scene(
         wall_clock = time.monotonic() - start
 
         scene_result = _process_scene_result(info, result, scenes_dir)
+        if scene_result.success:
+            generated_scenes = _collect_generated_scenes(script, scenes_dir)
+            if generated_scenes:
+                project_title = script.get("title", "Untitled")
+                index_content = generate_index_content(generated_scenes, project_title)
+                (scenes_dir / "index.ts").write_text(index_content)
 
         response = {
             "scene_number": scene_result.scene_number,
