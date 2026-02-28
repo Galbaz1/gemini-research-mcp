@@ -51,6 +51,16 @@ def _set_dummy_api_key(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _disable_tracing(monkeypatch):
+    """Disable MLflow tracing in all tests to avoid real tracking-server calls.
+
+    The ``test_tracing.py`` module patches the tracing module directly
+    and does not rely on this fixture.
+    """
+    monkeypatch.setenv("GEMINI_TRACING_ENABLED", "false")
+
+
+@pytest.fixture(autouse=True)
 def _isolate_dotenv(tmp_path, monkeypatch):
     """Prevent tests from loading the user's real ~/.config/video-research-mcp/.env."""
     monkeypatch.setattr(

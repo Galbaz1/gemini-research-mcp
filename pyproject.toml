@@ -30,11 +30,13 @@ Issues = "https://github.com/Galbaz1/video-research-mcp/issues"
 Changelog = "https://github.com/Galbaz1/video-research-mcp/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
+tracing = ["mlflow-tracing>=3.0"]
 agents = ["weaviate-agents>=1.2.0"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=1.0",
     "ruff>=0.9",
+    "mlflow-tracing>=3.0",
 ]
 
 [project.scripts]

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastmcp import FastMCP
 
 from .client import GeminiClient
-from . import context_cache
+from . import context_cache, tracing
 from .config import get_config
 from .weaviate_client import WeaviateClient
 from .tools.video import video_server
@@ -24,8 +24,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def _lifespan(server: FastMCP):
-    """Startup/shutdown hook — tears down shared Gemini clients."""
+    """Startup/shutdown hook — sets up tracing, tears down shared clients."""
+    tracing.setup()
     yield {}
+    tracing.shutdown()
     if get_config().clear_cache_on_shutdown:
         await context_cache.clear()
     await WeaviateClient.aclose()
