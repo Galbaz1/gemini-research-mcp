@@ -65,8 +65,15 @@ class ServerConfig(BaseModel):
             except (ValueError, TypeError):
                 return default
 
+        # Auto-detect explainer path: env var → sibling submodule → empty
+        explainer_path = os.getenv("EXPLAINER_PATH", "")
+        if not explainer_path:
+            submodule = Path(__file__).resolve().parents[3] / "video-explainer"
+            if (submodule / "pyproject.toml").is_file():
+                explainer_path = str(submodule)
+
         return cls(
-            explainer_path=os.getenv("EXPLAINER_PATH", ""),
+            explainer_path=explainer_path,
             projects_path=os.getenv("EXPLAINER_PROJECTS_PATH", ""),
             tts_provider=os.getenv("EXPLAINER_TTS_PROVIDER", "mock"),
             timeout=_int("EXPLAINER_TIMEOUT", 600),
