@@ -13,3 +13,5 @@ dist/
 node_modules/
 *.tgz
 gr-file-manifest.json
+mlflow.db
+video_analysis/

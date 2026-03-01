@@ -151,4 +151,3 @@ Main variables:
 - `docs/PLUGIN_DISTRIBUTION.md`
 - `docs/PUBLISHING.md`
 - `docs/RELEASE_CHECKLIST.md`
-

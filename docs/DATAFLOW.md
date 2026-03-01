@@ -830,11 +830,11 @@ Verified during this audit:
 
 | Area | CLAUDE.md / Docs claim | Actual code | Impact |
 |------|----------------------|------------|--------|
-| Tool count | CLAUDE.md says "25 tools" | 24 tools (4+3+4+3+1+2+7) | CLAUDE.md slightly high — see note below |
+| Tool count | Core docs now state 24 tools | 24 tools (4+3+4+3+1+2+7) | **Resolved** |
 | Knowledge tools in CLAUDE.md table | Lists 7 knowledge tools | 7 tools registered | **Resolved** |
-| Knowledge `__init__.py` docstring | Says "8 tools" | 7 tools registered | Docstring slightly stale |
+| Knowledge `__init__.py` docstring | Says "7 tools" | 7 tools registered | **Resolved** |
 | video-research SKILL.md | Says "13 tools" | 24 tools exist; skill only documents the original 13 (pre-knowledge expansion) | Skill guide missing knowledge tools |
 | weaviate-setup SKILL.md | Says "13 existing tools automatically write" and "4 knowledge query tools" | 11 tools write to Weaviate; 7 knowledge tools exist | Both numbers outdated |
 | Model presets in `commands/models.md` | Says `stable` uses "3 Pro" | `config.py` shows `stable` uses `gemini-3-pro-preview` | Consistent |
 
-Note: CLAUDE.md lists 25 tools because it counts `knowledge_ask` as separate from the 7 knowledge tools listed in the architecture table. The actual registered tool count is 24 (7 knowledge tools including `knowledge_ask`).
+Note: The canonical registered tool count is 24 (7 knowledge tools including `knowledge_ask`).

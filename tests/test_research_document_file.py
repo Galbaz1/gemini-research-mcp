@@ -64,57 +64,31 @@ class TestNormalizeDocumentUrl:
         assert result == "https://arxiv.org/pdf/2401.12345.pdf"
 
 
-class TestDownloadDocumentFilename:
-    """Tests for filename extraction in _download_document."""
+class TestDownloadDocument:
+    """Tests for _download_document delegation to download_checked."""
 
-    async def test_unsupported_extension_preserves_original_name(self, tmp_path):
-        """GIVEN URL with .docx extension WHEN downloaded THEN filename kept as-is.
+    async def test_normalizes_arxiv_url_before_download(self, tmp_path, clean_config):
+        """GIVEN arXiv /abs/ URL WHEN _download_document THEN passes normalized URL to download_checked."""
+        with patch("video_research_mcp.tools.research_document_file.download_checked", new_callable=AsyncMock) as mock_dl:
+            mock_dl.return_value = tmp_path / "2401.12345.pdf"
+            await _download_document("https://arxiv.org/abs/2401.12345", tmp_path)
 
-        This ensures _doc_mime_type correctly rejects the unsupported extension
-        downstream, rather than silently renaming to document.pdf.
-        """
-        mock_resp = AsyncMock()
-        mock_resp.content = b"fake docx content"
-        mock_resp.raise_for_status = lambda: None
+            called_url = mock_dl.call_args[0][0]
+            assert called_url == "https://arxiv.org/pdf/2401.12345.pdf"
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.get = AsyncMock(return_value=mock_resp)
+    async def test_passes_non_arxiv_url_unchanged(self, tmp_path, clean_config):
+        """GIVEN regular URL WHEN _download_document THEN passes URL unchanged."""
+        with patch("video_research_mcp.tools.research_document_file.download_checked", new_callable=AsyncMock) as mock_dl:
+            mock_dl.return_value = tmp_path / "report.pdf"
+            await _download_document("https://example.com/report.pdf", tmp_path)
 
-        with patch("video_research_mcp.tools.research_document_file.httpx.AsyncClient", return_value=mock_client):
-            result = await _download_document("https://example.com/paper.docx", tmp_path)
+            called_url = mock_dl.call_args[0][0]
+            assert called_url == "https://example.com/report.pdf"
 
-        assert result.name == "paper.docx"  # NOT "document.pdf"
+    async def test_passes_max_bytes_from_config(self, tmp_path, clean_config):
+        """download_checked receives max_bytes from config (default 50MB)."""
+        with patch("video_research_mcp.tools.research_document_file.download_checked", new_callable=AsyncMock) as mock_dl:
+            mock_dl.return_value = tmp_path / "doc.pdf"
+            await _download_document("https://example.com/doc.pdf", tmp_path)
 
-    async def test_no_extension_defaults_to_pdf(self, tmp_path):
-        """GIVEN URL with no file extension WHEN downloaded THEN defaults to document.pdf."""
-        mock_resp = AsyncMock()
-        mock_resp.content = b"fake pdf content"
-        mock_resp.raise_for_status = lambda: None
-
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.get = AsyncMock(return_value=mock_resp)
-
-        with patch("video_research_mcp.tools.research_document_file.httpx.AsyncClient", return_value=mock_client):
-            result = await _download_document("https://example.com/document", tmp_path)
-
-        assert result.name == "document.pdf"
-
-    async def test_supported_extension_kept(self, tmp_path):
-        """GIVEN URL with .pdf extension WHEN downloaded THEN filename preserved."""
-        mock_resp = AsyncMock()
-        mock_resp.content = b"fake pdf content"
-        mock_resp.raise_for_status = lambda: None
-
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client.get = AsyncMock(return_value=mock_resp)
-
-        with patch("video_research_mcp.tools.research_document_file.httpx.AsyncClient", return_value=mock_client):
-            result = await _download_document("https://example.com/report.pdf", tmp_path)
-
-        assert result.name == "report.pdf"
+            assert mock_dl.call_args[1]["max_bytes"] == 50 * 1024 * 1024

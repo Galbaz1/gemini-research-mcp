@@ -8,7 +8,7 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 2. [Composite Server Pattern](#2-composite-server-pattern)
 3. [GeminiClient Pipeline](#3-geminiclient-pipeline)
 4. [Tool Conventions](#4-tool-conventions)
-5. [Tool Reference (25 tools)](#5-tool-reference-25-tools)
+5. [Tool Reference (24 tools)](#5-tool-reference-24-tools)
 6. [Singletons](#6-singletons)
 7. [Weaviate Integration](#7-weaviate-integration)
 8. [Session Management](#8-session-management)
@@ -25,7 +25,7 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 
 ## 1. System Overview
 
-`video-research-mcp` is an MCP (Model Context Protocol) server that exposes 25 tools for video analysis, deep research, content extraction, web search, and knowledge management. It communicates over **stdio transport** using **FastMCP** (`fastmcp>=3.0.2`) and is powered by **Gemini 3.1 Pro** via the `google-genai` SDK.
+`video-research-mcp` is an MCP (Model Context Protocol) server that exposes 24 tools for video analysis, deep research, content extraction, web search, and knowledge management. It communicates over **stdio transport** using **FastMCP** (`fastmcp>=3.0.2`) and is powered by **Gemini 3.1 Pro** via the `google-genai` SDK.
 
 ### Core Dependencies
 
@@ -113,7 +113,7 @@ src/video_research_mcp/
     search.py            search_server (1 tool)
     infra.py             infra_server (2 tools)
     knowledge_filters.py Collection-aware Weaviate filter builder
-    knowledge/           knowledge_server (8 tools: search, retrieval, ingest, QueryAgent)
+    knowledge/           knowledge_server (7 tools: search, retrieval, ingest, QueryAgent)
       __init__.py        Server + tool imports
       search.py          knowledge_search with reranking + Flash summarization
       helpers.py         RERANK_PROPERTY mapping, ALLOWED_PROPERTIES, serialize
@@ -122,7 +122,7 @@ src/video_research_mcp/
       ingest.py          knowledge_ingest, knowledge_fetch, knowledge_stats
 ```
 
-**Tool count**: 4 + 3 + 4 + 3 + 1 + 2 + 8 = **25 tools** across 7 sub-servers.
+**Tool count**: 4 + 3 + 4 + 3 + 1 + 2 + 7 = **24 tools** across 7 sub-servers.
 
 ---
 
@@ -143,8 +143,8 @@ app.mount(content_server)     # tools/content.py      3 tools
 app.mount(search_server)      # tools/search.py       1 tool
 app.mount(infra_server)       # tools/infra.py        2 tools
 app.mount(youtube_server)     # tools/youtube.py      3 tools
-app.mount(knowledge_server)   # tools/knowledge/       8 tools
-#                                                     ── 25 tools total
+app.mount(knowledge_server)   # tools/knowledge/       7 tools
+#                                                     ── 24 tools total
 ```
 
 ### Lifespan Hook
@@ -396,7 +396,7 @@ Tools not in this table (`content_extract`, `video_comments`, `video_playlist`, 
 
 ---
 
-## 5. Tool Reference (25 tools)
+## 5. Tool Reference (24 tools)
 
 ### Video Server (4 tools)
 
@@ -599,7 +599,7 @@ Returns depend on `action`:
 
 Changes take effect immediately. Returns current config, active preset, and available presets.
 
-### Knowledge Server (8 tools)
+### Knowledge Server (7 tools)
 
 All knowledge tools gracefully degrade when Weaviate is not configured (return empty results, not errors). `knowledge_ask` requires the optional `weaviate-agents` package. `knowledge_query` is **deprecated** — use `knowledge_search` instead.
 

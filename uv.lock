@@ -1703,6 +1703,7 @@ dependencies = [
     { name = "fastmcp" },
     { name = "google-api-python-client" },
     { name = "google-genai" },
+    { name = "httpx" },
     { name = "pydantic" },
     { name = "weaviate-client" },
 ]
@@ -1712,10 +1713,14 @@ agents = [
     { name = "weaviate-agents" },
 ]
 dev = [
+    { name = "jsonschema" },
     { name = "mlflow-tracing" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
+]
+strict = [
+    { name = "jsonschema" },
 ]
 tracing = [
     { name = "mlflow-tracing" },
@@ -1726,6 +1731,9 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=3.0.2" },
     { name = "google-api-python-client", specifier = ">=2.100" },
     { name = "google-genai", specifier = ">=1.57" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "jsonschema", marker = "extra == 'dev'", specifier = ">=4.0" },
+    { name = "jsonschema", marker = "extra == 'strict'", specifier = ">=4.0" },
     { name = "mlflow-tracing", marker = "extra == 'dev'", specifier = ">=3.0" },
     { name = "mlflow-tracing", marker = "extra == 'tracing'", specifier = ">=3.0" },
     { name = "pydantic", specifier = ">=2.0" },
@@ -1735,7 +1743,7 @@ requires-dist = [
     { name = "weaviate-agents", marker = "extra == 'agents'", specifier = ">=1.2.0" },
     { name = "weaviate-client", specifier = ">=4.19.2" },
 ]
-provides-extras = ["tracing", "agents", "dev"]
+provides-extras = ["tracing", "agents", "strict", "dev"]
 
 [[package]]
 name = "watchfiles"

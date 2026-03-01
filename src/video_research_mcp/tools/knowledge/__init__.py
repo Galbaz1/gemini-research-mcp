@@ -1,4 +1,4 @@
-"""Knowledge query tools — 8 tools on a FastMCP sub-server."""
+"""Knowledge query tools — 7 tools on a FastMCP sub-server."""
 
 from fastmcp import FastMCP
 
