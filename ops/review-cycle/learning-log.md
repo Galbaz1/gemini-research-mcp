@@ -6,6 +6,7 @@
 - Strategy: Reuse `validate_url()` at tool ingress to unify outbound URL controls across tooling.
 - Validation: Added guard in `content_analyze` and a regression test to assert non-HTTPS URLs are rejected pre-model-call.
 - Confidence change: 0.55 -> 0.80 for URL-boundary consistency in content tooling after patch + test.
+- Delivery confidence: 0.80 -> 0.88 after PR #30 merged cleanly into `codex/review-mainline`.
 
 ## Iteration 2 seed hypotheses
 - Add an explicit per-tool trust policy matrix (local file, remote URL, external API) and test each edge.

@@ -7,6 +7,8 @@
   - `{"mode": "none", "reason": "No local changes and no ahead commits to review.", "branch": "HEAD", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 0, "pr_context": false, "pr_url": null}`
 - Scope protocol output (post-transition):
   - `{"mode": "none", "reason": "No local changes and no ahead commits to review.", "branch": "codex/review/i01", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 0, "pr_context": false, "pr_url": null}`
+- Scope protocol output (post-merge mainline):
+  - `{"mode": "commits", "reason": "Branch is ahead of base with no local unstaged/uncommitted files.", "branch": "codex/review-mainline", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 1, "pr_context": false, "pr_url": null}`
 
 ## Findings by Severity
 
@@ -56,5 +58,6 @@
 3. Output schema routes may need stricter size/shape limits to prevent pathological payload requests.
 
 ## Branch/PR Status
-- Created `codex/review-mainline` and `codex/review/i01` locally.
-- Remote PR open/merge not executed in this run (no remote operation performed).
+- Created `codex/review-mainline` and `codex/review/i01`.
+- Opened PR: [#30](https://github.com/Galbaz1/video-research-mcp/pull/30) (`codex/review/i01` -> `codex/review-mainline`).
+- Merged PR #30, deleted iteration branch, and fast-forwarded local `codex/review-mainline`.
