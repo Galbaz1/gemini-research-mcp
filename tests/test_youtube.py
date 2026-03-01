@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import video_research_mcp.config as cfg_mod
 
@@ -167,17 +167,14 @@ class TestVideoMetadata:
         assert meta.definition == "hd"
         assert "rick astley" in meta.tags
 
-    async def test_empty_response(self, mock_youtube_service):
-        """GIVEN a non-existent video WHEN fetching THEN returns empty metadata."""
+    async def test_empty_response_raises(self, mock_youtube_service):
+        """GIVEN empty items WHEN video_metadata THEN ValueError raised."""
         mock_youtube_service.videos().list().execute.return_value = (
             _mock_empty_response()
         )
 
-        meta = await YouTubeClient.video_metadata("nonexistent")
-
-        assert meta.video_id == "nonexistent"
-        assert meta.title == ""
-        assert meta.view_count == 0
+        with pytest.raises(ValueError, match="Video not found"):
+            await YouTubeClient.video_metadata("INVALID_ID")
 
 
 class TestVideoComments:
@@ -285,6 +282,19 @@ class TestVideoMetadataTool:
         assert "error" in result
         assert "category" in result
 
+    async def test_invalid_video_id_returns_error(self):
+        """GIVEN invalid video ID WHEN video_metadata tool called THEN structured error returned."""
+        with patch.object(YouTubeClient, "video_metadata", new_callable=AsyncMock) as mock_meta:
+            mock_meta.side_effect = ValueError("Video not found: INVALID_ID")
+
+            from video_research_mcp.tools.youtube import video_metadata
+
+            result = await video_metadata(url="https://www.youtube.com/watch?v=INVALID_ID")
+
+            assert "error" in result
+            assert "Video not found" in result["error"]
+            assert "category" in result
+            assert "retryable" in result
 
     async def test_api_403_returns_youtube_hint(self, mock_youtube_service):
         """GIVEN a 403 HttpError WHEN calling tool THEN returns YouTube-specific hint."""

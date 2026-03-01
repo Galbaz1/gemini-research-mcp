@@ -110,7 +110,7 @@ async def knowledge_ask(
 
         return KnowledgeAskResult(
             query=query, answer=answer, sources=sources,
-        ).model_dump()
+        ).model_dump(mode="json")
 
     except Exception as exc:
         return make_tool_error(exc)
@@ -173,7 +173,7 @@ async def knowledge_query(
 
         result = KnowledgeQueryResult(
             query=query, total_results=len(hits), results=hits,
-        ).model_dump()
+        ).model_dump(mode="json")
         result["_deprecated"] = True
         result["_deprecation_notice"] = (
             "knowledge_query is deprecated. Use knowledge_search instead, "

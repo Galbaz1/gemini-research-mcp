@@ -14,8 +14,8 @@ from ...models.knowledge import HitSummary, HitSummaryBatch, KnowledgeHit
 
 logger = logging.getLogger(__name__)
 
-_MAX_BATCH = 20
-_MAX_PROP_CHARS = 500
+_MAX_BATCH = 100
+_MAX_PROP_CHARS = 300
 
 
 def _build_prompt(hits: list[KnowledgeHit], query: str) -> str:

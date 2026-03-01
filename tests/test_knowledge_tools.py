@@ -118,6 +118,34 @@ class TestKnowledgeSearch:
         result = await knowledge_search(query="test")
         assert result["filters_applied"] is None
 
+    async def test_global_limit_truncates_merged_results(
+        self, mock_weaviate_client, clean_config, monkeypatch
+    ):
+        """GIVEN 3 collections return 5 hits each WHEN limit=5 THEN only 5 total results returned."""
+        monkeypatch.setenv("WEAVIATE_URL", "https://test.weaviate.network")
+
+        def make_obj(uuid_str, score):
+            obj = MagicMock()
+            obj.uuid = uuid_str
+            obj.properties = {"title": f"Hit {uuid_str}"}
+            obj.metadata = MagicMock(score=score, rerank_score=None)
+            return obj
+
+        # 5 objects per collection, 3 collections = 15 total raw results
+        objects_batch = [make_obj(f"uuid-{i}", 0.9 - i * 0.1) for i in range(5)]
+        mock_collection = MagicMock()
+        mock_collection.query.hybrid.return_value = MagicMock(objects=objects_batch)
+        mock_weaviate_client["client"].collections.get.return_value = mock_collection
+
+        from video_research_mcp.tools.knowledge import knowledge_search
+        result = await knowledge_search(
+            query="test", collections=["VideoAnalyses", "VideoMetadata", "ResearchFindings"], limit=5
+        )
+
+        # Should be truncated to 5, not 15
+        assert result["total_results"] == 5
+        assert len(result["results"]) == 5
+
 
 class TestKnowledgeRelated:
     """Tests for knowledge_related tool."""

@@ -76,7 +76,7 @@ async def knowledge_ingest(
             collection=collection,
             object_id=object_id,
             status="success",
-        ).model_dump()
+        ).model_dump(mode="json")
 
     except Exception as exc:
         return make_tool_error(exc)

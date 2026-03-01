@@ -392,7 +392,7 @@ async def video_create_session(
         download_status=download_status,
         cache_reason=cache_reason,
         local_filepath=local_filepath,
-    ).model_dump()
+    ).model_dump(mode="json")
 
 
 @video_server.tool(
@@ -456,7 +456,7 @@ async def video_continue_session(
             text,
             local_filepath=session.local_filepath,
         )
-        return SessionResponse(response=text, turn_count=turn).model_dump()
+        return SessionResponse(response=text, turn_count=turn).model_dump(mode="json")
     except Exception as exc:
         return make_tool_error(exc)
 
