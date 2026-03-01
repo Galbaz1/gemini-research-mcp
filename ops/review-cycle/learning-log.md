@@ -34,3 +34,14 @@
 ## Iteration 4 seed hypotheses
 - Review auth/capability guards for runtime-mutating tools (`infra_cache`, `infra_configure`).
 - Audit secret propagation paths in logs and tool error payloads.
+
+## Iteration 4 (Auth and Secret Handling) - 2026-03-01T06:03:47Z
+- Observation: `infra_configure` returned `current_config` with non-Gemini secrets intact (`youtube_api_key`, `weaviate_api_key`), and mutating infra operations had no explicit capability gate.
+- Inference: Control-plane mutators were effectively unauthenticated and config responses could leak credential material to any connected MCP client.
+- Strategy: Add explicit infra mutation policy enforcement (`INFRA_MUTATIONS_ENABLED` + optional `INFRA_ADMIN_TOKEN`), redact all secret-bearing config fields from infra responses, and classify policy denial using typed `PermissionError` mapping.
+- Validation: Implemented gating/redaction patches in `infra.py` + `config.py`, added typed `PERMISSION_DENIED` category in `errors.py`, and added focused infra-tool regression coverage; lint/tests passed.
+- Confidence change: 0.51 -> 0.84 for auth/capability controls on infra mutators and config-secret non-disclosure.
+
+## Iteration 5 seed hypotheses
+- Audit cache/data-integrity invariants around context cache registry persistence and partial-write behavior.
+- Review document/source ingestion paths for duplicate identity handling and stale-reference integrity drift.

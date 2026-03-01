@@ -9,10 +9,17 @@
 - Regression coverage:
   - [`tests/test_content_tools.py`](/Users/fausto/.codex/worktrees/ec3f/gemini-research-mcp/tests/test_content_tools.py)
 
-## FP-002: Architectural Control Surface Review (queued)
-- Context: Runtime-mutating tools (`infra_cache`, `infra_configure`) are callable without explicit auth gating.
-- Candidate mitigation: Introduce optional capability gate via config/environment and reject mutating actions when disabled.
-- Status: queued for design and compatibility analysis.
+## FP-002: Capability gate for infra mutating tools
+- Context: Runtime-mutating tools (`infra_cache`, `infra_configure`) can change global runtime state.
+- Rule: Require explicit enablement (`INFRA_MUTATIONS_ENABLED=true`) for mutating operations and require token match when `INFRA_ADMIN_TOKEN` is configured.
+- Why: Reduces unauthorized integrity/availability impact from untrusted tool-call paths.
+- Applied in iteration 4:
+  - `src/video_research_mcp/tools/infra.py`
+  - `src/video_research_mcp/config.py`
+- Regression coverage:
+  - `tests/test_infra_tools.py::TestInfraTools::test_infra_configure_blocks_mutation_when_disabled`
+  - `tests/test_infra_tools.py::TestInfraTools::test_infra_configure_requires_token_when_configured`
+  - `tests/test_infra_tools.py::TestInfraTools::test_infra_cache_clear_requires_token_when_configured`
 
 ## FP-003: Constrain local file ingress with configurable root boundary
 - Context: Tools accepting local file/directory paths in MCP environments.
@@ -47,3 +54,12 @@
   - `src/video_research_mcp/errors.py`
 - Regression coverage:
   - `tests/test_errors.py`
+
+## FP-006: Redact secret-bearing fields in infra config responses
+- Context: `infra_configure` exposes runtime config to MCP clients.
+- Rule: Exclude all secret-bearing fields (`gemini_api_key`, `youtube_api_key`, `weaviate_api_key`, `infra_admin_token`) from serialized config payloads.
+- Why: Prevents credential disclosure through control-plane tool responses.
+- Applied in iteration 4:
+  - `src/video_research_mcp/tools/infra.py`
+- Regression coverage:
+  - `tests/test_infra_tools.py::TestInfraTools::test_infra_configure_redacts_all_secret_fields`

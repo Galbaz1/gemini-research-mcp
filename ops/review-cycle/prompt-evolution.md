@@ -34,3 +34,11 @@ Run an hourly security-focused review loop with branch discipline, reflective le
 3. When concurrent requests upload identical file content, the system shall prevent duplicate upstream uploads by coordinating cache checks within a critical section.
 4. If timeout or transport exceptions occur, the tool error pipeline shall emit deterministic `NETWORK_ERROR` categorization with retryable semantics.
 5. The run shall record severity-ranked findings, implemented fixes, confidence deltas, and next hypotheses in review-cycle artifacts before completion.
+
+## Iteration 4 Mission Rewritten as EARS Requirements
+1. When iteration state indicates `current_iteration=4`, the run shall prioritize authorization controls and secret-handling paths.
+2. If iteration 3 lessons indicate typed classification improves reliability, iteration 4 shall add typed authorization failure categorization for policy-denied mutations.
+3. When `infra_cache(action="clear")` or mutating `infra_configure(...)` is requested, the system shall enforce capability policy via `INFRA_MUTATIONS_ENABLED` and optional token verification.
+4. If mutation policy is disabled or token validation fails, the tool shall return structured `make_tool_error()` output with non-retryable permission semantics.
+5. When infra tools return runtime configuration, the system shall redact all secret-bearing fields from response payloads.
+6. The run shall persist severity-ranked findings, exploit reasoning, implemented or patch-ready remediations, confidence deltas, and next-iteration hypotheses to review-cycle artifacts.

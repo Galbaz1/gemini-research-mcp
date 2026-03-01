@@ -29,6 +29,7 @@ class ErrorCategory(str, Enum):
     WEAVIATE_IMPORT = "WEAVIATE_IMPORT"
     DEPENDENCY_MISSING = "DEPENDENCY_MISSING"
     URL_POLICY_BLOCKED = "URL_POLICY_BLOCKED"
+    PERMISSION_DENIED = "PERMISSION_DENIED"
     QUALITY_GATE_FAILED = "QUALITY_GATE_FAILED"
     ARTIFACT_GENERATION_FAILED = "ARTIFACT_GENERATION_FAILED"
     SCHEMA_VALIDATION_FAILED = "SCHEMA_VALIDATION_FAILED"
@@ -53,6 +54,11 @@ def categorize_error(error: Exception) -> tuple[ErrorCategory, str]:
 
     if isinstance(error, UrlPolicyError):
         return (ErrorCategory.URL_POLICY_BLOCKED, str(error))
+    if isinstance(error, PermissionError):
+        return (
+            ErrorCategory.PERMISSION_DENIED,
+            "Operation blocked by server policy — check capability settings and credentials",
+        )
     if isinstance(error, TimeoutError | httpx.TimeoutException):
         return (
             ErrorCategory.NETWORK_ERROR,
