@@ -9,9 +9,45 @@ model: sonnet
 
 Create and produce an explainer video from content.
 
-## Workflow
+## Phase 0: Onboarding (when no arguments)
 
-### Phase 1: Setup
+If `$ARGUMENTS` is empty, guide the user:
+
+```
+AskUserQuestion:
+  question: "What kind of video do you want to create?"
+  header: "Video type"
+  options:
+    - label: "From a Production Order"
+      description: "Use an existing POD file (docs/plans/*.md) as the blueprint"
+    - label: "From research output"
+      description: "Turn a /gr:video or /gr:research analysis into a video"
+    - label: "From scratch"
+      description: "Start with a topic — I'll help you build the content"
+    - label: "Check existing projects"
+      description: "See what projects exist and their status"
+```
+
+**If "From a Production Order":**
+1. Use `Glob` to find `docs/plans/*POD*.md` or `docs/plans/*VIDEO*.md`
+2. Present the found files and let the user pick
+3. Read the POD file to extract: script, storyboard, audio direction
+4. Create project and inject the POD content
+
+**If "From research output":**
+1. Use `Glob` to find recent `~/.claude/projects/*/memory/gr/*/analysis.md` files
+2. Present the top 5 most recent analyses
+3. Let the user pick one (or multiple) as source material
+
+**If "From scratch":**
+1. Ask for the topic
+2. Suggest running `/gr:research` or `/gr:video` first to gather source material
+3. Or proceed directly with user-provided text
+
+**If "Check existing projects":**
+1. Call `explainer_list()` to show all projects with their status
+
+## Phase 1: Setup
 
 If `$ARGUMENTS` is a project ID that doesn't exist yet:
 1. Call `explainer_create(project_id="$ARGUMENTS")`

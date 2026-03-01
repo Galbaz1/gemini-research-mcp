@@ -135,6 +135,30 @@ class TestResearchPlan:
         assert "error" in result
 
 
+    async def test_research_plan_fallback_preserves_long_text(self, mock_gemini_client):
+        """GIVEN structured generation fails WHEN fallback THEN description preserves up to 2000 chars."""
+        long_text = "A" * 2500
+        mock_gemini_client["generate_structured"].side_effect = RuntimeError("Schema fail")
+        mock_gemini_client["generate"].return_value = long_text
+
+        result = await research_plan("test topic")
+
+        # Fallback should truncate at 2000, not 500
+        desc = result["phases"][0]["description"]
+        assert len(desc) == 2000
+        assert result["task_decomposition"][0] == long_text  # full text preserved
+
+    def test_topic_param_accepts_long_topics(self):
+        """TopicParam max_length=2000 allows detailed research questions."""
+        from video_research_mcp.types import TopicParam
+        from pydantic import TypeAdapter
+
+        adapter = TypeAdapter(TopicParam)
+        long_topic = "A" * 1500
+        result = adapter.validate_python(long_topic)
+        assert result == long_topic
+
+
 class TestResearchAssessEvidence:
     @pytest.mark.asyncio
     async def test_assess_evidence_structured(self, mock_gemini_client):

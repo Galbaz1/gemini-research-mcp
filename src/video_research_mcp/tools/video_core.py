@@ -100,7 +100,7 @@ async def analyze_video(
             schema=VideoResult,
             thinking_level=thinking_level,
         )
-        result = model_result.model_dump()
+        result = model_result.model_dump(mode="json")
 
     result["source"] = source_label
     if use_cache:

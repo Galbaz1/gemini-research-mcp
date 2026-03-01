@@ -88,7 +88,7 @@ class YouTubeClient:
         resp = await asyncio.to_thread(_fetch)
         items = resp.get("items", [])
         if not items:
-            return VideoMetadata(video_id=video_id)
+            raise ValueError(f"Video not found: {video_id}")
 
         item = items[0]
         snippet = item.get("snippet", {})

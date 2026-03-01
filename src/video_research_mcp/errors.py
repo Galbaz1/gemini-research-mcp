@@ -152,4 +152,4 @@ def make_tool_error(error: Exception) -> dict:
         hint=hint,
         retryable=retryable,
         retry_after_seconds=60 if cat == ErrorCategory.API_QUOTA_EXCEEDED else None,
-    ).model_dump()
+    ).model_dump(mode="json")

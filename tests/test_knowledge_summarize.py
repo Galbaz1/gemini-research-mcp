@@ -79,8 +79,8 @@ class TestSummarizeHits:
         mock_gemini_client["generate_structured"].assert_not_called()
 
     async def test_caps_batch_size(self, mock_gemini_client):
-        """GIVEN 30 hits WHEN summarize_hits THEN prompt only contains first 20."""
-        hits = [_make_hit(f"uuid-{i}", title=f"Hit {i}") for i in range(30)]
+        """GIVEN 120 hits WHEN summarize_hits THEN prompt only contains first 100."""
+        hits = [_make_hit(f"uuid-{i}", title=f"Hit {i}") for i in range(120)]
         mock_gemini_client["generate_structured"].return_value = HitSummaryBatch(summaries=[])
 
         from video_research_mcp.tools.knowledge.summarize import summarize_hits
@@ -88,9 +88,9 @@ class TestSummarizeHits:
 
         call_args = mock_gemini_client["generate_structured"].call_args
         prompt = call_args[0][0]  # first positional arg (contents)
-        # Should contain Hit 0 through Hit 19 but not Hit 20+
-        assert "uuid-19" in prompt
-        assert "uuid-20" not in prompt
+        # Should contain Hit 0 through Hit 99 but not Hit 100+
+        assert "uuid-99" in prompt
+        assert "uuid-100" not in prompt
 
     async def test_preserves_all_props_when_useful_empty(self, mock_gemini_client):
         """GIVEN Flash returns empty useful_properties WHEN summarize_hits THEN all props kept."""

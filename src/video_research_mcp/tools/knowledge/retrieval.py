@@ -52,7 +52,7 @@ async def knowledge_related(
     if not get_config().weaviate_enabled:
         return KnowledgeRelatedResult(
             source_id=object_id, source_collection=collection,
-        ).model_dump()
+        ).model_dump(mode="json")
 
     try:
         def _search():
@@ -83,7 +83,7 @@ async def knowledge_related(
             source_id=object_id,
             source_collection=collection,
             related=hits,
-        ).model_dump()
+        ).model_dump(mode="json")
 
     except Exception as exc:
         return make_tool_error(exc)
@@ -118,7 +118,7 @@ async def knowledge_stats(
         Dict matching KnowledgeStatsResult schema.
     """
     if not get_config().weaviate_enabled:
-        return KnowledgeStatsResult().model_dump()
+        return KnowledgeStatsResult().model_dump(mode="json")
 
     try:
         target = [collection] if collection else ALL_COLLECTION_NAMES
@@ -148,7 +148,7 @@ async def knowledge_stats(
         return KnowledgeStatsResult(
             collections=stats,
             total_objects=total,
-        ).model_dump()
+        ).model_dump(mode="json")
 
     except Exception as exc:
         return make_tool_error(exc)
@@ -197,7 +197,7 @@ async def knowledge_fetch(
             )
 
         result = await asyncio.to_thread(_fetch)
-        return result.model_dump()
+        return result.model_dump(mode="json")
 
     except Exception as exc:
         return make_tool_error(exc)

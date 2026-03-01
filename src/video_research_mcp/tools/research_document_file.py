@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import tempfile
 from pathlib import Path
 
@@ -35,6 +36,34 @@ def _doc_mime_type(path: Path) -> str:
     return mime
 
 
+_ARXIV_ABS_RE = re.compile(r"https?://arxiv\.org/abs/([\d.]+)(v\d+)?/?(?:\?.*)?$")
+_ARXIV_PDF_RE = re.compile(r"https?://arxiv\.org/pdf/([\d.]+)(v\d+)?/?(?:\?.*)?$")
+
+
+def _normalize_document_url(url: str) -> str:
+    """Convert known academic URLs to direct PDF download URLs.
+
+    Handles:
+        - arxiv.org/abs/XXXX.XXXXX -> arxiv.org/pdf/XXXX.XXXXX.pdf
+        - arxiv.org/pdf/XXXX.XXXXX -> arxiv.org/pdf/XXXX.XXXXX.pdf (ensure .pdf extension)
+    """
+    # arXiv abstract page -> PDF
+    m = _ARXIV_ABS_RE.match(url)
+    if m:
+        paper_id = m.group(1)
+        version = m.group(2) or ""
+        return f"https://arxiv.org/pdf/{paper_id}{version}.pdf"
+
+    # arXiv PDF without .pdf extension
+    m = _ARXIV_PDF_RE.match(url)
+    if m:
+        paper_id = m.group(1)
+        version = m.group(2) or ""
+        return f"https://arxiv.org/pdf/{paper_id}{version}.pdf"
+
+    return url
+
+
 async def _prepare_document(path: Path) -> tuple[str, str]:
     """Upload document via File API, return (file_uri, content_id).
 
@@ -53,6 +82,7 @@ async def _prepare_document(path: Path) -> tuple[str, str]:
 
 async def _download_document(url: str, tmp_dir: Path) -> Path:
     """Download a URL to a temp file with SSRF protection."""
+    url = _normalize_document_url(url)
     cfg = get_config()
     return await download_checked(url, tmp_dir, max_bytes=cfg.doc_max_download_bytes)
 

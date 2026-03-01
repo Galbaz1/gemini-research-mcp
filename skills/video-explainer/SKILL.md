@@ -99,6 +99,25 @@ After generating the pipeline:
 
 Set via `EXPLAINER_TTS_PROVIDER` in `~/.config/video-research-mcp/.env`.
 
+## ElevenLabs Voice Settings
+
+When using `elevenlabs` as TTS provider, configure voice characteristics via env vars:
+
+| Variable | Range | Default | Effect |
+|----------|-------|---------|--------|
+| `ELEVENLABS_VOICE_ID` | voice ID string | Rachel | Which voice to use |
+| `ELEVENLABS_STABILITY` | 0.0-1.0 | 0.45 | Lower = more expressive, higher = more consistent |
+| `ELEVENLABS_SIMILARITY_BOOST` | 0.0-1.0 | 0.75 | How closely to match the reference voice |
+| `ELEVENLABS_SPEED` | 0.7-1.2 | 1.0 | Speech pacing (0.7 = slow, 1.2 = fast) |
+
+These can also be set per-project in `config.yaml` under `tts:`.
+
+**Recommended settings for narration:** stability=0.45, similarity=0.75, speed=1.0 (natural pacing with emotional range).
+
+## Production Order Documents
+
+For complex videos, create a POD (Production Order Document) first — a structured blueprint with script, storyboard, audio direction, and visual specs. PODs live in `docs/plans/` and can be used as input via `/ve:explainer` → "From a Production Order".
+
 ## Error Handling
 
 All tools return error dicts on failure:

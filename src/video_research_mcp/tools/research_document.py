@@ -150,7 +150,7 @@ async def _phase_evidence_extraction(
     async def _extract_one(
         part: types.Part, source: DocumentSource, doc_map: DocumentMap,
     ) -> DocumentFindingsContainer:
-        map_text = json.dumps(doc_map.model_dump(), indent=2)
+        map_text = json.dumps(doc_map.model_dump(mode="json"), indent=2)
         prompt = DOCUMENT_EVIDENCE.format(instruction=instruction, document_map=map_text)
         contents = types.Content(parts=[part, types.Part(text=prompt)])
         result = await GeminiClient.generate_structured(
@@ -199,9 +199,9 @@ async def _phase_synthesis(
     thinking_level: ThinkingLevel,
 ) -> dict:
     """Phase 4: Produce grounded executive summary."""
-    maps_text = json.dumps([m.model_dump() for m in doc_maps], indent=2)
+    maps_text = json.dumps([m.model_dump(mode="json") for m in doc_maps], indent=2)
     findings_text = _format_findings(all_findings)
-    cross_text = json.dumps(cross_refs.model_dump(), indent=2)
+    cross_text = json.dumps(cross_refs.model_dump(mode="json"), indent=2)
     prompt = DOCUMENT_SYNTHESIS.format(
         instruction=instruction,
         document_maps=maps_text,
@@ -222,7 +222,7 @@ async def _phase_synthesis(
     if not synthesis.findings:
         synthesis.findings = [f for fc in all_findings for f in fc.findings]
     synthesis.cross_references = cross_refs
-    result = synthesis.model_dump()
+    result = synthesis.model_dump(mode="json")
 
     await store_research_finding(result)
 
@@ -237,7 +237,7 @@ async def _quick_synthesis(
     thinking_level: ThinkingLevel,
 ) -> dict:
     """Quick scope: skip phases 2-4, produce lightweight report from maps only."""
-    maps_text = json.dumps([m.model_dump() for m in doc_maps], indent=2)
+    maps_text = json.dumps([m.model_dump(mode="json") for m in doc_maps], indent=2)
     prompt = DOCUMENT_SYNTHESIS.format(
         instruction=instruction,
         document_maps=maps_text,
@@ -255,7 +255,7 @@ async def _quick_synthesis(
     report.instruction = instruction
     report.scope = "quick"
     report.document_sources = sources
-    result = report.model_dump()
+    result = report.model_dump(mode="json")
 
     await store_research_finding(result)
 

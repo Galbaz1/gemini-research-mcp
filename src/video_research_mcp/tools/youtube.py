@@ -99,10 +99,12 @@ async def video_metadata(
 
     try:
         meta = await YouTubeClient.video_metadata(video_id)
-        meta_dict = meta.model_dump()
+        meta_dict = meta.model_dump(mode="json")
         from ..weaviate_store import store_video_metadata
         await store_video_metadata(meta_dict)
         return meta_dict
+    except ValueError as exc:
+        return make_tool_error(exc)
     except Exception as exc:
         return _youtube_api_error(exc)
 
@@ -184,6 +186,6 @@ async def video_playlist(
 
     try:
         info = await YouTubeClient.playlist_items(playlist_id, max_items)
-        return info.model_dump()
+        return info.model_dump(mode="json")
     except Exception as exc:
         return _youtube_api_error(exc)
