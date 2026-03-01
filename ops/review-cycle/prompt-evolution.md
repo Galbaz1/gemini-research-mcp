@@ -49,3 +49,11 @@ Run an hourly security-focused review loop with branch discipline, reflective le
 3. When cache payloads are written to disk, the system shall stage writes in a temporary file and atomically replace the target file.
 4. If persisted context-cache registry content contains malformed entries, the loader shall ignore invalid shapes and shall only hydrate validated string mappings.
 5. The run shall record severity-ranked findings, exploit reasoning, implemented fixes, confidence deltas, and next-iteration hypotheses in review-cycle artifacts before completion.
+
+## Iteration 6 Mission Rewritten as EARS Requirements
+1. When iteration state indicates `current_iteration=6`, the run shall prioritize error handling and fault-isolation transparency.
+2. If iteration 5 lessons emphasize integrity contracts across persistence boundaries, iteration 6 shall apply the same explicit-integrity pattern to partial-failure metadata across preparation and synthesis boundaries.
+3. When any document source fails during download or upload preparation, the system shall record structured per-source failure metadata (`source`, `phase`, `error_type`, `error`).
+4. If at least one source is still prepared successfully, the final `research_document` response shall include preparation-failure metadata instead of silently dropping failed sources.
+5. If all sources fail preparation, the tool shall return structured `make_tool_error()` output and shall not proceed to synthesis.
+6. The run shall persist severity-ranked findings, exploit reasoning, implemented remediations, confidence deltas, and next-iteration hypotheses in review-cycle artifacts before completion.

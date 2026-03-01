@@ -39,9 +39,10 @@
 ## R-006
 - Severity: Low
 - Area: Partial-failure transparency / evidence integrity
-- Evidence: `src/video_research_mcp/tools/research_document_file.py:109` and `:131` log and skip per-source failures without surfacing skipped sources in tool response.
-- Exploit reasoning: Consumers may assume full-document coverage when synthesis actually used a subset, reducing trust in evidence completeness.
-- Status: Open (patch-ready mitigation queued for iteration 6 fault-isolation pass).
+- Evidence: Prior to iteration 6, `src/video_research_mcp/tools/research_document_file.py` logged per-source preparation failures but did not expose skipped sources in result payloads.
+- Exploit reasoning: Consumers could assume full-source coverage when synthesis used only a subset.
+- Status: Mitigated in iteration 6 by adding structured `preparation_issues` propagation from preparation helpers into final report schema.
+- Residual risk: Preparation issues are exposed only when at least one source is prepared; all-source failure still returns a top-level tool error.
 
 ## R-007
 - Severity: High
@@ -63,3 +64,10 @@
 - Evidence: Prior to iteration 5, `src/video_research_mcp/context_cache.py::_load_registry` loaded nested JSON without strict shape validation.
 - Exploit reasoning: Malformed persisted data could introduce invalid in-memory mappings and reduce reliability of context cache diagnostics/reuse.
 - Status: Mitigated in iteration 5 with strict `{str: {str: str}}` filtering during load.
+
+## R-010
+- Severity: Medium
+- Area: Prompt-injection/tool-misuse resistance
+- Evidence: Iterations 1-6 focused on trust boundaries, validation, idempotency, auth, cache integrity, and fault isolation; no dedicated adversarial prompt-injection review artifacts yet.
+- Exploit reasoning: Untrusted content merged into model prompts may induce policy bypass attempts without explicit adversarial coverage tests.
+- Status: Open (scheduled as iteration 7 primary focus).
