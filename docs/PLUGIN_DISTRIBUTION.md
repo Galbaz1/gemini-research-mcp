@@ -183,7 +183,7 @@ A `skills/<name>/SKILL.md` provides domain knowledge that Claude loads when rele
 ```markdown
 ---
 name: video-research
-description: "Teaches Claude how to use the 22 video-research tools"
+description: "Teaches Claude how to use the 24 video-research-mcp tools"
 ---
 
 ## Tool Signatures

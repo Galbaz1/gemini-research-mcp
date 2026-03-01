@@ -12,7 +12,7 @@ This layout mirrors `.claude/rules/*.md` path scoping using Codex's directory-ba
 
 ## What This Is
 
-A monorepo with 3 MCP servers:
+A monorepo with 3 MCP servers (41 tools total):
 
 1. **video-research-mcp** (root) — 24 tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini 3.1 Pro (`google-genai`) and YouTube Data API v3.
 2. **video-explainer-mcp** (`packages/video-explainer-mcp/`) — 15 tools for synthesizing explainer videos.

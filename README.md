@@ -16,13 +16,12 @@ Claude Code can't process video. Gemini 3.1 Pro can. This plugin bridges the two
 
 ## What's in the box
 
-Three MCP servers, installable together or separately:
+41 tools across three MCP servers:
 
 | Server | Tools | Purpose |
 |--------|-------|---------|
 | **video-research-mcp** | 24 | Video analysis, deep research, content extraction, web search, knowledge store |
-| **video-explainer-mcp** | 15 | Synthesize explainer videos from research content (wraps [video_explainer](https://github.com/prajwal-y/video_explainer)) |
-| **video-agent-mcp** | 2 | Parallel scene generation for the explainer pipeline (Claude Agent SDK) |
+| **video-creation** | 17 | Synthesize explainer videos from research — project setup, pipeline, quality, audio, and parallel scene generation (wraps [video_explainer](https://github.com/prajwal-y/video_explainer) + [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk)) |
 
 ## Install
 
@@ -31,7 +30,7 @@ npx video-research-mcp@latest
 export GEMINI_API_KEY="your-key-here"
 ```
 
-One install. One API key. The installer copies 13 commands, 5 skills, and 6 agents to `~/.claude/` and configures the MCP servers to run via `uvx` from PyPI.
+One install. One API key. The installer copies 14 commands, 5 skills, and 6 agents to `~/.claude/` and configures the MCP servers to run via `uvx` from PyPI.
 
 ```bash
 npx video-research-mcp@latest --check     # show install status
@@ -190,7 +189,7 @@ Files are also saved to Claude's project memory for `/gr:recall`.
 </details>
 
 <details>
-<summary><strong>video-explainer-mcp -- 15 tools</strong></summary>
+<summary><strong>Video Creation -- 17 tools</strong></summary>
 
 **Project** (4): `explainer_create`, `explainer_inject`, `explainer_status`, `explainer_list`
 
@@ -200,14 +199,7 @@ Files are also saved to Claude's project memory for `/gr:recall`.
 
 **Audio** (2): `explainer_sound`, `explainer_music`
 
-</details>
-
-<details>
-<summary><strong>video-agent-mcp -- 2 tools</strong></summary>
-
-`agent_generate_scenes` -- Generate all scenes in parallel using Claude Agent SDK
-
-`agent_generate_single_scene` -- Generate a single scene (subtask of the parallel tool)
+**Scene Generation** (2): `agent_generate_scenes`, `agent_generate_single_scene`
 
 </details>
 
@@ -350,7 +342,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and PR guidelines. 
 - **[video_explainer](https://github.com/prajwal-y/video_explainer)** by [prajwal-y](https://github.com/prajwal-y) -- the video synthesis engine behind the explainer pipeline. We extended it with configurable ElevenLabs voice settings, env-based configuration, and MCP tool integration. The original repo is included as a git submodule at `packages/video-explainer/`.
 - **[Weaviate](https://weaviate.io/)** -- vector database powering the knowledge store. Eleven collections, hybrid search, and the [Weaviate Claude Code skill](https://github.com/weaviate/weaviate-claude-code-skill) that inspired the knowledge architecture.
 - **[Google Gemini](https://ai.google.dev/)** (`google-genai` SDK) -- Gemini 3.1 Pro provides native video understanding, thinking mode, context caching, and the 1M token window that makes all of this work.
-- **[FastMCP](https://github.com/jlowin/fastmcp)** -- MCP server framework. The composable sub-server pattern (`app.mount()`) keeps 24 tools organized across 7 namespaces.
+- **[FastMCP](https://github.com/jlowin/fastmcp)** -- MCP server framework. The composable sub-server pattern (`app.mount()`) keeps 41 tools organized across 3 servers and 15 namespaces.
 - **[MLflow](https://mlflow.org/)** (`mlflow-tracing`) -- optional observability. Every Gemini call becomes a traceable span with token counts and latency.
 - **[Pydantic](https://docs.pydantic.dev/)** -- schema validation for all tool I/O. Structured generation via `model_json_schema()`.
 - **[Remotion](https://www.remotion.dev/)** -- React-based video rendering for the explainer pipeline.

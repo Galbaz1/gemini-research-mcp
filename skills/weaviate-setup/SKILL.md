@@ -108,7 +108,7 @@ This should return counts for all 11 collections (all 0 initially). If it return
 
 Once `knowledge_stats` returns successfully, tell the user:
 
-1. All 23 tools now automatically store results to Weaviate
+1. All 24 tools now automatically store results to Weaviate
 2. Use `knowledge_search(query="...")` to find past results semantically (supports hybrid, semantic, keyword modes)
 3. Use `knowledge_related(object_id="...", collection="...")` to find similar items
 4. Use `knowledge_fetch(object_id="...", collection="...")` to retrieve a specific object by UUID
