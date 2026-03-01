@@ -120,3 +120,22 @@
 - Regression coverage:
   - `tests/test_research_document_tools.py::TestResearchDocument::test_rejects_too_many_sources`
   - `tests/test_research_document_file.py::TestPrepareAllDocumentsWithIssues::test_cleans_tmp_dir_after_url_preparation`
+
+## FP-012: Validate redirect targets before issuing follow-up requests
+- Context: URL download helpers that fetch user-supplied URLs and allow redirects.
+- Rule: Disable automatic redirect following and validate every redirect `Location` target with URL policy checks before sending the next request.
+- Why: Prevents first-hop SSRF attempts where a safe initial URL redirects into blocked/internal address space before policy enforcement.
+- Applied in iteration 9:
+  - `src/video_research_mcp/url_policy.py`
+- Regression coverage:
+  - `tests/test_url_policy.py::TestDownloadChecked::test_redirect_validates_final_url`
+  - `tests/test_url_policy.py::TestDownloadChecked::test_blocks_redirect_before_following_blocked_target`
+
+## FP-013: Normalize tool unwrapping in batch-tool direct-call tests
+- Context: Tests that directly invoke decorated FastMCP tools.
+- Rule: Apply `unwrap_tool()` at import boundary before awaiting tool functions.
+- Why: Prevents `FunctionTool` wrapper mismatches from masking true behavioral regressions.
+- Applied in iteration 9:
+  - `tests/test_content_batch_tools.py`
+- Regression coverage:
+  - `tests/test_content_batch_tools.py` (full module passes in targeted run)
