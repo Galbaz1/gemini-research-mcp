@@ -89,3 +89,14 @@
 ## Iteration 9 seed hypotheses
 - Audit test/regression blind spots for stress and concurrency scenarios not represented by current unit tests.
 - Add adversarial partial-failure tests validating bounded concurrency behavior under mixed exception/success outcomes.
+
+## Iteration 9 (Test and Regression Blind Spots) - 2026-03-01T15:04:13Z
+- Observation: URL download redirect handling validated only after auto-follow, and `tests/test_content_batch_tools.py` had direct-call wrapper failures (`FunctionTool` not callable).
+- Inference: Critical trust-boundary policy and regression harness contracts were implicit in non-primary paths, creating security and test-signal blind spots.
+- Strategy: Enforce pre-follow redirect validation with explicit max-hop policy and add adversarial redirect regression coverage; standardize `unwrap_tool` usage in batch tool tests.
+- Validation: Implemented manual redirect policy in `url_policy.py`, added blocked-redirect pre-follow test coverage, fixed `content_batch` test unwrapping; lint and targeted tests passed.
+- Confidence change: 0.52 -> 0.86 for iteration-9 objective coverage.
+
+## Iteration 10 seed hypotheses
+- Synthesize iteration 1-9 findings into a prioritized remediation roadmap with residual-risk scoring.
+- Consolidate high-impact security regressions into a minimal smoke suite for recurring automation runs.

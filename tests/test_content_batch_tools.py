@@ -5,10 +5,13 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, patch
 
+from tests.conftest import unwrap_tool
 from video_research_mcp.tools.content_batch import (
     content_batch_analyze,
     _resolve_files,
 )
+
+content_batch_analyze = unwrap_tool(content_batch_analyze)
 
 
 @pytest.fixture()

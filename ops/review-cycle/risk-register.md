@@ -27,7 +27,8 @@
 - Area: Validation/test contract reliability
 - Evidence: Decorated tool direct calls fail as `FunctionTool` in subset test runs (`tests/test_content_batch_tools.py`).
 - Exploit reasoning: Test harness contract drift can hide regressions and delay detection of real validation failures.
-- Status: Partially mitigated (iteration 7 updated `tests/test_content_tools.py` to use `unwrap_tool`; `tests/test_content_batch_tools.py` remains open for iteration 9 pass).
+- Status: Mitigated in iteration 9 by applying `unwrap_tool` in `tests/test_content_batch_tools.py` and validating targeted module pass.
+- Residual risk: New tool test modules can regress if unwrapping pattern is not consistently applied.
 
 ## R-005
 - Severity: Medium
@@ -80,3 +81,11 @@
 - Exploit reasoning: Large attacker-controlled source sets can drive bursty parallel downloads/uploads/model calls and persistent temp-directory growth, degrading service availability and host stability.
 - Status: Mitigated in iteration 8 via `RESEARCH_DOCUMENT_MAX_SOURCES`, bounded phase concurrency controls, and guaranteed tmp-dir cleanup.
 - Residual risk: Workload limits are currently concentrated in `research_document`; equivalent envelope checks should be reviewed for other future multi-source tools.
+
+## R-012
+- Severity: High
+- Area: Trust boundary / redirect SSRF control
+- Evidence: Prior to iteration 9, `src/video_research_mcp/url_policy.py::download_checked` used `follow_redirects=True` and validated redirected target only after follow.
+- Exploit reasoning: Safe-looking external URL could redirect to a blocked internal target and trigger a network request before policy rejection.
+- Status: Mitigated in iteration 9 by switching to manual redirect handling with per-hop `validate_url()` before every follow-up request.
+- Residual risk: Equivalent redirect handling guarantees must be preserved for any future download helpers added outside `url_policy.py`.

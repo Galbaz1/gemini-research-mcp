@@ -73,3 +73,11 @@ Run an hourly security-focused review loop with branch discipline, reflective le
 4. When URL downloads, document uploads, and per-document phase calls execute, the system shall enforce bounded parallelism via `RESEARCH_DOCUMENT_PHASE_CONCURRENCY`.
 5. If temporary download directories are created for URL sources, the system shall remove them after completion or failure.
 6. The run shall persist severity-ranked findings, exploit reasoning, implemented fixes, confidence deltas, and next-iteration hypotheses before completion.
+
+## Iteration 9 Mission Rewritten as EARS Requirements
+1. When iteration state indicates `current_iteration=9`, the run shall prioritize test and regression blind spots in security-sensitive flows.
+2. If iteration 8 lessons require explicit cross-path contracts, iteration 9 shall enforce equivalent policy contracts across redirect paths and regression harness entrypoints.
+3. When URL downloads receive redirect responses, the system shall validate each redirect target before issuing the next request.
+4. If redirect depth exceeds policy or redirect metadata is malformed, the system shall return deterministic policy errors and stop download.
+5. When direct-call tests import decorated FastMCP tools, the test module shall unwrap tool wrappers before awaiting calls.
+6. The run shall persist severity-ranked findings, exploit reasoning, implemented fixes, confidence deltas, and next-iteration hypotheses before completion.
