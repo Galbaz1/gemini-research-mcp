@@ -98,3 +98,9 @@ Focus: Iteration 4 - auth and secret handling
 1. Audit cache/registry write-through and cleanup flows for data-integrity drift under partial failure.
 2. Evaluate stale-context invalidation and cache consistency across session/cache clear operations.
 3. Add targeted integrity tests for cache mutation + diagnostics parity under concurrent writes.
+
+## Scope Detection Evidence (Commit Transition)
+- Before commit on `codex/review/i04`:
+  - `{"mode": "uncommitted", "reason": "Working tree has local changes.", "branch": "codex/review/i04", "base_branch": "main", "uncommitted_files": 10, "ahead_commits": 4, "pr_context": false, "pr_url": null}`
+- After commit on `codex/review/i04`:
+  - `{"mode": "commits", "reason": "Branch is ahead of base with no local unstaged/uncommitted files.", "branch": "codex/review/i04", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 5, "pr_context": false, "pr_url": null}`
