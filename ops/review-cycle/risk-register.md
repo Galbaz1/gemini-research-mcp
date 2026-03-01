@@ -10,9 +10,10 @@
 ## R-002
 - Severity: Medium
 - Area: Operational integrity / authorization
-- Evidence: [`src/video_research_mcp/tools/infra.py:29`](/Users/fausto/.codex/worktrees/1f67/gemini-research-mcp/src/video_research_mcp/tools/infra.py:29) allows cache clear actions; [`src/video_research_mcp/tools/infra.py:65`](/Users/fausto/.codex/worktrees/1f67/gemini-research-mcp/src/video_research_mcp/tools/infra.py:65) allows runtime model reconfiguration with no explicit capability guard.
+- Evidence: Prior to iteration 4, `infra_cache(action="clear")` and mutating `infra_configure(...)` executed without explicit capability gating.
 - Exploit reasoning: Any connected MCP client can modify global runtime behavior or erase cache state, creating integrity and availability impact.
-- Status: Open (design mitigation queued).
+- Status: Mitigated in iteration 4 via `INFRA_MUTATIONS_ENABLED` policy gate + optional `INFRA_ADMIN_TOKEN` enforcement.
+- Residual risk: Deployments that intentionally set `INFRA_MUTATIONS_ENABLED=true` without a token still permit all connected clients to mutate config/cache.
 
 ## R-003
 - Severity: Medium
@@ -41,3 +42,10 @@
 - Evidence: `src/video_research_mcp/tools/research_document_file.py:109` and `:131` log and skip per-source failures without surfacing skipped sources in tool response.
 - Exploit reasoning: Consumers may assume full-document coverage when synthesis actually used a subset, reducing trust in evidence completeness.
 - Status: Open (patch-ready mitigation queued for iteration 6 fault-isolation pass).
+
+## R-007
+- Severity: High
+- Area: Secret handling / control-plane disclosure
+- Evidence: Prior to iteration 4, `infra_configure` returned `current_config` with non-Gemini credential fields still present (`youtube_api_key`, `weaviate_api_key`).
+- Exploit reasoning: Any MCP client invoking infra config introspection could retrieve service credentials and pivot into external systems.
+- Status: Mitigated in iteration 4 by redacting all secret-bearing config fields from infra responses.

@@ -120,6 +120,8 @@ class ServerConfig(BaseModel):
     mlflow_experiment_name: str = Field(default="video-research-mcp")
     doc_max_download_bytes: int = Field(default=50 * 1024 * 1024)
     local_file_access_root: str = Field(default="")
+    infra_mutations_enabled: bool = Field(default=False)
+    infra_admin_token: str = Field(default="")
 
     @field_validator("default_thinking_level")
     @classmethod
@@ -198,6 +200,8 @@ class ServerConfig(BaseModel):
             mlflow_experiment_name=os.getenv("MLFLOW_EXPERIMENT_NAME", "video-research-mcp"),
             doc_max_download_bytes=int(os.getenv("DOC_MAX_DOWNLOAD_BYTES", str(50 * 1024 * 1024))),
             local_file_access_root=local_file_access_root,
+            infra_mutations_enabled=os.getenv("INFRA_MUTATIONS_ENABLED", "").lower() in ("1", "true", "yes"),
+            infra_admin_token=os.getenv("INFRA_ADMIN_TOKEN", ""),
         )
 
 
