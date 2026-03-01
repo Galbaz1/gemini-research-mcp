@@ -1,492 +1,280 @@
-# Production Order Document: video-research-mcp README Video
+# Production Order Document — README Video
 
-## 1. PROJECT OVERVIEW
-
-| Field | Value |
-|-------|-------|
-| **Title** | video-research-mcp — One Install. Every Video Understood. |
-| **Duration** | 60 seconds |
-| **Format** | Animated explainer (motion graphics + terminal recordings) |
-| **Resolution** | 1920x1080 (16:9) |
-| **Frame Rate** | 30 fps |
-| **Target Audience** | Developers and technical users already familiar with Claude Code / MCP ecosystem |
-| **Tone** | Calm, confident, technical. "Senior engineer explaining to a peer." |
-| **Narration Style** | Voiceover — direct, no filler, declarative sentences |
-| **Music** | Minimal electronic; builds at architecture beat, drops at terminal beat |
+> **Title:** Multimodal Research Intelligence for Claude Code
+> **Duration:** ~90 seconds (~215 words narration)
+> **Format:** 1920x1080, 30fps, H.264, stereo audio
+> **Target audience:** Developers and researchers who use Claude Code
+> **Tone:** Calm, confident, peer-to-peer. Not a product launch — a tool demo by someone who built it for themselves.
 
 ---
 
-## 2. TECHNICAL SPECS
+## 1. Script
 
-| Spec | Value |
-|------|-------|
-| Resolution | 1920x1080 |
-| Aspect Ratio | 16:9 |
-| Frame Rate | 30 fps |
-| Codec | H.264 (MP4 container) |
-| Audio | AAC 48kHz stereo |
-| Color Space | sRGB |
-| Safe Area | 90% (172px margin each side for text) |
-| Export | MP4 (primary), WebM (fallback) |
+### BEAT 1 — HOOK (0:00–0:08)
+
+**Visual:** Dark background (#1a1a2e). Kinetic typography, word-by-word slam. Split into two frustrations, each landing with a subtle bass hit. Second line in accent red (#e94560).
+
+> **NARRATION:** "You just sat through an hour-long Teams meeting with three presentations — and the critical insight was on a slide you can't find. YouTube is full of great tutorials. It's also full of garbage."
+
+*(34 words, ~8 seconds)*
 
 ---
 
-## 3. SCRIPT
+### BEAT 2 — THE GAP (0:08–0:18)
 
-6 beats, 148 words total narration. All corrections from accuracy review applied (see Section 8).
+**Visual:** Split screen. LEFT: a wall of YouTube thumbnails blurring past, a Teams recording timeline being scrubbed endlessly, scattered notes. RIGHT: empty — just a blinking cursor in a Claude Code terminal. The gap is visual: one side is chaos, the other is waiting.
 
-### Beat 1 — HOOK (0:00 - 0:05)
+> **NARRATION:** "It takes ages to find the signal in the noise. And reading is fast — video is slow. Meanwhile, Claude — your favorite coding agent — doesn't process video. But Gemini 3.1 Pro does."
 
-> "You just sat through a 45-minute conference talk. Now try finding that one command they showed at minute 23."
+*(34 words, ~10 seconds)*
 
-### Beat 2 — PROBLEM (0:05 - 0:15)
-
-> "Videos are full of valuable information -- buried in noise, impossible to search, lost the moment you close the tab."
-
-### Beat 3 — ARCHITECTURE (0:15 - 0:30)
-
-> "Gemini 3.1 Pro understands video natively. Twenty-four MCP tools bring that power into Claude Code. Connect Weaviate, and everything gets stored -- searchable across sessions, across projects."
-
-**Correction applied:** Original said "Weaviate stores everything...forever." Weaviate is an optional dependency. Revised wording makes the opt-in nature clear.
-
-### Beat 4 — QUICK-START (0:30 - 0:42)
-
-> "One npm install. Set your Gemini API key. Point it at any video. That's it -- standard Claude Code prerequisites apply."
-
-**Correction applied:** Original implied only install + API key needed. Revised wording acknowledges that Claude Code prerequisites (Node.js, uv, etc.) are assumed.
-
-### Beat 5 — CAPABILITIES (0:42 - 0:55)
-
-> "Analyze videos with timestamps and concept maps. Run deep research with evidence grading via strong indicators. Have multi-turn conversations about any recording. And recall everything you've ever analyzed -- semantically."
-
-**Correction applied:** Original referenced "Supported" evidence tier. The codebase uses "Strong Indicator" as the tier name.
-
-### Beat 6 — CLOSE (0:55 - 1:00)
-
-> "One install. Every video understood."
-
-**Note:** Tagline uses acceptable marketing hyperbole per accuracy review.
+**Transition:** The Gemini sparkle icon materializes on the RIGHT side. The cursor types: `npx video-research-mcp@latest`. The chaos on the LEFT freezes.
 
 ---
 
-## 4. STORYBOARD
+### BEAT 3 — THE BRIDGE (0:18–0:30)
 
-### Global Style Guide
+**Visual:** Architecture builds on the right side as the frozen chaos fades. Three layers appear progressively, each with a beat:
 
-- **Fonts:** Inter (UI/narration text), JetBrains Mono (code/terminal)
-- **Canvas:** 1920x1080, 30fps
-- **Background:** #1a1a2e (deep navy)
-- **Transitions:** All cuts use 8-frame (0.27s) ease-in-out unless noted
-- **Motion principle:** Elements enter from slight offset (20-40px) with opacity fade; never pop in
+Layer 1: Gemini 3.1 Pro (sparkle icon + wordmark, pulsing in blue #0f3460)
+Layer 2: 24 MCP tools fan out as 7 sub-server badges (video, research, content, search, youtube, infra, knowledge)
+Layer 3: Weaviate knowledge store with 11 collection labels (dashed border, [optional] tag)
 
----
+Animated arrows show data flowing: Gemini → tools → Claude Code (up), tools → Weaviate (down, dashed/optional).
 
-### Beat 1 — HOOK (0:00 - 0:05)
+> **NARRATION:** "So I built a bridge. Gemini understands video, documents, and the web natively. Twenty-four MCP tools bring that power straight into Claude Code. Connect Weaviate, and everything you learn gets stored — searchable across projects, across sessions."
 
-**Shot type:** Single frame, centered text with subtle camera push
-
-**Visual elements:**
-- Full-screen dark background (#1a1a2e)
-- YouTube-style progress bar at bottom, scrubbed to ~51% (minute 23 of 45)
-- Cursor icon frantically scrubbing back and forth along the progress bar
-- Timestamp text "23:14" pulses in red (#e94560) near the scrub head
-- Thin white text above: "Where was that command...?"
-
-**Animation:**
-- 0:00-0:02 — Progress bar fades in from bottom (ease-out, 12 frames)
-- 0:02-0:05 — Cursor scrubs left-right 3 times (ease-in-out, accelerating), timestamp pulses on each direction change
-- Subtle 2% zoom-in on entire frame over 5 seconds (Ken Burns drift)
-
-**Transition out:** Hard cut to Beat 2 on final scrub position
+*(38 words, ~12 seconds)*
 
 ---
 
-### Beat 2 — PROBLEM (0:05 - 0:15)
+### BEAT 4 — THE INSTALL (0:30–0:38)
 
-**Shot type:** Split-screen comparison, left vs right
-
-**Visual elements:**
-- **Left half (chaos):** Stack of overlapping browser tabs, partially visible video players, scattered sticky notes with illegible text. Desaturated, slight blur. Label: "Before" in Inter Light, 16px, #666666
-- **Right half (order):** Clean terminal window with structured output — timestamps, headings, bullet points. Sharp, full color. Label: "After" in Inter Medium, 16px, #2a9d8f
-- Divider: 2px vertical line, #333333, centered
-
-**Animation:**
-- 0:05-0:08 — Left half builds: tabs stack in one by one (stagger 4 frames each, ease-out), blur increases
-- 0:08-0:10 — Pause; divider line draws top-to-bottom (ease-in-out, 8 frames)
-- 0:10-0:13 — Right half builds: terminal window slides in from right (ease-out, 10 frames), text types in line by line (monospace typewriter, 40ms per character)
-- 0:13-0:15 — Left half dims further (opacity 0.4), right half gains subtle glow border (#2a9d8f, 1px, 20% opacity)
-
-**Transition out:** Right half expands to fill frame (ease-in-out, 8 frames), becoming the canvas for Beat 3
-
----
-
-### Beat 3 — ARCHITECTURE (0:15 - 0:30)
-
-**Shot type:** 3-layer build-up diagram, bottom to top
-
-**Visual elements — 3 layers:**
-
-1. **Layer 1 — Gemini 3.1 Pro** (bottom)
-   - Rounded rectangle, fill #0f3460 (blue), border 1px #4a7ab5
-   - Google Gemini logomark (small, top-left corner of box)
-   - Label: "Gemini 3.1 Pro" in Inter SemiBold 20px, white
-   - Subtitle: "Native video understanding" in Inter Light 14px, #aaaaaa
-
-2. **Layer 2 — 24 MCP Tools** (middle)
-   - Rounded rectangle, fill #533483 (purple), border 1px #8b6aaf
-   - Grid of 24 small icons (4x6), each representing a tool category: magnifying glass (search), beaker (research), film strip (video), book (knowledge), gear (infra), globe (web)
-   - Label: "24 MCP Tools" in Inter SemiBold 20px, white
-   - Subtitle: "Claude Code integration" in Inter Light 14px, #aaaaaa
-
-3. **Layer 3 — Weaviate** (top, with opt-in indicator)
-   - Rounded rectangle, fill #2a9d8f (teal), border 1px dashed #6bcbbd
-   - Dashed border signals "optional"
-   - Small "[optional]" badge, top-right, Inter Light 11px, #2a9d8f on dark pill
-   - Weaviate logomark (small, top-left corner of box)
-   - Label: "Weaviate Knowledge Store" in Inter SemiBold 20px, white
-   - Subtitle: "Semantic search across sessions" in Inter Light 14px, #aaaaaa
-
-**Connecting elements:**
-- Vertical arrows between layers, animated upward: thin (#ffffff, 1px), small chevron heads
-- Data flow particles (2px dots) travel along arrows during build
-
-**Animation:**
-- 0:15-0:19 — Layer 1 slides up from bottom (ease-out, 12 frames), arrow draws upward
-- 0:19-0:23 — Layer 2 slides in from right (ease-out, 12 frames), icon grid populates (stagger 2 frames per icon), arrow draws upward
-- 0:23-0:27 — Layer 3 fades in (ease-in-out, 10 frames) with dashed border drawing on
-- 0:27-0:30 — All three layers pulse once in unison (scale 1.0 -> 1.02 -> 1.0, ease-in-out), data particles flow upward continuously
-
-**Music cue:** Synth pad builds from 0:15, reaches full volume at 0:23 (Layer 3 entry)
-
-**Transition out:** Diagram shrinks to top-right corner (ease-in-out, 8 frames) while terminal window expands from bottom-left
-
----
-
-### Beat 4 — QUICK-START (0:30 - 0:42)
-
-**Shot type:** Fullscreen terminal with typed commands
-
-**Terminal styling:**
-- Window chrome: macOS-style title bar, dark (#252525), three dots (red/yellow/green)
-- Background: #1a1a2e
-- Font: JetBrains Mono 16px
-- Prompt: `$` in #2a9d8f (teal), command text in #e8e8e8 (white)
-- Output text: #888888 (gray)
-- Cursor: block, blinking, #e94560 (red)
-
-**Command sequence:**
+**Visual:** Full-frame terminal. macOS chrome, dark theme (#0f0f1a). Architecture thumbnail persists at 20% opacity in top-left corner. Commands type in with "tak-tak-tak" rhythm. Cursor is block-style, #e94560.
 
 ```
-$ npx video-research-mcp@latest
-  ✓ Commands installed (3)
-  ✓ Skills installed (2)
-  ✓ MCP server configured
+~ $ npx video-research-mcp@latest
+  ✓ 14 commands, 5 skills, 6 agents → ~/.claude/
+  ✓ 3 MCP servers configured (uvx from PyPI)
 
-$ export GEMINI_API_KEY=your-key-here
-  (no output)
-
-$ claude "analyze this video: https://youtu.be/example"
-  ▸ Calling video_analyze...
-  ▸ 12 segments identified
-  ▸ Key topics: deployment, CI/CD, Docker
+~ $ export GEMINI_API_KEY="your-key"
 ```
 
-**Animation:**
-- 0:30-0:33 — Terminal window slides up (ease-out, 8 frames). Command 1 types in (typewriter, 30ms/char). Output appears line by line (stagger 6 frames)
-- 0:34-0:36 — Command 2 types in. Cursor blinks twice after Enter
-- 0:37-0:41 — Command 3 types in. Output lines appear with loading spinner animation (rotating ▸)
-- 0:41-0:42 — Small footnote fades in at bottom: "Requires Node.js, Python 3.11+, uv" in Inter Light 12px, #666666
+> **NARRATION:** "One install. One API key. That's it."
 
-**Music cue:** Beat drops to near-silence at 0:30 (terminal focus), light pulse on each Enter keypress
+*(8 words, ~3 seconds. Let the terminal breathe — the visual carries this beat.)*
 
-**Transition out:** Terminal content blurs and slides left, capability cards enter from right
+**Note:** 5 seconds of silence after narration. Terminal output scrolls with satisfying checkmark animations.
 
 ---
 
-### Beat 5 — CAPABILITIES (0:42 - 0:55)
+### BEAT 5 — WHAT IT DOES (0:38–1:10)
 
-**Shot type:** 4 rapid-fire capability cards, each on screen for ~3 seconds
+Each capability gets its own full-width moment, sliding in from right. Not a grid — each one breathes.
 
-**Card design (shared):**
-- Rounded rectangle (12px radius), dark fill (#222244), subtle border (#333366, 1px)
-- Icon top-left (32x32), title right of icon, preview content below
-- Cards are 480x300px, centered on 1920x1080 canvas
+**5A. Meeting recordings (0:38–0:46)**
 
-**Card sequence:**
+Terminal:
+```
+/gr:video-chat ~/recordings/project-kickoff.mp4
+> "Create meeting minutes in Dutch. Screenshot every shared screen."
+```
+Output appears: timestamped minutes, action items, a row of extracted frames below.
 
-**Card A — Video Analysis (0:42-0:45)**
-- Icon: Film strip (#e94560)
-- Title: "Video Analysis" in Inter SemiBold 18px
-- Preview: Miniature timeline with colored segment blocks, timestamps below each. Small concept-map diagram (3 nodes, 2 edges) in bottom half
+> **NARRATION:** "Point it at a meeting recording. Gemini watches the whole thing — timestamps, decisions, action items. It even extracts the slides."
 
-**Card B — Deep Research (0:45-0:48)**
-- Icon: Beaker (#0f3460)
-- Title: "Deep Research" in Inter SemiBold 18px
-- Preview: Evidence card with tier badge "Strong Indicator" in green pill, source citation, confidence bar at 85%
-
-**Card C — Multi-turn Sessions (0:48-0:51)**
-- Icon: Chat bubbles (#533483)
-- Title: "Multi-turn Sessions" in Inter SemiBold 18px
-- Preview: Chat-style message bubbles (user/assistant alternating), "Session: video-abc" header, context indicator showing "42 min cached"
-
-**Card D — Knowledge Store (0:51-0:55)**
-- Icon: Book (#2a9d8f)
-- Title: "Knowledge Store" in Inter SemiBold 18px
-- Preview: Search bar with query "deployment patterns", 3 result snippets below with relevance scores, "[optional]" badge top-right
-
-**Animation per card:**
-- Enter: slide in from right + fade (ease-out, 6 frames)
-- Hold: 2.5 seconds, subtle parallax on hover-like micro-movement
-- Exit: slide left + fade (ease-in, 6 frames), overlapping with next card entry by 4 frames
-
-**Music cue:** Light rhythmic pulse, one hit per card transition
-
-**Transition out:** All cards fly outward to four corners (ease-in, 8 frames), revealing clean background
+*(22 words, ~8 seconds)*
 
 ---
 
-### Beat 6 — CLOSE (0:55 - 1:00)
+**5B. YouTube analysis (0:46–0:52)**
 
-**Shot type:** Centered tagline with GitHub CTA
+Terminal:
+```
+/gr:video https://youtube.com/watch?v=...
+```
+Output: structured analysis with precise timestamps (real ones like 3:47, 11:27). A concept map visualization expands in the corner.
 
-**Visual elements:**
-- Clean #1a1a2e background
-- Line 1: "One install." in Inter Bold 48px, #ffffff, centered
-- Line 2: "Every video understood." in Inter Bold 48px, #2a9d8f (teal), centered, 8px below Line 1
-- Line 3 (after pause): GitHub icon + "github.com/..." in Inter Medium 20px, #888888, 40px below tagline
-- Subtle radial gradient behind text (center: #222244, edge: #1a1a2e)
+> **NARRATION:** "YouTube tutorials? Same thing. Precise timestamps, concept maps, and the comments analyzed in the background."
 
-**Animation:**
-- 0:55-0:56 — Line 1 fades in (ease-in-out, 8 frames)
-- 0:56-0:57 — Line 2 fades in (ease-in-out, 8 frames)
-- 0:57-0:58 — Pause; both lines settle
-- 0:58-1:00 — GitHub CTA fades in from below (ease-out, 8 frames). Entire frame holds to end
-
-**Music cue:** Final chord resolves, fade to silence by 1:00
+*(15 words, ~6 seconds)*
 
 ---
 
-## 5. AUDIO DIRECTION
+**5C. Research with evidence (0:52–0:58)**
+
+Terminal:
+```
+/gr:research "HNSW index parameters for high-dimensional embeddings"
+```
+Output: findings with colored evidence tier tags — Confirmed (green), Strong Indicator (blue), Inference (purple), Speculation (red).
+
+> **NARRATION:** "Deep research runs web search and Gemini analysis in parallel. Every finding gets an evidence tier — not just answers, but how much you should trust them."
+
+*(27 words, ~6 seconds)*
+
+---
+
+**5D. Knowledge recall (0:58–1:06)**
+
+Terminal:
+```
+/gr:recall "optimization"
+```
+Two-section output: Semantic Results (Weaviate hits with scores) + Filesystem Results. Then:
+```
+/gr:recall ask "what did I learn about HNSW tuning?"
+```
+AI-generated answer appears with source citations.
+
+> **NARRATION:** "And nothing gets lost. Every analysis, every finding goes into a knowledge store. Weeks later, in a different project — you just ask."
+
+*(23 words, ~8 seconds)*
+
+---
+
+**5E. Quick montage — the rest (1:06–1:10)**
+
+Rapid 1-second cuts, no narration, just kinetic text labels:
+- `/gr:analyze` → PDF entities extracted
+- `/gr:research-doc` → multi-document evidence pipeline
+- `/gr:search` → web search with citations
+- `/gr:traces` → MLflow trace viewer
+
+*(4 seconds, no narration — let the breadth speak for itself)*
+
+---
+
+### BEAT 6 — THE CLOSER (1:10–1:20)
+
+**Visual:** All elements converge to center point. Repo URL fades in: `github.com/Galbaz1/video-research-mcp`. Tagline below. Install command in a subtle pill underneath.
+
+> **NARRATION:** "One install. Gemini's eyes. Claude's brain. Your memory."
+
+*(9 words, ~4 seconds)*
+
+**Hold for 6 more seconds:** Subtle particle drift, breathing glow. Small "Open source · MIT license" in #888888 bottom-right.
+
+---
+
+### META-HUMOR (subtle, baked in — not narrated)
+
+1. **The tool demos itself:** A video about a tool that analyzes videos. The viewer is watching a video about a tool that watches videos.
+2. **Beat 5A uses a real meeting:** The demo is the developer's own recording — not stock footage.
+3. **The concept map in 5B** was generated by the plugin being demonstrated.
+4. **Beat 5D recalls Beat 5C:** The knowledge store finds the research from earlier in the same video — persistence demonstrated in real-time.
+5. **If generated by the explainer pipeline:** Tiny closing credit: "Made with /ve:explainer" — the plugin made its own promo.
+
+---
+
+## 2. Audio Direction
 
 ### Narration
-
-| Parameter | Value |
-|-----------|-------|
-| Voice | Male or female, mid-range, American English neutral accent |
-| Pace | 150 words/minute (~148 words in 60s with pauses) |
-| Tone | Calm authority. No excitement, no sales pitch. Statement of fact. |
-| Pauses | 0.5s between beats, 0.3s after key phrases ("That's it.", "forever.") |
-| Processing | Light compression, no reverb, subtle de-essing |
+- **Voice:** ElevenLabs, voice ID `WAppqUXeqDqXjNTaQxG9`
+- **Settings:** stability=0.45, similarity_boost=0.75, speed=1.0
+- **Tone:** Senior engineer explaining to a peer over coffee. Not a keynote.
+- **Total narration:** ~215 words at measured pace
 
 ### Music
-
-| Parameter | Value |
-|-----------|-------|
-| Genre | Minimal electronic / ambient tech |
-| BPM | 90-100 |
-| Key | Minor (suggest Am or Cm) |
-| Dynamics | Quiet bed during Hook/Problem, builds at Architecture (0:15), drops at Quick-Start (0:30), light pulse at Capabilities (0:42), resolves at Close (0:55) |
-| Instruments | Soft synth pad, sub bass (sparse), hi-hat (Capabilities only), piano note (Close resolve) |
-| Volume | -18dB under narration, -12dB during pauses |
-| License | Royalty-free or original composition |
+- **Style:** Minimal electronic ambient, 90-100 BPM
+- **Dynamics:**
+  - 0:00–0:08: Sparse tension (single pad + subtle bass)
+  - 0:08–0:18: Quiet under problem statement
+  - 0:18–0:30: Builds with architecture reveal (add arpeggiated synth)
+  - 0:30–0:38: Near-silence for terminal (only keystroke SFX)
+  - 0:38–1:06: Steady beat under capability demos
+  - 1:06–1:10: Quick pulse for montage
+  - 1:10–1:20: Single sustained chord, fading
 
 ### Sound Effects
 
-| Cue | Timing | Description |
-|-----|--------|-------------|
-| Scrub whoosh | 0:02-0:05 (Beat 1) | Soft whoosh on each cursor direction change |
-| Tab stack | 0:05-0:08 (Beat 2) | Subtle paper/card shuffle on each tab layer |
-| Typewriter click | Beat 4 | Soft mechanical key click per character, volume -24dB |
-| Enter key | Beat 4 (x3) | Slightly louder Return key sound |
-| Card swoosh | Beat 5 (x4) | Quick air swoosh on each card transition |
-| Resolve tone | 0:55 (Beat 6) | Single clean tone (A4, 440Hz, sine, 2s decay) |
+| Cue | Time | Sound |
+|-----|------|-------|
+| Word slams | 0:00–0:05 | Subtle bass hit per word |
+| Chaos blur | 0:08 | Soft whoosh |
+| Gemini appear | 0:16 | Crystalline chime |
+| Layer builds | 0:18, 0:22, 0:25 | Soft bass hit per layer |
+| Terminal keys | 0:30–0:38 | Mechanical keyboard clicks |
+| Checkmarks | 0:32, 0:33 | Soft "ping" |
+| Montage cuts | 1:06–1:10 | Quick swoosh per cut |
+| Closer convergence | 1:10 | Reverse cymbal swell |
 
 ---
 
-## 6. VISUAL ASSETS LIST
-
-Assets that must be created or sourced before production.
-
-### Icons (32x32 SVG, stroke style, 2px weight)
-
-| Icon | Color | Used In |
-|------|-------|---------|
-| Film strip | #e94560 | Beat 3 grid, Beat 5 Card A |
-| Beaker | #0f3460 | Beat 3 grid, Beat 5 Card B |
-| Chat bubbles | #533483 | Beat 3 grid, Beat 5 Card C |
-| Book | #2a9d8f | Beat 3 grid, Beat 5 Card D |
-| Magnifying glass | #e94560 | Beat 3 grid |
-| Gear | #888888 | Beat 3 grid |
-| Globe | #0f3460 | Beat 3 grid |
-
-### Logos (sourced, must respect brand guidelines)
-
-| Logo | Usage | Notes |
-|------|-------|-------|
-| Google Gemini | Beat 3, Layer 1 | Logomark only (no wordmark), white/monochrome variant |
-| Weaviate | Beat 3, Layer 3 | Logomark only, white/monochrome variant |
-| GitHub | Beat 6 | Invertocat, white |
-
-### Terminal Recording
-
-| Asset | Description |
-|-------|-------------|
-| Terminal mock | macOS-style window chrome, custom colors per spec |
-| Cursor animation | Block cursor, blink rate 530ms, color #e94560 |
-
-### Diagram Components
-
-| Asset | Description |
-|-------|-------------|
-| Architecture layers (x3) | Rounded rectangles with fills per color spec |
-| Connecting arrows | Thin white arrows with chevron heads, animated particles |
-| Tool icon grid (4x6) | 24 small icons, mixed from icon set above |
-| Concept map (Beat 5A) | 3 nodes + 2 edges, simple force-directed layout |
-| Evidence card (Beat 5B) | "Strong Indicator" pill badge, confidence bar |
-| Chat bubbles (Beat 5C) | User/assistant alternating style |
-| Search results (Beat 5D) | Query bar + 3 result snippets with scores |
-
----
-
-## 7. TYPOGRAPHY & COLOR
-
-### Typography Scale
-
-| Element | Font | Weight | Size | Line Height | Color |
-|---------|------|--------|------|-------------|-------|
-| Tagline (Beat 6) | Inter | Bold (700) | 48px | 56px | #ffffff / #2a9d8f |
-| Section label | Inter | SemiBold (600) | 20px | 28px | #ffffff |
-| Subtitle | Inter | Light (300) | 14px | 20px | #aaaaaa |
-| Beat label ("Before"/"After") | Inter | Light (300) | 16px | 22px | #666666 |
-| Footnote | Inter | Light (300) | 12px | 16px | #666666 |
-| Terminal command | JetBrains Mono | Regular (400) | 16px | 24px | #e8e8e8 |
-| Terminal output | JetBrains Mono | Regular (400) | 16px | 24px | #888888 |
-| Terminal prompt (`$`) | JetBrains Mono | Regular (400) | 16px | 24px | #2a9d8f |
-| Badge text | Inter | Light (300) | 11px | 14px | varies |
+## 3. Visual Style
 
 ### Color Palette
 
-| Name | Hex | RGB | Usage |
-|------|-----|-----|-------|
-| Deep Navy (bg) | #1a1a2e | 26, 26, 46 | Primary background, all beats |
-| Red Accent | #e94560 | 233, 69, 96 | Highlights, cursor, error states, Hook timestamp |
-| Blue | #0f3460 | 15, 52, 96 | Gemini layer, research icon, secondary accent |
-| Teal | #2a9d8f | 42, 157, 143 | Weaviate layer, terminal prompt, "After" label, tagline L2 |
-| Purple | #533483 | 83, 52, 131 | MCP tools layer, sessions icon |
-| White | #ffffff | 255, 255, 255 | Primary text |
-| Light Gray | #e8e8e8 | 232, 232, 232 | Terminal command text |
-| Mid Gray | #aaaaaa | 170, 170, 170 | Subtitles |
-| Dark Gray | #888888 | 136, 136, 136 | Terminal output, GitHub CTA |
-| Muted Gray | #666666 | 102, 102, 102 | Labels, footnotes |
-| Card Fill | #222244 | 34, 34, 68 | Capability card background |
-| Card Border | #333366 | 51, 51, 102 | Capability card border |
-| Terminal Chrome | #252525 | 37, 37, 37 | Terminal title bar |
-| Divider | #333333 | 51, 51, 51 | Beat 2 split-screen divider |
+| Name | Hex | Usage |
+|------|-----|-------|
+| Background | `#1a1a2e` | All frames |
+| Signal Red | `#e94560` | Highlights, timestamps, cursor |
+| Deep Blue | `#0f3460` | Gemini layer, links |
+| Teal | `#2a9d8f` | Terminal prompts, success |
+| Purple | `#533483` | Weaviate, dividers |
+| Dark Panel | `#16213e` | Cards, tool badges |
+| Terminal BG | `#0f0f1a` | Terminal window fill |
 
-### Syntax Highlighting (Terminal)
+### Typography
 
-| Token | Color | Example |
-|-------|-------|---------|
-| Command | #e8e8e8 | `npx`, `export`, `claude` |
-| Argument | #2a9d8f | `video-research-mcp@latest` |
-| String | #e94560 | `"analyze this video..."` |
-| Output check | #2a9d8f | `✓` |
-| Output text | #888888 | `Commands installed (3)` |
-| Spinner | #e94560 | `▸` |
+| Element | Font | Weight | Size |
+|---------|------|--------|------|
+| Hero kinetic text | Inter | Bold | 48pt |
+| Terminal commands | JetBrains Mono | Regular | 18pt |
+| Architecture labels | Inter | Bold | 24pt |
+| Closing title | JetBrains Mono | Bold | 56pt |
+| Closing tagline | Inter | Regular | 24pt |
+| Evidence tier tags | Inter | Bold | 12pt (pill badges) |
 
 ---
 
-## 8. ACCURACY NOTES
+## 4. Accuracy Notes
 
-Three issues identified during technical review. All corrections applied in Section 3.
+### Verified Against Codebase
+- 24 MCP tools across 7 sub-servers ✓
+- Gemini 3.1 Pro is default model (`gemini-3.1-pro-preview`) ✓
+- `npx video-research-mcp@latest` correct install ✓
+- Weaviate is optional — script uses opt-in language ✓
+- Evidence tiers: Confirmed, Strong Indicator, Inference, Speculation ✓
+- 11 Weaviate collections ✓
+- Multi-turn sessions via video_create_session/video_continue_session ✓
+- Knowledge search: hybrid, semantic, keyword with optional Cohere reranking ✓
 
-### Issue 1 — CRITICAL: Weaviate Optionality (Beat 3)
-
-| Field | Value |
-|-------|-------|
-| Severity | CRITICAL |
-| Original | "Weaviate stores everything -- searchable across sessions, across projects, forever." |
-| Problem | Weaviate is an optional dependency (`pip install video-research-mcp[agents]`). The knowledge store is disabled when `WEAVIATE_URL` is empty. Claiming it "stores everything...forever" is factually incorrect. |
-| Fix applied | "Connect Weaviate, and everything gets stored -- searchable across sessions, across projects." |
-| Visual fix | Beat 3 Layer 3 uses dashed border + "[optional]" badge. Beat 5 Card D includes "[optional]" badge. |
-
-### Issue 2 — MEDIUM: Evidence Tier Name (Beat 5)
-
-| Field | Value |
-|-------|-------|
-| Severity | MEDIUM |
-| Original | Referenced "Supported" as the evidence tier |
-| Problem | The codebase uses "Strong Indicator" as the tier name for well-supported evidence |
-| Fix applied | Changed to "strong indicators" in narration. Beat 5 Card B shows "Strong Indicator" pill badge. |
-
-### Issue 3 — MEDIUM: Prerequisites Acknowledgment (Beat 4)
-
-| Field | Value |
-|-------|-------|
-| Severity | MEDIUM |
-| Original | "One install. Set your API key. Point it at any video. That's it." |
-| Problem | Implies zero prerequisites. In reality, Claude Code (which requires Node.js), Python 3.11+, and uv are prerequisites. |
-| Fix applied | Narration: "One npm install. Set your Gemini API key. Point it at any video. That's it -- standard Claude Code prerequisites apply." Visual: footnote at 0:41 reads "Requires Node.js, Python 3.11+, uv" |
-
-### Accepted — LOW: Tagline Hyperbole (Beat 6)
-
-"One install. Every video understood." is marketing shorthand. Acceptable for a 60-second explainer aimed at developers who understand that "every" is aspirational.
+### Corrections Applied
+1. Weaviate presented as opt-in ("Connect Weaviate, and...")
+2. Evidence tier "Supported" → "Strong Indicator"
+3. Model is Gemini 3.1 Pro (not 1.5)
 
 ---
 
-## 9. PRODUCTION CHECKLIST
+## 5. Production Checklist
 
-Ordered steps to produce the final video.
+### Pre-production
+- [ ] Record/select real meeting recording for Beat 5A
+- [ ] Run `/gr:video` on YouTube tutorial, capture real output for 5B
+- [ ] Run `/gr:research`, capture evidence tier output for 5C
+- [ ] Run `/gr:recall` semantic + ask mode for 5D
+- [ ] Capture 4 tool outputs for Beat 5E montage
+- [ ] Export architecture diagram as SVG
 
-- [ ] **Pre-production**
-  - [ ] Source or create all icons (7 SVG icons per asset list)
-  - [ ] Obtain logo assets (Gemini, Weaviate, GitHub) in white/monochrome
-  - [ ] Install fonts: Inter (Google Fonts), JetBrains Mono (JetBrains)
-  - [ ] Set up project at 1920x1080, 30fps, sRGB
-  - [ ] Create color swatches and typography presets
+### Audio
+- [ ] Generate narration via ElevenLabs (voice `WAppqUXeqDqXjNTaQxG9`)
+- [ ] Review pacing — Beat 4 needs 5s terminal-only gap
+- [ ] Source background music (minimal electronic, 90-100 BPM)
+- [ ] Record/source 8 SFX cues
 
-- [ ] **Asset creation**
-  - [ ] Build terminal mock component (reusable across Beat 4)
-  - [ ] Build architecture diagram layers (Beat 3)
-  - [ ] Build capability card template (Beat 5)
-  - [ ] Create concept map mini-diagram (Beat 5A)
-  - [ ] Create evidence card with "Strong Indicator" badge (Beat 5B)
-  - [ ] Create chat bubble layout (Beat 5C)
-  - [ ] Create search results layout with "[optional]" badge (Beat 5D)
+### Visual production
+- [ ] Kinetic typography (Beat 1)
+- [ ] Split-screen composition (Beat 2)
+- [ ] 3-layer architecture build (Beat 3)
+- [ ] Terminal typing sequences (Beats 4, 5A-5D)
+- [ ] Rapid montage (Beat 5E)
+- [ ] Closing lockup (Beat 6)
 
-- [ ] **Animation**
-  - [ ] Beat 1: Progress bar + cursor scrub animation
-  - [ ] Beat 2: Split-screen build (chaos left, order right)
-  - [ ] Beat 3: 3-layer architecture build with arrows and particles
-  - [ ] Beat 4: Terminal typewriter with 3 command sequences
-  - [ ] Beat 5: 4 capability cards with staggered enter/exit
-  - [ ] Beat 6: Tagline fade-in + GitHub CTA
-  - [ ] All transitions between beats (8-frame ease-in-out)
-
-- [ ] **Audio**
-  - [ ] Record or synthesize narration (148 words, ~60s)
-  - [ ] Source or compose background music (minimal electronic, 90-100 BPM)
-  - [ ] Create/source sound effects (6 cues per SFX table)
-  - [ ] Mix: narration -0dB, music -18dB under voice / -12dB in gaps, SFX -24dB to -18dB
-  - [ ] Master to -1dB peak, -14 LUFS integrated
-
-- [ ] **Assembly**
-  - [ ] Sync narration to beat timings
-  - [ ] Sync music dynamics to beat structure
-  - [ ] Place sound effects at specified cue points
-  - [ ] Review all text for typos and accuracy
-
-- [ ] **Quality check**
-  - [ ] Verify all 3 accuracy corrections are reflected in visuals and narration
-  - [ ] Check "[optional]" badge appears on Weaviate layer (Beat 3) and Knowledge Store card (Beat 5D)
-  - [ ] Confirm "Strong Indicator" (not "Supported") on evidence card (Beat 5B)
-  - [ ] Confirm prerequisites footnote appears at 0:41 (Beat 4)
-  - [ ] Test playback at 1x — narration fits within beat windows
-  - [ ] Check color contrast (WCAG AA minimum for all text)
-  - [ ] Preview on dark and light monitors
-
-- [ ] **Export**
-  - [ ] Export MP4 (H.264, AAC 48kHz stereo)
-  - [ ] Export WebM fallback
-  - [ ] Generate thumbnail (Beat 6 frame, 1280x720)
-  - [ ] Write video description with timestamps for each beat
+### Assembly & export
+- [ ] Sync narration to visuals
+- [ ] Mix music (-12dB under voice)
+- [ ] Place SFX at cue points
+- [ ] Render 1080p H.264 + WebM fallback
+- [ ] Generate poster frame from Beat 6
+- [ ] Embed in README
