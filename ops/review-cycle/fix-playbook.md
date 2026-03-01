@@ -63,3 +63,22 @@
   - `src/video_research_mcp/tools/infra.py`
 - Regression coverage:
   - `tests/test_infra_tools.py::TestInfraTools::test_infra_configure_redacts_all_secret_fields`
+
+## FP-007: Atomic staged writes for cache persistence
+- Context: JSON cache/registry writes that can be interrupted by I/O failures.
+- Rule: Write payload to a unique temp file in the same directory and atomically `replace()` the target file.
+- Why: Preserves last known-good data and prevents partially written files from becoming committed state.
+- Applied in iteration 5:
+  - `src/video_research_mcp/cache.py`
+  - `src/video_research_mcp/context_cache.py`
+- Regression coverage:
+  - `tests/test_cache.py::TestCache::test_save_is_atomic_when_replace_fails`
+
+## FP-008: Validate persisted registry shape before hydration
+- Context: Disk-backed context-cache registry loads into in-memory mappings at process start.
+- Rule: Accept only `{str: {str: str}}` structure and ignore malformed entries.
+- Why: Prevents malformed persisted state from poisoning registry integrity and diagnostics behavior.
+- Applied in iteration 5:
+  - `src/video_research_mcp/context_cache.py`
+- Regression coverage:
+  - `tests/test_context_cache.py::TestRegistryPersistence::test_load_ignores_invalid_shape_entries`

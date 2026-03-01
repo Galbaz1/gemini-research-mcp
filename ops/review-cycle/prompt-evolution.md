@@ -42,3 +42,10 @@ Run an hourly security-focused review loop with branch discipline, reflective le
 4. If mutation policy is disabled or token validation fails, the tool shall return structured `make_tool_error()` output with non-retryable permission semantics.
 5. When infra tools return runtime configuration, the system shall redact all secret-bearing fields from response payloads.
 6. The run shall persist severity-ranked findings, exploit reasoning, implemented or patch-ready remediations, confidence deltas, and next-iteration hypotheses to review-cycle artifacts.
+
+## Iteration 5 Mission Rewritten as EARS Requirements
+1. When iteration state indicates `current_iteration=5`, the run shall prioritize cache and persisted-state data integrity.
+2. If iteration 4 lessons emphasize centralized and comprehensive controls, iteration 5 shall apply one shared integrity hardening pattern across multiple cache subsystems.
+3. When cache payloads are written to disk, the system shall stage writes in a temporary file and atomically replace the target file.
+4. If persisted context-cache registry content contains malformed entries, the loader shall ignore invalid shapes and shall only hydrate validated string mappings.
+5. The run shall record severity-ranked findings, exploit reasoning, implemented fixes, confidence deltas, and next-iteration hypotheses in review-cycle artifacts before completion.

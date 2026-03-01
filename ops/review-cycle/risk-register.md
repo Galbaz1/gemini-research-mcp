@@ -49,3 +49,17 @@
 - Evidence: Prior to iteration 4, `infra_configure` returned `current_config` with non-Gemini credential fields still present (`youtube_api_key`, `weaviate_api_key`).
 - Exploit reasoning: Any MCP client invoking infra config introspection could retrieve service credentials and pivot into external systems.
 - Status: Mitigated in iteration 4 by redacting all secret-bearing config fields from infra responses.
+
+## R-008
+- Severity: High
+- Area: Cache persistence integrity
+- Evidence: Prior to iteration 5, `src/video_research_mcp/cache.py` wrote cache payloads directly to final files (`write_text` on target path).
+- Exploit reasoning: Interrupted writes can persist truncated JSON and invalidate previously correct cache entries, causing availability and consistency degradation.
+- Status: Mitigated in iteration 5 with unique temp-file staging + atomic `replace`.
+
+## R-009
+- Severity: Medium
+- Area: Registry hydration integrity
+- Evidence: Prior to iteration 5, `src/video_research_mcp/context_cache.py::_load_registry` loaded nested JSON without strict shape validation.
+- Exploit reasoning: Malformed persisted data could introduce invalid in-memory mappings and reduce reliability of context cache diagnostics/reuse.
+- Status: Mitigated in iteration 5 with strict `{str: {str: str}}` filtering during load.
