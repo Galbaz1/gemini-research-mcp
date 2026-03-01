@@ -342,7 +342,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and PR guidelines. 
 
 - **[video_explainer](https://github.com/prajwal-y/video_explainer)** by [prajwal-y](https://github.com/prajwal-y) -- the video synthesis engine behind the explainer pipeline. We extended it with configurable ElevenLabs voice settings, env-based configuration, and MCP tool integration. The original repo is included as a git submodule at `packages/video-explainer/`.
 - **[Weaviate](https://weaviate.io/)** -- vector database powering the knowledge store. Eleven collections, hybrid search, and the [Weaviate Claude Code skill](https://github.com/weaviate/weaviate-claude-code-skill) that inspired the knowledge architecture.
-- **[Google Gemini](https://ai.google.dev/)** (`google-genai` SDK) -- Gemini 3.1 Pro provides native video understanding, thinking mode, context caching, and the 2M token window that makes all of this work.
+- **[Google Gemini](https://ai.google.dev/)** (`google-genai` SDK) -- Gemini 3.1 Pro provides native video understanding, thinking mode, context caching, and the 1M token window that makes all of this work.
 - **[FastMCP](https://github.com/jlowin/fastmcp)** -- MCP server framework. The composable sub-server pattern (`app.mount()`) keeps 24 tools organized across 7 namespaces.
 - **[MLflow](https://mlflow.org/)** (`mlflow-tracing`) -- optional observability. Every Gemini call becomes a traceable span with token counts and latency.
 - **[Pydantic](https://docs.pydantic.dev/)** -- schema validation for all tool I/O. Structured generation via `model_json_schema()`.
