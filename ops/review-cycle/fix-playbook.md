@@ -82,3 +82,15 @@
   - `src/video_research_mcp/context_cache.py`
 - Regression coverage:
   - `tests/test_context_cache.py::TestRegistryPersistence::test_load_ignores_invalid_shape_entries`
+
+## FP-009: Surface per-source preparation failures in research outputs
+- Context: Multi-source research workflows where partial source preparation failures are tolerated for availability.
+- Rule: Capture per-source preparation failures (download/upload) in structured metadata and return them in final tool output.
+- Why: Prevents silent evidence-coverage drift and allows clients to reason about trust/completeness before acting on synthesis.
+- Applied in iteration 6:
+  - `src/video_research_mcp/tools/research_document_file.py`
+  - `src/video_research_mcp/tools/research_document.py`
+  - `src/video_research_mcp/models/research_document.py`
+- Regression coverage:
+  - `tests/test_research_document_tools.py::TestResearchDocument::test_surfaces_preparation_issues`
+  - `tests/test_research_document_file.py::TestPrepareAllDocumentsWithIssues::test_collects_download_failures_and_keeps_successes`

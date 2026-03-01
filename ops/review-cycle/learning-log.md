@@ -56,3 +56,14 @@
 ## Iteration 6 seed hypotheses
 - Surface partial-source skips explicitly in research-document outputs to improve fault-isolation transparency.
 - Audit tool exception boundaries for silent-degradation patterns where best-effort behavior hides missing evidence.
+
+## Iteration 6 (Error Handling and Fault Isolation) - 2026-03-01T09:01:57Z
+- Observation: `research_document` logged and skipped per-source download/upload failures during `_prepare_all_documents(...)`, but synthesis output did not disclose skipped sources.
+- Inference: Fault handling favored availability but weakened evidence-integrity transparency, creating a silent-degradation path for downstream decisions.
+- Strategy: Introduce structured preparation-failure capture across both download and upload phases, then expose that metadata in final `DocumentResearchReport` responses.
+- Validation: Added `_prepare_all_documents_with_issues(...)`, threaded `preparation_issues` through quick/full synthesis paths, and added focused regression tests for helper-level and tool-level visibility; lint/tests passed.
+- Confidence change: 0.60 -> 0.87 for fault-isolation transparency in document research ingestion.
+
+## Iteration 7 seed hypotheses
+- Evaluate prompt-injection and instruction-smuggling resistance across tools that combine untrusted content with system prompts.
+- Add negative tests that prove malicious document/content strings cannot override tool safety constraints or policy gates.
