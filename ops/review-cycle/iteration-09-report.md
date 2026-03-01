@@ -21,6 +21,10 @@ Focus: Iteration 9 - test and regression blind spots
   - `{"mode": "uncommitted", "reason": "Working tree has local changes.", "branch": "codex/review/i09", "base_branch": "main", "uncommitted_files": 3, "ahead_commits": 16, "pr_context": false, "pr_url": null}`
 - After commit on `codex/review/i09`:
   - `{"mode": "commits", "reason": "Branch is ahead of base with no local unstaged/uncommitted files.", "branch": "codex/review/i09", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 17, "pr_context": false, "pr_url": null}`
+- Before report-finalization commit:
+  - `{"mode": "uncommitted", "reason": "Working tree has local changes.", "branch": "codex/review/i09", "base_branch": "main", "uncommitted_files": 1, "ahead_commits": 17, "pr_context": false, "pr_url": null}`
+- After report-finalization commit:
+  - `{"mode": "commits", "reason": "Branch is ahead of base with no local unstaged/uncommitted files.", "branch": "codex/review/i09", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 18, "pr_context": false, "pr_url": null}`
 
 ## Required Reading Checklist
 - `AGENTS.md`, `src/AGENTS.md`, `tests/AGENTS.md`
