@@ -20,6 +20,7 @@ const FILE_MAP = {
   'commands/doctor.md':        'commands/gr/doctor.md',
   'commands/traces.md':        'commands/gr/traces.md',
   'commands/research-doc.md':  'commands/gr/research-doc.md',
+  'commands/ingest.md':        'commands/gr/ingest.md',
 
   'commands/explainer.md':      'commands/ve/explainer.md',
   'commands/explain-video.md':  'commands/ve/explain-video.md',
