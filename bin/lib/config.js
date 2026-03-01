@@ -17,6 +17,10 @@ const MCP_SERVERS = {
     command: 'uvx',
     args: ['video-explainer-mcp'],
   },
+  'video-agent': {
+    command: 'uvx',
+    args: ['video-agent-mcp'],
+  },
   playwright: {
     command: 'npx',
     args: ['@playwright/mcp@latest', '--headless', '--caps=vision,pdf'],
