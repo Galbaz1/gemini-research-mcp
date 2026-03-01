@@ -139,3 +139,19 @@
   - `tests/test_content_batch_tools.py`
 - Regression coverage:
   - `tests/test_content_batch_tools.py` (full module passes in targeted run)
+
+## FP-014: Consolidate high-impact controls into one smoke suite
+- Context: Security regressions detected across trust-boundary, auth, idempotency, and redirect paths in iterations 1-9.
+- Rule: Keep a single runnable smoke command that exercises the highest-impact mitigations on every recurring security review run.
+- Why: Reduces review friction and catches policy drift early without requiring full-suite execution.
+- Applied in iteration 10:
+  - `scripts/run_security_smoke.sh`
+- Regression coverage:
+  - `tests/test_content_tools.py::TestContentAnalyze::test_url_rejects_non_https_before_model_call`
+  - `tests/test_infra_tools.py::TestInfraTools::test_infra_configure_requires_token_when_configured`
+  - `tests/test_video_file.py::TestUploadCache::test_concurrent_same_hash_uploads_once`
+  - `tests/test_video_file.py::TestValidateVideoPath::test_rejects_path_outside_local_access_root`
+  - `tests/test_research_document_tools.py::TestResearchDocument::test_surfaces_preparation_issues`
+  - `tests/test_research_document_tools.py::TestResearchDocument::test_rejects_too_many_sources`
+  - `tests/test_url_policy.py::TestDownloadChecked::test_blocks_redirect_before_following_blocked_target`
+  - `tests/test_content_batch_tools.py::TestContentBatchAnalyze::test_compare_mode`

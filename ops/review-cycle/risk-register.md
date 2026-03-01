@@ -89,3 +89,11 @@
 - Exploit reasoning: Safe-looking external URL could redirect to a blocked internal target and trigger a network request before policy rejection.
 - Status: Mitigated in iteration 9 by switching to manual redirect handling with per-hop `validate_url()` before every follow-up request.
 - Residual risk: Equivalent redirect handling guarantees must be preserved for any future download helpers added outside `url_policy.py`.
+
+## R-013
+- Severity: Medium
+- Area: Regression assurance / control drift
+- Evidence: Before iteration 10, high-impact security checks required multiple ad hoc targeted commands with no consolidated runner.
+- Exploit reasoning: Operational friction increases the probability that key controls are not re-validated each run, allowing silent regression drift.
+- Status: Partially mitigated in iteration 10 via `scripts/run_security_smoke.sh`.
+- Residual risk: Smoke suite is currently manual; CI enforcement is still pending.
