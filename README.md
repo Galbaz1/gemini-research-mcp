@@ -440,6 +440,21 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and PR guidelines. 
 
 **Fausto Albers** -- Lead Gen AI Research & Development at the [Industrial Digital Twins Lab](https://www.hva.nl), Amsterdam University of Applied Sciences (HvA), in the research group of Jurjen Helmus. Founder of [Wonder Why](https://wonderwhy.ai).
 
+## Credits
+
+This project builds on outstanding open-source work:
+
+- **[video_explainer](https://github.com/prajwal-y/video_explainer)** by [prajwal-y](https://github.com/prajwal-y) -- the video synthesis engine at the heart of our explainer pipeline. We extended it with configurable ElevenLabs voice settings, env-based configuration, and MCP tool integration. The original repo is included as a git submodule at `packages/video-explainer/`.
+- **[Weaviate](https://weaviate.io/)** -- the vector database powering the knowledge store. Eleven collections, hybrid search, and the [Weaviate Claude Code skill](https://github.com/weaviate/weaviate-claude-code-skill) that inspired the knowledge architecture.
+- **[Google Gemini](https://ai.google.dev/)** (`google-genai` SDK) -- Gemini 3.1 Pro provides native video understanding, thinking mode, context caching, and the 2M token window that makes this possible.
+- **[FastMCP](https://github.com/jlowin/fastmcp)** -- the MCP server framework. The composable sub-server pattern (`app.mount()`) keeps 24 tools organized across 7 namespaces.
+- **[MLflow](https://mlflow.org/)** (`mlflow-tracing`) -- optional observability layer. Every Gemini call becomes a traceable span with token counts and latency.
+- **[Pydantic](https://docs.pydantic.dev/)** -- schema validation for all tool inputs and outputs. Structured generation via `model_json_schema()`.
+- **[Remotion](https://www.remotion.dev/)** -- React-based video rendering engine used by the explainer pipeline.
+- **[ElevenLabs](https://elevenlabs.io/)** -- text-to-speech for voiceover generation with native word-level timestamps.
+- **[Cohere](https://cohere.com/)** -- optional reranking in knowledge search for improved result relevance.
+- **[Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk)** -- powers parallel scene generation in `video-agent-mcp`.
+
 ## License
 
 MIT
