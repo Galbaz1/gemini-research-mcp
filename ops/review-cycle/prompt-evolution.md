@@ -81,3 +81,10 @@ Run an hourly security-focused review loop with branch discipline, reflective le
 4. If redirect depth exceeds policy or redirect metadata is malformed, the system shall return deterministic policy errors and stop download.
 5. When direct-call tests import decorated FastMCP tools, the test module shall unwrap tool wrappers before awaiting calls.
 6. The run shall persist severity-ranked findings, exploit reasoning, implemented fixes, confidence deltas, and next-iteration hypotheses before completion.
+
+## Iteration 10 Mission Rewritten as EARS Requirements
+1. When iteration state indicates `current_iteration=10`, the run shall prioritize synthesis and prioritized remediation planning across iterations 1-9.
+2. If iteration 9 lessons identify regression-harness drift risk, iteration 10 shall implement at least one consolidated regression control derived from those lessons.
+3. When the recurring security review executes, the system shall provide one command that runs high-impact security regression checks.
+4. If synthesis identifies residual risks that remain open after iteration 10, the run shall rank them by severity/urgency and document next actions in `ops/review-cycle/final-report.md`.
+5. The run shall advance cycle state beyond iteration 10 and persist final confidence deltas, lessons learned, and post-cycle hypotheses.

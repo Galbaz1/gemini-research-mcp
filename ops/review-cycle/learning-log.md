@@ -100,3 +100,15 @@
 ## Iteration 10 seed hypotheses
 - Synthesize iteration 1-9 findings into a prioritized remediation roadmap with residual-risk scoring.
 - Consolidate high-impact security regressions into a minimal smoke suite for recurring automation runs.
+
+## Iteration 10 (Synthesis and Prioritized Remediation Roadmap) - 2026-03-01T16:06:53Z
+- Observation: Iterations 1-9 mitigated most critical design flaws, but recurring validation still required multiple targeted commands and high-context selection.
+- Inference: Regression blind spots from iteration 9 can reappear unless high-impact controls are continuously exercised in a low-friction, repeatable suite.
+- Strategy: Deliver a final-cycle synthesis report with prioritized residual risks and implement a one-command security smoke suite derived directly from iteration 9 test-harness lessons.
+- Validation: Added `scripts/run_security_smoke.sh` covering eight critical controls (URL policy, auth gate, local path boundary, concurrency/idempotency, preparation-failure visibility, and redirect SSRF defense); suite passed (`8 passed`).
+- Confidence change: 0.68 -> 0.89 for sustained regression detectability of high-impact security controls.
+- Delivery confidence: 0.89 -> 0.93 after final report + roadmap artifacts were produced.
+
+## Post-cycle hypotheses
+- Move smoke suite into CI on `codex/review-mainline` and gate merges on it.
+- Expand adversarial corpus tests for prompt-injection resilience across all multi-pass analysis tools.
