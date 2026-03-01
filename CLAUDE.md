@@ -241,6 +241,10 @@ All servers auto-load `~/.config/video-research-mcp/.env` at startup. Process en
 
 All other config (thinking level, temperature, cache dir/TTL, session limits, retry params, YouTube API key) has sensible defaults — see `config.py` or `docs/ARCHITECTURE.md` §10.
 
+## Archive
+
+`archive/` (gitignored) contains development artifacts moved out of the working tree: completed design docs, code reviews, bug reports (now in GitHub Issues), audit snapshots, and research notes. See `archive/INDEX.md` for a full inventory.
+
 ## Developer Docs
 
 | Document | Contents |
@@ -252,9 +256,7 @@ All other config (thinking level, temperature, cache dir/TTL, session limits, re
 | `docs/tutorials/WRITING_TESTS.md` | Fixtures, patterns, running tests |
 | `docs/tutorials/KNOWLEDGE_STORE.md` | Weaviate setup, 7 collections, 8 knowledge tools |
 | `docs/PLUGIN_DISTRIBUTION.md` | Two-package architecture, FILE_MAP, discovery, full inventory |
-| `docs/CODE_REVIEW_AUTOMATION.md` | Git-state trigger matrix for uncommitted, commit-range, and PR-context reviews |
 | `docs/WEAVIATE_PLUGIN_RECOMMENDATION.md` | Gap analysis and roadmap for knowledge store plugin assets |
 | `docs/PUBLISHING.md` | Dual-registry publishing guide with version sync policy |
 | `docs/RELEASE_CHECKLIST.md` | Copy-paste checklist for each release |
 | `CHANGELOG.md` | Release history in Keep a Changelog format |
-| `docs/plans/` | Design docs for planned features — linked from `ROADMAP.md` and GitHub issues |

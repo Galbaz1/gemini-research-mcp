@@ -15,3 +15,4 @@ node_modules/
 gr-file-manifest.json
 mlflow.db
 video_analysis/
+archive/
