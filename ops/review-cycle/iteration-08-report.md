@@ -20,9 +20,9 @@ Focus: Iteration 8 - concurrency and resource exhaustion
 - After creating `codex/review/i08`:
   - `{"mode": "commits", "reason": "Branch is ahead of base with no local unstaged/uncommitted files.", "branch": "codex/review/i08", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 15, "pr_context": false, "pr_url": null}`
 - Before commit on `codex/review/i08`:
-  - `{"mode": "uncommitted", "reason": "Working tree has local changes.", "branch": "codex/review/i08", "base_branch": "main", "uncommitted_files": 5, "ahead_commits": 15, "pr_context": false, "pr_url": null}`
+  - `{"mode": "uncommitted", "reason": "Working tree has local changes.", "branch": "codex/review/i08", "base_branch": "main", "uncommitted_files": 11, "ahead_commits": 15, "pr_context": false, "pr_url": null}`
 - After commit on `codex/review/i08`:
-  - (recorded after commit in this run)
+  - `{"mode": "commits", "reason": "Branch is ahead of base with no local unstaged/uncommitted files.", "branch": "codex/review/i08", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 16, "pr_context": false, "pr_url": null}`
 
 ## Required Reading Checklist
 - `AGENTS.md`, `src/AGENTS.md`, `tests/AGENTS.md`
