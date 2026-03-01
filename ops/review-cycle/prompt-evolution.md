@@ -57,3 +57,11 @@ Run an hourly security-focused review loop with branch discipline, reflective le
 4. If at least one source is still prepared successfully, the final `research_document` response shall include preparation-failure metadata instead of silently dropping failed sources.
 5. If all sources fail preparation, the tool shall return structured `make_tool_error()` output and shall not proceed to synthesis.
 6. The run shall persist severity-ranked findings, exploit reasoning, implemented remediations, confidence deltas, and next-iteration hypotheses in review-cycle artifacts before completion.
+
+## Iteration 7 Mission Rewritten as EARS Requirements
+1. When iteration state indicates `current_iteration=7`, the run shall prioritize prompt-injection and tool-misuse resistance.
+2. If iteration 6 lessons emphasize explicit safety/integrity contracts, iteration 7 shall enforce explicit anti-injection system policies across all untrusted-content model call paths.
+3. When `content_analyze` executes URL-context analysis, the system shall supply a reusable system instruction that treats fetched content as untrusted data.
+4. If URL-context structured generation falls back to unstructured fetch plus reshape, the fallback and reshape calls shall preserve the same anti-injection system instruction.
+5. When research/document system prompts process source material, they shall explicitly ignore in-content attempts to override role, policy, or tool behavior.
+6. The run shall persist severity-ranked findings, exploit reasoning, implemented fixes, confidence deltas, and next-iteration hypotheses in review-cycle artifacts before completion.

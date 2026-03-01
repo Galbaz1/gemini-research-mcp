@@ -25,9 +25,9 @@
 ## R-004
 - Severity: Medium
 - Area: Validation/test contract reliability
-- Evidence: Decorated tool direct calls fail as `FunctionTool` in subset test runs (`tests/test_content_tools.py`, `tests/test_content_batch_tools.py`).
+- Evidence: Decorated tool direct calls fail as `FunctionTool` in subset test runs (`tests/test_content_batch_tools.py`).
 - Exploit reasoning: Test harness contract drift can hide regressions and delay detection of real validation failures.
-- Status: Open (schedule deep fix during iteration 9 regression blind-spot pass).
+- Status: Partially mitigated (iteration 7 updated `tests/test_content_tools.py` to use `unwrap_tool`; `tests/test_content_batch_tools.py` remains open for iteration 9 pass).
 
 ## R-005
 - Severity: Medium
@@ -68,6 +68,7 @@
 ## R-010
 - Severity: Medium
 - Area: Prompt-injection/tool-misuse resistance
-- Evidence: Iterations 1-6 focused on trust boundaries, validation, idempotency, auth, cache integrity, and fault isolation; no dedicated adversarial prompt-injection review artifacts yet.
+- Evidence: Iteration 7 added explicit anti-injection system guardrails in `src/video_research_mcp/prompts/content.py` and wired them through `src/video_research_mcp/tools/content.py` model-call paths, plus hardening in research system prompts.
 - Exploit reasoning: Untrusted content merged into model prompts may induce policy bypass attempts without explicit adversarial coverage tests.
-- Status: Open (scheduled as iteration 7 primary focus).
+- Status: Mitigated in iteration 7 via explicit system-level anti-injection rules and regression assertions on guardrail propagation.
+- Residual risk: Guardrails are prompt-based; dedicated adversarial corpus testing across all tools is still pending.
