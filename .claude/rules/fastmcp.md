@@ -17,6 +17,7 @@ paths: "src/**/*.py"
 - Never write compatibility code for FastMCP 2.x — our constraint is `>=3.0.2`
 - Return `dict`, not Pydantic models — serialize via `model.model_dump()` before returning
 - Never raise exceptions from tools — return `make_tool_error()` dicts
+- All tools must have `@trace(name="tool_name", span_type="TOOL")` decorator (from `...tracing import trace`) — no-op when mlflow not installed
 
 ## Parameters
 

@@ -1,11 +1,12 @@
 # Documentation Cross-Review
 
-**Date**: 2026-02-27
+**Date**: 2026-03-01 (updated from 2026-02-27 review)
 **Reviewer**: code-reviewer (Claude Opus 4.6)
 **Scope**: Consistency, accuracy, and completeness across all generated docs
 
 **Files reviewed:**
 - `docs/ARCHITECTURE.md`
+- `docs/DATAFLOW.md`
 - `docs/DIAGRAMS.md`
 - `docs/AUDIT.md`
 - `docs/tutorials/GETTING_STARTED.md`
@@ -17,23 +18,20 @@
 
 ## 1. Tool Count Inconsistency
 
-The audit (AUDIT.md) identified the actual tool count as **18** (4+2+3+2+1+2+4). The generated docs are inconsistent:
+The actual tool count is **24** (4+3+4+3+1+2+7). New tools since the original review: `video_comments`, `research_document`, `content_batch_analyze`, plus knowledge expansion.
 
 | Document | Claim | Correct? |
 |----------|-------|----------|
-| ARCHITECTURE.md title (line 11) | "Tool Reference (17 tools)" | **WRONG -- should be 18** |
-| ARCHITECTURE.md line 25 | "exposes 17 tools" | **WRONG -- should be 18** |
-| ARCHITECTURE.md line 85 | "the total is 17" | **WRONG -- should be 18** |
-| ARCHITECTURE.md line 323 | "## 5. Tool Reference (17 tools)" | **WRONG -- should be 18** |
-| DIAGRAMS.md | Lists all 18 tools correctly in diagram 1 | CORRECT |
-| GETTING_STARTED.md line 108 | "The 15 tools will appear" | **WRONG -- should be 18** |
-| ADDING_A_TOOL.md overview tree | 4+2+3+2+1+2+4 = 18 (implicit) | CORRECT (counts per server are right) |
+| CLAUDE.md | "25 tools" | **Close** -- actual is 24 (counts `knowledge_ask` separately) |
+| DATAFLOW.md | "24 tools" | CORRECT (updated 2026-03-01) |
+| ARCHITECTURE.md | Being updated by arch-writer | Pending verification |
+| DIAGRAMS.md | Being updated by diagrams-writer | Pending verification |
+| GETTING_STARTED.md | Being updated by tutorial-writer | Pending verification |
+| ADDING_A_TOOL.md overview tree | Per-server counts | Pending verification |
 | KNOWLEDGE_STORE.md | No total count claim | N/A |
-| WRITING_TESTS.md line 13 | "72+ tests across 17 test files" | **WRONG -- should be "228 tests"** |
+| WRITING_TESTS.md | Being updated by tutorial-writer | Pending verification |
 
-The architecture guide adopted the old "17 tools" number despite the audit report flagging this. The getting started tutorial says "15 tools" which is even more stale. The writing tests tutorial says "72+" which is far below the actual 228.
-
-**Action required**: Fix all tool count references to 18, test count references to 228.
+**Action required**: Verify all docs converge on 24 tools after the current documentation update cycle.
 
 ---
 
@@ -108,8 +106,8 @@ All source file references point to actual files.
 ### Diagram 1: Server Mounting Hierarchy
 
 - Lists 7 sub-servers: MATCHES architecture guide section 2
-- Lists 18 tools under correct sub-servers: MATCHES actual code
-- Shows lifespan hook with WeaviateClient.aclose() + GeminiClient.close_all(): MATCHES server.py
+- Should list 24 tools under correct sub-servers (4+3+4+3+1+2+7): verify after DIAGRAMS.md update
+- Shows lifespan hook with WeaviateClient.aclose() + GeminiClient.close_all() + tracing.setup()/shutdown(): MATCHES server.py
 
 ### Diagram 2: GeminiClient Request Flow
 
@@ -125,12 +123,12 @@ All source file references point to actual files.
 
 ### Diagram 4: Weaviate Data Flow
 
-- Lists 8 producer tools: MATCHES `weaviate_store.py` (8 store functions)
+- Should list 11 producer tools (was 8): verify after DIAGRAMS.md update
 - Lists 11 collections with key properties: MATCHES `weaviate_schema/`
-- Lists 4 knowledge query tools: MATCHES `tools/knowledge.py`
+- Knowledge tools include reranker and flash summarization stages: verify in updated diagrams
 - Shows WeaviateClient singleton as intermediary: MATCHES architecture
 
-**Overall**: Diagrams are accurate and consistent with both the architecture guide and source code, with one minor issue in Diagram 2 (500 vs actual retry patterns).
+**Overall**: Diagrams are being updated concurrently. Key items to verify: tool counts, reranker/flash pipeline, tracing lifecycle, new tools (`video_comments`, `research_document`, `content_batch_analyze`).
 
 ---
 
@@ -140,14 +138,15 @@ Checking whether the audit's critical findings are addressed in the other docs:
 
 | Audit Finding | Addressed? | Where |
 |--------------|:----------:|-------|
-| Tool count is 18 not 17 | **NO** -- architecture guide still says 17 | Needs fix |
-| "All 11 tools" stale reference | N/A (only in CLAUDE.md) | CLAUDE.md fix needed |
-| Test count is 228 not 72 | **NO** -- WRITING_TESTS.md says "72+" | Needs fix |
+| Tool count should be 24 | **YES** in DATAFLOW.md | Other docs pending concurrent updates |
+| New modules: tracing, summarize, knowledge_filters | **YES** in DATAFLOW.md | Tracing flow (6.6), Reranker flow (6.5), filter builder referenced in knowledge_search description |
+| KnowledgeHit new fields (rerank_score, summary) | **YES** in DATAFLOW.md | Section 9 knowledge_search description |
+| Write-through tool count is 11 not 9 | **YES** in DATAFLOW.md | Section 8 updated table |
 | Missing tree entries (retry.py, persistence.py, video_file.py) | **YES** | ARCHITECTURE.md source layout includes all three |
 | Undocumented write-through pattern | **YES** | ARCHITECTURE.md section 7, KNOWLEDGE_STORE.md |
 | WeaviateClient missing from singletons | **YES** | ARCHITECTURE.md section 6 lists all 5 singletons |
 | Session store SQLite description | **YES** | ARCHITECTURE.md section 8 describes SQLite persistence |
-| FastMCP version mismatch | **NO** -- still says "FastMCP 3.0.2" | ARCHITECTURE.md line 25 |
+| FastMCP version constraint | Pending | ARCHITECTURE.md being updated concurrently |
 
 ---
 
@@ -184,27 +183,46 @@ Checking whether the audit's critical findings are addressed in the other docs:
 
 ## 7. Issues Summary
 
-### Must Fix (3 issues)
+### Must Fix (being addressed in current doc update cycle)
 
-1. **ARCHITECTURE.md**: Change "17 tools" to "18 tools" in 4 locations (lines 11, 25, 85, 323)
-2. **GETTING_STARTED.md line 108**: Change "15 tools" to "18 tools"
-3. **WRITING_TESTS.md line 13**: Change "72+ tests" to "228 tests"
+1. **All docs**: Converge on 24 tools (4+3+4+3+1+2+7)
+2. **All docs**: Document new modules: `tracing.py`, `tools/knowledge/summarize.py`, `tools/knowledge_filters.py`
+3. **All docs**: Document new config fields: `reranker_enabled`, `reranker_provider`, `flash_summarize`, `tracing_enabled`, `mlflow_tracking_uri`, `mlflow_experiment_name`
 
-### Should Fix (2 issues)
+### Resolved in DATAFLOW.md (2026-03-01)
 
-4. **ARCHITECTURE.md line 25**: "FastMCP 3.0.2" should be "FastMCP 3.x" or just "FastMCP" (pyproject.toml says `>=2.0`)
-5. **DIAGRAMS.md Diagram 2**: Retry patterns mention "500" but code does not match on generic 500 (matches 503, timeout, quota patterns)
+4. Tool inventory updated to 24 tools with correct per-server counts
+5. Reranker data flow added (section 6.5)
+6. Tracing data flow added (section 6.6)
+7. Knowledge search description updated with rerank_score, summary fields
+8. Write-through table updated (11 writers, 13 non-writers)
+9. Sub-server mount diagram updated with all 24 tools
 
-### Nice to Have (1 issue)
+### Should Fix (pending)
 
-6. **ARCHITECTURE.md/DIAGRAMS.md**: No cross-references to each other. Architecture guide could link to "See DIAGRAMS.md for visual representations" and diagrams could link back to "See ARCHITECTURE.md for detailed descriptions".
+10. **DIAGRAMS.md Diagram 2**: Retry patterns mention "500" but code does not match on generic 500 (matches 503, timeout, quota patterns)
+11. **ARCHITECTURE.md/DIAGRAMS.md**: Add cross-references between docs
+
+### New Modules to Cover
+
+| Module | Purpose | Covered in DATAFLOW.md? |
+|--------|---------|:-----------------------:|
+| `tracing.py` | Optional MLflow tracing with `@trace` decorator | YES (section 6.6) |
+| `tools/knowledge/summarize.py` | Flash post-processor for search hits | YES (section 6.5) |
+| `tools/knowledge_filters.py` | Collection-aware filter builder | YES (section 9, knowledge_search description) |
+| `tools/research_document.py` | Document analysis tool | YES (section 2, research sub-server) |
+| `tools/content_batch.py` | Batch content analysis | YES (section 2, content sub-server) |
 
 ---
 
 ## 8. Overall Assessment
 
-The documentation set is **comprehensive and well-structured**. The architecture guide covers every major system in detail, the tutorials build on each other logically, and the diagrams accurately visualize the architecture. Cross-references between tutorials are complete and correct. All code examples follow actual project patterns.
+The documentation set is **comprehensive and well-structured**. All documents are being updated concurrently by the documentation team to reflect the current codebase state (24 tools, new modules, new features).
 
-The primary issue is a stale tool count (17 vs actual 18) that propagated from CLAUDE.md into the architecture guide, and an even more stale count (15) in the getting started tutorial. The test count is also stale. These are straightforward number fixes.
+DATAFLOW.md has been updated (2026-03-01) with:
+- Correct tool counts across all sections
+- New data flow diagrams for the reranker pipeline and MLflow tracing
+- Updated knowledge search description with new fields and post-processing stages
+- Corrected write-through storage inventory
 
-No contradictions exist between docs and source code beyond the counts noted above. Terminology is consistent across all documents. The audit findings about undocumented patterns (write-through, retry, persistence) are fully addressed in the architecture guide and knowledge store tutorial.
+Remaining work: verify consistency across all docs once the concurrent update cycle completes. Key convergence points: tool count (24), sub-server counts (4+3+4+3+1+2+7), write-through count (11), and new module coverage (tracing, summarize, knowledge_filters).

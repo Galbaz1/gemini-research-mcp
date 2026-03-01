@@ -9,9 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Cohere reranking** — optional server-side reranking via Cohere when `COHERE_API_KEY` is set. Auto-detected; disable with `RERANKER_ENABLED=false`
-- **Flash summarization** — Gemini Flash post-processes search hits to score relevance, generate one-line summaries, and trim unnecessary properties. Disable with `FLASH_SUMMARIZE=false`
-- **MCP serialization fix** — `knowledge_ingest` and `knowledge_search` now handle JSON-stringified dict/list params from MCP JSON-RPC transport
+- **video-agent-mcp** — new package: parallel scene generation via Claude Agent SDK (PR #16)
+- **video-explainer-mcp** — new package: 15 tools for synthesizing explainer videos from research (PR #10)
+- **MLflow tracing** — `@trace` decorator on all 24 tools, MLflow MCP server plugin, `/gr:traces` command, and health check in `/gr:doctor` (PR #12)
+- **Cohere reranking** — optional server-side reranking via Cohere when `COHERE_API_KEY` is set. Auto-detected; disable with `RERANKER_ENABLED=false` (PR #18)
+- **Flash summarization** — Gemini Flash post-processes search hits to score relevance, generate one-line summaries, and trim unnecessary properties. Disable with `FLASH_SUMMARIZE=false` (PR #18)
+- **Media asset pipeline** — local file paths propagated through video/content pipelines, shared `gr/media` asset directory with recall actions (PR #17, #18)
+- **`generate_json_validated()`** — dual-path JSON validation in `GeminiClient` (PR #19, pending)
+- **Project-level git rules** — branch protection policy in `.claude/rules/git.md`
+
+### Changed
+
+- CI: bumped `actions/checkout` v4 to v6, `astral-sh/setup-uv` v5 to v7, `actions/setup-python` v5 to v6 (PRs #13, #14, #15)
+- Knowledge search: `rerank_score` and `summary` fields on `KnowledgeHit`
+- Weaviate schema: local media path fields added to collections (PR #17)
+
+### Fixed
+
+- MCP transport JSON string deserialization for list parameters in `knowledge_ingest` and `knowledge_search`
 
 ### Deprecated
 

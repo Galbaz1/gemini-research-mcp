@@ -1,13 +1,13 @@
 # Data Flow and Architecture Map
 
-Comprehensive reference for every command, tool, agent, skill, storage path, and data flow in the video-research-mcp system. Verified against source code (not docs) as of 2026-02-28.
+Comprehensive reference for every command, tool, agent, skill, storage path, and data flow in the video-research-mcp system. Verified against source code (not docs) as of 2026-03-01.
 
 ---
 
 ## Table of Contents
 
 1. [System Overview](#1-system-overview)
-2. [Complete Tool Inventory (23 tools)](#2-complete-tool-inventory-23-tools)
+2. [Complete Tool Inventory (24 tools)](#2-complete-tool-inventory-24-tools)
 3. [Complete Command Inventory (8 commands)](#3-complete-command-inventory-8-commands)
 4. [Agent Inventory (4 agents)](#4-agent-inventory-4-agents)
 5. [Skill Inventory (3 skills)](#5-skill-inventory-3-skills)
@@ -44,9 +44,9 @@ graph TB
     subgraph "MCP Server — video-research"
         subgraph "Sub-servers"
             S1["video (4 tools)"]
-            S2["youtube (2 tools)"]
-            S3["research (3 tools)"]
-            S4["content (2 tools)"]
+            S2["youtube (3 tools)"]
+            S3["research (4 tools)"]
+            S4["content (3 tools)"]
             S5["search (1 tool)"]
             S6["infra (2 tools)"]
             S7["knowledge (7 tools)"]
@@ -88,7 +88,7 @@ graph TB
 
 ---
 
-## 2. Complete Tool Inventory (23 tools)
+## 2. Complete Tool Inventory (24 tools)
 
 ### video sub-server (4 tools) — `tools/video.py`
 
@@ -105,40 +105,46 @@ Notes:
 - `video_continue_session` maintains conversation history via `session_store`
 - `video_batch_analyze` uses a semaphore of 3 for concurrent Gemini calls
 
-### youtube sub-server (2 tools) — `tools/youtube.py`
+### youtube sub-server (3 tools) — `tools/youtube.py`
 
 | Tool | Parameters | API Used | Stores to Weaviate | Returns |
 |------|-----------|---------|-------------------|---------|
 | `video_metadata` | `url` | YouTube Data API v3 | VideoMetadata (deterministic UUID upsert) | VideoMetadata dict |
+| `video_comments` | `url`, `max_results` | YouTube Data API v3 | CommunityReactions | CommentResults dict |
 | `video_playlist` | `url`, `max_items` | YouTube Data API v3 | (none) | PlaylistInfo dict |
 
 Notes:
 - `video_metadata` uses `weaviate.util.generate_uuid5(video_id)` for deterministic UUIDs — repeated fetches upsert rather than duplicate
+- `video_comments` fetches top-level comments via YouTube Data API, stores aggregated reaction in Weaviate
 - `video_playlist` does NOT store to Weaviate
 
-### research sub-server (3 tools) — `tools/research.py`
+### research sub-server (4 tools) — `tools/research.py`, `tools/research_document.py`
 
 | Tool | Parameters | Gemini Model | Stores to Weaviate | Returns |
 |------|-----------|-------------|-------------------|---------|
 | `research_deep` | `topic`, `scope`, `thinking_level` | Default (Pro) | ResearchFindings (1 report + N findings) | ResearchReport dict |
 | `research_plan` | `topic`, `scope`, `available_agents` | Default (Pro) | ResearchPlans | ResearchPlan dict |
 | `research_assess_evidence` | `claim`, `sources`, `context` | Default (Pro) | ResearchFindings (source_tool="research_assess_evidence") | EvidenceAssessment dict |
+| `research_document` | `url`, `file_path`, `instruction`, `output_schema`, `thinking_level` | Default (Pro) | ResearchFindings | DocumentAnalysis dict |
 
 Notes:
 - `research_deep` runs 3 phases: Scope Definition (unstructured) -> Evidence Collection (structured) -> Synthesis (structured)
 - `research_deep` stores one report-level object + one object per finding, linked via `belongs_to_report` reference and `report_uuid` property
 - `research_assess_evidence` stores in the SAME collection as `research_deep` but with `source_tool="research_assess_evidence"`
+- `research_document` is registered via deferred `_ensure_document_tool()` to avoid circular imports; analyzes documents (URL or local file) via Gemini
 
-### content sub-server (2 tools) — `tools/content.py`
+### content sub-server (3 tools) — `tools/content.py`, `tools/content_batch.py`
 
 | Tool | Parameters | Gemini Model | Stores to Weaviate | Returns |
 |------|-----------|-------------|-------------------|---------|
 | `content_analyze` | `instruction`, `file_path`, `url`, `text`, `output_schema`, `thinking_level` | Default (Pro) | ContentAnalyses | ContentResult dict or custom schema |
 | `content_extract` | `content`, `schema` | Default (Pro) | (none) | Dict matching provided schema |
+| `content_batch_analyze` | `directory`, `instruction`, `glob_pattern`, `output_schema`, `thinking_level`, `max_files` | Default (Pro) | ContentAnalyses (per file) | BatchContentResult dict |
 
 Notes:
 - `content_analyze` with URL input uses Gemini's `UrlContext` tool for web fetch, with a two-step fallback (unstructured fetch -> reshape)
 - `content_extract` does NOT store to Weaviate
+- `content_batch_analyze` is registered via deferred `_ensure_batch_tool()` to avoid circular imports; processes multiple files with a concurrency semaphore
 
 ### search sub-server (1 tool) — `tools/search.py`
 
@@ -175,6 +181,7 @@ Notes:
 
 Notes:
 - `knowledge_search` supports 3 modes: `hybrid` (BM25 + vector, default), `semantic` (vector only), `keyword` (BM25 only)
+- `knowledge_search` has two post-processing stages: Cohere reranking (when `COHERE_API_KEY` set, overfetches 3x then reranks) and Flash summarization (relevance scoring + property trimming via Gemini Flash)
 - `knowledge_ask` and `knowledge_query` require the optional `weaviate-agents` package
 - `knowledge_ask` returns AI-generated answers with source citations; `knowledge_query` returns raw objects with AI query interpretation
 - `knowledge_ingest` validates properties against the schema before insertion
@@ -431,9 +438,18 @@ flowchart LR
         QS["AsyncQueryAgent<br/>(search mode)"]
     end
 
+    subgraph "Post-Processing"
+        RR["Cohere Reranker<br/>(when enabled)"]
+        FS["Flash Summarizer<br/>(relevance + trim)"]
+    end
+
     KS -->|"search_type=hybrid"| H
     KS -->|"search_type=semantic"| S
     KS -->|"search_type=keyword"| BM
+    H --> RR
+    S --> RR
+    BM --> RR
+    RR --> FS
     KR --> NO
     KF --> FID
     KSt --> AGG
@@ -451,9 +467,9 @@ flowchart LR
 graph LR
     Root["FastMCP('video-research')"]
     Root --> V["video (4)"]
-    Root --> YT["youtube (2)"]
-    Root --> R["research (3)"]
-    Root --> C["content (2)"]
+    Root --> YT["youtube (3)"]
+    Root --> R["research (4)"]
+    Root --> C["content (3)"]
     Root --> S["search (1)"]
     Root --> I["infra (2)"]
     Root --> K["knowledge (7)"]
@@ -464,14 +480,17 @@ graph LR
     V --> vba["video_batch_analyze"]
 
     YT --> vm["video_metadata"]
+    YT --> vc["video_comments"]
     YT --> vp["video_playlist"]
 
     R --> rd["research_deep"]
     R --> rp["research_plan"]
     R --> rae["research_assess_evidence"]
+    R --> rdoc["research_document"]
 
     C --> ca["content_analyze"]
     C --> ce["content_extract"]
+    C --> cba["content_batch_analyze"]
 
     S --> ws["web_search"]
 
@@ -486,6 +505,88 @@ graph LR
     K --> ka["knowledge_ask"]
     K --> kq["knowledge_query"]
 ```
+
+### 6.5 Reranker Data Flow
+
+```mermaid
+sequenceDiagram
+    participant KS as knowledge_search
+    participant F as knowledge_filters
+    participant W as Weaviate
+    participant CO as Cohere Reranker
+    participant FL as Gemini Flash
+    participant R as KnowledgeSearchResult
+
+    KS->>KS: Determine target collections
+    loop Each collection
+        KS->>F: build_collection_filter(col, props, **filter_kwargs)
+        F-->>KS: Filter | None
+        KS->>KS: Check RERANK_PROPERTY[col] + cfg.reranker_enabled
+        alt Reranker enabled
+            KS->>W: dispatch_search(limit × 3, rerank=Rerank(prop, query))
+            W->>CO: Rerank overfetched results
+            CO-->>W: Reranked results with rerank_score
+        else Reranker disabled
+            KS->>W: dispatch_search(limit)
+        end
+        W-->>KS: Objects with score + optional rerank_score
+    end
+
+    KS->>KS: Sort by (rerank_score, score) descending
+
+    alt Flash summarize enabled
+        KS->>FL: summarize_hits(top hits, query)
+        FL-->>KS: HitSummaryBatch (relevance, summary, useful_properties)
+        KS->>KS: Merge summaries, trim properties
+    end
+
+    KS->>R: KnowledgeSearchResult(reranked=bool, flash_processed=bool)
+```
+
+The reranker pipeline has two independent post-processing stages:
+
+1. **Cohere reranking** — enabled when `COHERE_API_KEY` is set (or `RERANKER_ENABLED=true`). Each collection search overfetches 3x the requested limit. Weaviate's native `Rerank` integration scores results against the best text property per collection (defined in `RERANK_PROPERTY` map in `helpers.py`). Results are sorted by `(rerank_score, base_score)`.
+
+2. **Flash summarization** — enabled by default (`FLASH_SUMMARIZE=true`). Sends the top hits to Gemini Flash with the original query. Flash returns per-hit relevance scores, one-line summaries, and a list of useful property names. Properties are trimmed to only the useful ones, reducing token consumption when results flow into Claude's context window.
+
+### 6.6 Tracing Data Flow
+
+```mermaid
+flowchart TD
+    subgraph "MCP Tool Layer"
+        T1["@trace(name, span_type='TOOL')"]
+    end
+
+    subgraph "Gemini SDK Layer"
+        A1["mlflow.gemini.autolog()"]
+    end
+
+    subgraph "MLflow"
+        EXP["Experiment: video-research-mcp"]
+        SP["TOOL span (root)"]
+        CH["CHAT_MODEL span (child)"]
+    end
+
+    T1 -->|"creates root span"| SP
+    A1 -->|"patches generate_content"| CH
+    CH -->|"auto-parented under"| SP
+    SP --> EXP
+```
+
+All 24 tool functions are decorated with `@trace(name="<tool_name>", span_type="TOOL")`. This decorator is a conditional wrapper around `mlflow.trace`:
+
+- **When tracing is off** (no `mlflow-tracing` installed, or `GEMINI_TRACING_ENABLED=false`, or no `MLFLOW_TRACKING_URI`): the decorator is an identity function — zero overhead.
+- **When tracing is on**: each tool invocation creates a root TOOL span. Inside, `mlflow.gemini.autolog()` automatically instruments every `generate_content` call as a child CHAT_MODEL span, capturing model, tokens, and latency.
+
+Configuration via env vars:
+
+| Variable | Effect |
+|----------|--------|
+| `MLFLOW_TRACKING_URI` | Where to store traces (file or server URI). Required for tracing |
+| `MLFLOW_EXPERIMENT_NAME` | Experiment name (default: `video-research-mcp`) |
+| `GEMINI_TRACING_ENABLED` | Set to `false` to force-disable even with a tracking URI |
+
+Lifecycle: `tracing.setup()` runs at server startup (in lifespan), `tracing.shutdown()` flushes pending async traces at teardown.
 
 ---
 
@@ -638,14 +739,16 @@ Every tool that calls Gemini follows this pattern (defined in `weaviate_store/`)
 | `video_analyze` | `video_create_session` |
 | `video_batch_analyze` | `video_playlist` |
 | `video_continue_session` | `content_extract` |
-| `video_metadata` | `infra_cache` |
+| `video_metadata` | `content_batch_analyze` |
+| `video_comments` | `infra_cache` |
 | `content_analyze` | `infra_configure` |
 | `research_deep` | All 7 knowledge tools (they READ from Weaviate) |
 | `research_plan` | |
 | `research_assess_evidence` | |
+| `research_document` | |
 | `web_search` | |
 
-9 tools write, 12 tools do not write to Weaviate.
+11 tools write, 13 tools do not write to Weaviate.
 
 ---
 
@@ -655,7 +758,7 @@ Every tool that calls Gemini follows this pattern (defined in `weaviate_store/`)
 
 These use the Weaviate Python v4 client directly:
 
-- **`knowledge_search`**: Dispatches to `hybrid`, `near_text`, or `bm25` based on `search_type`. Searches across all or specified collections. Supports filters: `evidence_tier`, `source_tool`, `date_from`, `date_to`, `category`, `video_id`. Filters are collection-aware — conditions are skipped for collections lacking the property.
+- **`knowledge_search`**: Dispatches to `hybrid`, `near_text`, or `bm25` based on `search_type`. Searches across all or specified collections. Supports filters: `evidence_tier`, `source_tool`, `date_from`, `date_to`, `category`, `video_id`. Filters are collection-aware via `knowledge_filters.build_collection_filter()` — conditions are skipped for collections lacking the property. Results pass through optional Cohere reranking (3x overfetch, scored per-collection text property) and Flash summarization (relevance scoring + property trimming). Output `KnowledgeHit` includes `rerank_score` (float | None) and `summary` (str | None). Output `KnowledgeSearchResult` includes `reranked` and `flash_processed` flags.
 - **`knowledge_related`**: Uses `near_object` vector search to find semantically similar objects in the same collection.
 - **`knowledge_fetch`**: Direct UUID lookup via `fetch_object_by_id`.
 - **`knowledge_stats`**: Uses `aggregate.over_all()` for counts, with optional `group_by` aggregation.
@@ -727,10 +830,11 @@ Verified during this audit:
 
 | Area | CLAUDE.md / Docs claim | Actual code | Impact |
 |------|----------------------|------------|--------|
-| Tool count | CLAUDE.md says "23 tools" | 23 tools | **Resolved** |
-| Knowledge tools in CLAUDE.md table | Lists 7 knowledge tools | 7 tools registered (8 including `knowledge_ask`) | **Resolved** |
-| Knowledge `__init__.py` docstring | Says "8 tools" | 8 tools registered (7 search/CRUD + `knowledge_ask` alias) | Consistent |
-| video-research SKILL.md | Says "13 tools" | 23 tools exist; skill only documents the original 13 (pre-knowledge expansion) | Skill guide missing knowledge tools |
-| weaviate-setup SKILL.md | Says "13 existing tools automatically write" and "4 knowledge query tools" | 9 tools write to Weaviate; 8 knowledge tools exist | Both numbers outdated |
+| Tool count | CLAUDE.md says "25 tools" | 24 tools (4+3+4+3+1+2+7) | CLAUDE.md slightly high — see note below |
+| Knowledge tools in CLAUDE.md table | Lists 7 knowledge tools | 7 tools registered | **Resolved** |
+| Knowledge `__init__.py` docstring | Says "8 tools" | 7 tools registered | Docstring slightly stale |
+| video-research SKILL.md | Says "13 tools" | 24 tools exist; skill only documents the original 13 (pre-knowledge expansion) | Skill guide missing knowledge tools |
+| weaviate-setup SKILL.md | Says "13 existing tools automatically write" and "4 knowledge query tools" | 11 tools write to Weaviate; 7 knowledge tools exist | Both numbers outdated |
 | Model presets in `commands/models.md` | Says `stable` uses "3 Pro" | `config.py` shows `stable` uses `gemini-3-pro-preview` | Consistent |
-| Test count in CLAUDE.md | Says "473 tests" | 473 tests (verified) | **Resolved** |
+
+Note: CLAUDE.md lists 25 tools because it counts `knowledge_ask` as separate from the 7 knowledge tools listed in the architecture table. The actual registered tool count is 24 (7 knowledge tools including `knowledge_ask`).

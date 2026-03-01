@@ -325,3 +325,120 @@ flowchart LR
     C6 --> K4
     C7 --> K4
 ```
+
+---
+
+## 5. Reranker & Flash Post-Processing Flow
+
+`knowledge_search` overfetches 3x the requested limit, reranks via Cohere (Weaviate-integrated), then optionally runs Gemini Flash to score relevance, generate one-line summaries, and trim properties before returning the final result set.
+
+```mermaid
+sequenceDiagram
+    participant Caller
+    participant KS as knowledge_search
+    participant WV as Weaviate
+    participant RR as Cohere Reranker<br/>(Weaviate module)
+    participant Flash as Gemini Flash<br/>(summarize_hits)
+
+    Caller->>KS: query, limit=10
+
+    Note over KS: fetch_limit = limit * 3<br/>(overfetch factor)
+
+    KS->>WV: hybrid/semantic/bm25<br/>limit=30, rerank=Rerank(prop, query)
+    WV->>RR: rerank 30 candidates
+    RR-->>WV: scored + reordered
+    WV-->>KS: 30 results with<br/>rerank_score + base score
+
+    Note over KS: Sort by rerank_score desc,<br/>base score as tiebreaker
+
+    alt flash_summarize enabled
+        KS->>Flash: _build_prompt(hits, query)<br/>batch up to 20 hits
+        Flash-->>KS: HitSummaryBatch<br/>(relevance, summary,<br/>useful_properties per hit)
+        Note over KS: Trim properties to<br/>useful ones, attach summaries
+    end
+
+    KS-->>Caller: KnowledgeSearchResult<br/>reranked=true,<br/>flash_processed=true/false
+```
+
+---
+
+## 6. MLflow Tracing Flow
+
+Optional tracing via `mlflow-tracing`. The `@trace` decorator wraps MCP tool entrypoints as `TOOL` root spans. `mlflow.gemini.autolog()` patches the google-genai SDK to capture every `generate_content` call as a child `CHAT_MODEL` span. Guarded import — the server runs fine without `mlflow-tracing` installed.
+
+```mermaid
+sequenceDiagram
+    participant MCP as MCP Client
+    participant Tool as Tool Function<br/>(@trace decorator)
+    participant MLflow as MLflow
+    participant Gemini as GeminiClient<br/>(autologged)
+    participant API as Google GenAI API
+
+    Note over MLflow: setup() at server start:<br/>set_tracking_uri()<br/>set_experiment()<br/>gemini.autolog()
+
+    MCP->>Tool: tool invocation
+
+    alt tracing enabled
+        Tool->>MLflow: Start TOOL span<br/>(name, span_type="TOOL")
+        MLflow-->>Tool: span context
+    end
+
+    Tool->>Gemini: generate() / generate_structured()
+    Gemini->>API: aio.models.generate_content()
+
+    alt tracing enabled
+        Note over Gemini,MLflow: autolog captures<br/>CHAT_MODEL child span<br/>(model, tokens, latency)
+        API-->>Gemini: response
+        Gemini-->>Tool: parsed result
+        Tool->>MLflow: Complete TOOL span<br/>(success/error, attributes)
+    else tracing disabled
+        API-->>Gemini: response
+        Gemini-->>Tool: parsed result
+        Note over Tool: @trace is identity —<br/>zero overhead
+    end
+
+    Tool-->>MCP: tool result
+
+    Note over MLflow: shutdown():<br/>flush_trace_async_logging()
+```
+
+---
+
+## 7. Monorepo Package Structure
+
+Three independent Python packages share a single git repository. The root package (`video-research-mcp`) is the main MCP server. The two packages under `packages/` are standalone MCP servers for video production workflows. All packages use hatchling and share the same Python/tooling requirements but have no runtime cross-dependencies.
+
+```mermaid
+graph TD
+    classDef root fill:#1a1a2e,stroke:#e94560,color:#fff,stroke-width:2px
+    classDef pkg fill:#16213e,stroke:#0f3460,color:#fff,stroke-width:1px
+    classDef detail fill:#0f3460,stroke:#533483,color:#eee,stroke-width:1px
+    classDef dep fill:#533483,stroke:#e94560,color:#fff,stroke-width:1px
+
+    REPO["gemini-research-mcp<br/>(monorepo)"]:::root
+
+    subgraph "Root: video-research-mcp"
+        ROOT_PKG["video-research-mcp<br/>25 tools | 7 sub-servers<br/>PyPI + npm (plugin installer)"]:::pkg
+        ROOT_DEPS["google-genai >=1.57<br/>fastmcp >=3.0.2<br/>weaviate-client >=4.19.2<br/>pydantic >=2.0"]:::dep
+        ROOT_PKG --- ROOT_DEPS
+    end
+
+    subgraph "packages/video-agent-mcp"
+        AGENT_PKG["video-agent-mcp<br/>2 tools | 1 sub-server<br/>Parallel scene generation"]:::pkg
+        AGENT_DEPS["claude-agent-sdk >=0.1.0<br/>fastmcp >=3.0.2<br/>pydantic >=2.0"]:::dep
+        AGENT_PKG --- AGENT_DEPS
+    end
+
+    subgraph "packages/video-explainer-mcp"
+        EXPLAINER_PKG["video-explainer-mcp<br/>15 tools | 4 sub-servers<br/>Video synthesis pipeline"]:::pkg
+        EXPLAINER_DEPS["fastmcp >=3.0.2<br/>pydantic >=2.0"]:::dep
+        EXPLAINER_PKG --- EXPLAINER_DEPS
+    end
+
+    REPO --> ROOT_PKG
+    REPO --> AGENT_PKG
+    REPO --> EXPLAINER_PKG
+
+    SHARED["Shared: Python >=3.11<br/>hatchling build<br/>ruff + pytest"]:::detail
+    REPO -.- SHARED
+```

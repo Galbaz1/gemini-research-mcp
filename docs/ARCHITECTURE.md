@@ -8,7 +8,7 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 2. [Composite Server Pattern](#2-composite-server-pattern)
 3. [GeminiClient Pipeline](#3-geminiclient-pipeline)
 4. [Tool Conventions](#4-tool-conventions)
-5. [Tool Reference (23 tools)](#5-tool-reference-23-tools)
+5. [Tool Reference (25 tools)](#5-tool-reference-25-tools)
 6. [Singletons](#6-singletons)
 7. [Weaviate Integration](#7-weaviate-integration)
 8. [Session Management](#8-session-management)
@@ -17,6 +17,9 @@ Technical reference for the `video-research-mcp` codebase. Covers the system des
 11. [URL Validation](#11-url-validation)
 12. [Error Handling](#12-error-handling)
 13. [Prompt Templates](#13-prompt-templates)
+14. [Tracing](#14-tracing)
+15. [Knowledge Search Pipeline](#15-knowledge-search-pipeline)
+16. [Companion Packages](#16-companion-packages)
 
 ---
 
@@ -61,9 +64,26 @@ src/video_research_mcp/
   types.py               Shared Literal types + Annotated aliases
   youtube.py             YouTubeClient singleton (Data API v3)
   retry.py               Exponential backoff for transient Gemini errors
+  tracing.py             Optional MLflow integration (@trace decorator, autolog)
   weaviate_client.py     WeaviateClient singleton
-  weaviate_schema/       11 collection definitions (dataclass-based, split by domain)
-  weaviate_store/        Write-through store functions (one per collection)
+  weaviate_schema/       11 collection definitions (package, 5 modules)
+    __init__.py          Re-exports ALL_COLLECTIONS + types
+    base.py              CollectionDef, PropertyDef, ReferenceDef, _common_properties
+    collections.py       7 core collections (Findings, Analyses, Metadata, etc.)
+    community.py         CommunityReactions collection
+    concepts.py          ConceptKnowledge, RelationshipEdges collections
+    calls.py             CallNotes collection
+  weaviate_store/        Write-through store functions (package, 8 modules)
+    __init__.py          Re-exports all store_* functions
+    _base.py             Shared guard (_is_enabled) and helpers
+    video.py             store_video_analysis, store_video_metadata
+    research.py          store_research_finding, store_evidence_assessment, store_research_plan
+    content.py           store_content_analysis
+    session.py           store_session_turn
+    search.py            store_web_search
+    community.py         store_community_reaction
+    concepts.py          store_concept_knowledge, store_relationship_edges
+    calls.py             store_call_notes
   models/
     video.py             VideoResult, SessionInfo, SessionResponse
     video_batch.py       BatchVideoItem, BatchVideoResult
@@ -72,7 +92,7 @@ src/video_research_mcp/
     content.py           ContentResult
     content_batch.py     BatchContentItem, BatchContentResult
     youtube.py           VideoMetadata, PlaylistInfo
-    knowledge.py         KnowledgeHit, KnowledgeSearchResult, KnowledgeStatsResult, KnowledgeAskResult, KnowledgeQueryResult
+    knowledge.py         KnowledgeHit, KnowledgeSearchResult, HitSummary, HitSummaryBatch (+ 6 more)
   prompts/
     research.py          Deep research system prompt + phase templates
     research_document.py DOCUMENT_RESEARCH_SYSTEM + 4 phase prompts (map, evidence, cross-ref, synthesis)
@@ -92,7 +112,14 @@ src/video_research_mcp/
     content_batch.py     content_batch_analyze tool (split from content.py)
     search.py            search_server (1 tool)
     infra.py             infra_server (2 tools)
+    knowledge_filters.py Collection-aware Weaviate filter builder
     knowledge/           knowledge_server (8 tools: search, retrieval, ingest, QueryAgent)
+      __init__.py        Server + tool imports
+      search.py          knowledge_search with reranking + Flash summarization
+      helpers.py         RERANK_PROPERTY mapping, ALLOWED_PROPERTIES, serialize
+      summarize.py       Flash post-processor (HitSummary/HitSummaryBatch)
+      agent.py           knowledge_ask, knowledge_query (QueryAgent)
+      ingest.py          knowledge_ingest, knowledge_fetch, knowledge_stats
 ```
 
 **Tool count**: 4 + 3 + 4 + 3 + 1 + 2 + 8 = **25 tools** across 7 sub-servers.
@@ -122,23 +149,30 @@ app.mount(knowledge_server)   # tools/knowledge/       8 tools
 
 ### Lifespan Hook
 
-The `_lifespan` async context manager handles graceful shutdown:
+The `_lifespan` async context manager handles startup and graceful shutdown:
 
-1. **Context cache**: Conditionally cleared when `clear_cache_on_shutdown` is `True`
-2. **Weaviate**: `WeaviateClient.aclose()` closes the cluster connection
-3. **Gemini**: `GeminiClient.close_all()` tears down all pooled clients
+**Startup** (before `yield`):
+1. **Tracing**: `tracing.setup()` configures MLflow tracking URI, experiment, and Gemini autologging (no-op when tracing is disabled)
+
+**Shutdown** (after `yield`):
+1. **Tracing**: `tracing.shutdown()` flushes pending async traces
+2. **Context cache**: Conditionally cleared when `clear_cache_on_shutdown` is `True`
+3. **Weaviate**: `WeaviateClient.aclose()` closes the cluster connection
+4. **Gemini**: `GeminiClient.close_all()` tears down all pooled clients
 
 ```python
 @asynccontextmanager
 async def _lifespan(server: FastMCP):
+    tracing.setup()
     yield {}
+    tracing.shutdown()
     if get_config().clear_cache_on_shutdown:
         await context_cache.clear()
     await WeaviateClient.aclose()
     closed = await GeminiClient.close_all()
 ```
 
-The lifespan runs at server startup (before `yield`) and shutdown (after `yield`). No startup work is needed -- all singletons lazy-initialize on first use.
+All singletons lazy-initialize on first use -- the startup phase only configures tracing.
 
 ### Sub-Server Independence
 
@@ -578,8 +612,14 @@ All knowledge tools gracefully degrade when Weaviate is not configured (return e
 | `search_type` | `"hybrid" \| "semantic" \| "keyword"` | `"hybrid"` | Search algorithm |
 | `limit` | `int` | `10` | Max results per collection (1-100) |
 | `alpha` | `float` | `0.5` | Hybrid balance: 0=BM25, 1=vector (hybrid mode only) |
+| `evidence_tier` | `str \| None` | `None` | Filter ResearchFindings by evidence tier |
+| `source_tool` | `str \| None` | `None` | Filter by originating tool name |
+| `date_from` | `str \| None` | `None` | Filter `created_at >= ISO date` |
+| `date_to` | `str \| None` | `None` | Filter `created_at <= ISO date` |
+| `category` | `str \| None` | `None` | Filter VideoMetadata by category |
+| `video_id` | `str \| None` | `None` | Filter by video_id |
 
-Search types: `hybrid` fuses BM25 + vector scores; `semantic` uses `near_text` for pure vector similarity; `keyword` uses `bm25` for pure keyword matching. When `COHERE_API_KEY` is set, results are reranked via Cohere (overfetch 3x, rerank, sort by rerank_score). When `FLASH_SUMMARIZE` is not `false`, Gemini Flash post-processes hits with relevance scoring, one-line summaries, and property trimming. Returns: `KnowledgeSearchResult` with merged, score-sorted results.
+Search types: `hybrid` fuses BM25 + vector scores; `semantic` uses `near_text` for pure vector similarity; `keyword` uses `bm25` for pure keyword matching. Filters are collection-aware -- conditions are silently skipped for collections that lack the relevant property (see `knowledge_filters.py`). When `COHERE_API_KEY` is set, results are reranked via Cohere (overfetch 3x, rerank, sort by rerank_score). When `FLASH_SUMMARIZE` is not `false`, Gemini Flash post-processes hits with relevance scoring, one-line summaries, and property trimming. Returns: `KnowledgeSearchResult` with merged, score-sorted results. See [Knowledge Search Pipeline](#15-knowledge-search-pipeline) for details.
 
 **`knowledge_related`** -- Find semantically related objects via near-object vector search.
 
@@ -723,7 +763,9 @@ All connection paths include `AdditionalConfig(timeout=Timeout(init=30, query=60
 
 On first connection, `ensure_collections()` iterates all 7 `CollectionDef` objects and creates any that don't exist using the v4 `Property()` API (not `create_from_dict`). Existing collections are evolved by adding missing properties via `_evolve_collection()`.
 
-### Schema (`weaviate_schema/`)
+### Schema (`weaviate_schema/` package)
+
+The schema package contains 5 modules: `base.py` (types), `collections.py` (7 core collections), `community.py`, `concepts.py`, and `calls.py`. The `__init__.py` re-exports `ALL_COLLECTIONS` and all types so existing imports remain stable.
 
 Eleven collections, each defined as a `CollectionDef` dataclass:
 
@@ -752,7 +794,9 @@ Every collection includes common properties:
 
 Fields marked `skip_vectorization=True` are stored but not included in the vector embedding (IDs, timestamps, raw JSON blobs).
 
-### Write-Through Store (`weaviate_store/`)
+### Write-Through Store (`weaviate_store/` package)
+
+The store package contains 8 domain modules plus a shared `_base.py` with the `_is_enabled()` guard and helpers. The `__init__.py` re-exports all 11 `store_*` functions so existing imports like `from .weaviate_store import store_video_analysis` keep working.
 
 One async function per collection, all following the same pattern:
 
@@ -792,6 +836,8 @@ Eight tools provide read/write/query access to the knowledge store:
 - `"hybrid"` (default) -- fuses BM25 keyword + vector similarity via `collection.query.hybrid()`
 - `"semantic"` -- pure vector similarity via `collection.query.near_text()`
 - `"keyword"` -- pure BM25 keyword matching via `collection.query.bm25()`
+
+`knowledge_search` also has two optional post-processing stages (Cohere reranking and Flash summarization) described in [Knowledge Search Pipeline](#15-knowledge-search-pipeline).
 
 `knowledge_ask` and `knowledge_query` use the Weaviate `QueryAgent` from the optional `weaviate-agents` package. The QueryAgent translates natural-language queries into optimized Weaviate operations and can synthesize answers from multiple collections. The agent instance is lazily created and cached by collection set.
 
@@ -1013,6 +1059,13 @@ All configuration is resolved from environment variables via `ServerConfig.from_
 | `WEAVIATE_URL` | `weaviate_url` | `""` | -- |
 | `WEAVIATE_API_KEY` | `weaviate_api_key` | `""` | -- |
 | `CLEAR_CACHE_ON_SHUTDOWN` | `clear_cache_on_shutdown` | `False` | Clear context caches on server shutdown |
+| `COHERE_API_KEY` | *(drives `reranker_enabled`)* | `""` | Enables Cohere reranking in `knowledge_search` |
+| `RERANKER_ENABLED` | `reranker_enabled` | derived | `True` when Cohere key is set and not explicitly `false` |
+| `RERANKER_PROVIDER` | `reranker_provider` | `cohere` | Reranker backend (currently only `cohere`) |
+| `FLASH_SUMMARIZE` | `flash_summarize` | `True` | Enable Gemini Flash post-processing of search hits |
+| `GEMINI_TRACING_ENABLED` | `tracing_enabled` | derived | Enabled when `MLFLOW_TRACKING_URI` is set and flag is not `false` |
+| `MLFLOW_TRACKING_URI` | `mlflow_tracking_uri` | `""` | MLflow store URI. Empty = tracing disabled |
+| `MLFLOW_EXPERIMENT_NAME` | `mlflow_experiment_name` | `video-research-mcp` | MLflow experiment name |
 | -- | `weaviate_enabled` | derived | `True` if `WEAVIATE_URL` is set |
 
 ### Model Presets
@@ -1188,3 +1241,180 @@ _ANALYSIS_PREAMBLE = (
 ```
 
 This is prepended to the user's instruction for default-schema video analysis.
+
+---
+
+## 14. Tracing
+
+Optional MLflow integration that instruments Gemini calls and MCP tool entrypoints without affecting server functionality when `mlflow-tracing` is not installed.
+
+### Two Instrumentation Layers
+
+| Layer | Mechanism | Span Type | What It Captures |
+|-------|-----------|-----------|------------------|
+| **Autolog** | `mlflow.gemini.autolog()` | `CHAT_MODEL` | Every `generate_content` call via the google-genai SDK |
+| **Tool spans** | `@trace(name="...", span_type="TOOL")` decorator | `TOOL` | MCP tool entrypoint, parents the autolog child spans |
+
+### Graceful Degradation
+
+`tracing.py` uses a guarded import pattern:
+
+```python
+try:
+    import mlflow
+    import mlflow.gemini
+    _HAS_MLFLOW = True
+except ImportError:
+    _HAS_MLFLOW = False
+```
+
+`is_enabled()` returns `False` when either:
+- `mlflow-tracing` is not installed (`_HAS_MLFLOW` is `False`)
+- `tracing_enabled` is `False` in the config (derived from env vars)
+
+The `@trace` decorator becomes an identity function when tracing is off -- zero overhead, no conditional logic at call sites.
+
+### Configuration
+
+Tracing enablement follows a three-variable hierarchy:
+
+| Variable | Effect |
+|----------|--------|
+| `MLFLOW_TRACKING_URI` | Where to store traces. Empty = tracing disabled regardless of other flags |
+| `GEMINI_TRACING_ENABLED=false` | Force-disable even when `MLFLOW_TRACKING_URI` is set |
+| `GEMINI_TRACING_ENABLED=true` (or empty) | Enabled when `MLFLOW_TRACKING_URI` is non-empty |
+| `MLFLOW_EXPERIMENT_NAME` | Experiment name (default `video-research-mcp`) |
+
+### Lifecycle
+
+1. **Startup**: `tracing.setup()` in the lifespan hook calls `mlflow.set_tracking_uri()`, `mlflow.set_experiment()`, and `mlflow.gemini.autolog()`. Failures are logged and swallowed -- tracing must never prevent the server from starting.
+2. **Runtime**: `@trace` decorators on tool functions create TOOL spans that parent autolog child spans.
+3. **Shutdown**: `tracing.shutdown()` calls `mlflow.flush_trace_async_logging()` to flush pending traces.
+
+### Usage Pattern
+
+```python
+from .tracing import trace
+
+@knowledge_server.tool(annotations=ToolAnnotations(readOnlyHint=True, ...))
+@trace(name="knowledge_search", span_type="TOOL")
+async def knowledge_search(...) -> dict:
+    ...
+```
+
+The `@trace` decorator sits between the FastMCP `@tool` decorator and the function body. When tracing is disabled, it is a no-op passthrough.
+
+---
+
+## 15. Knowledge Search Pipeline
+
+`knowledge_search` has evolved from a simple Weaviate query into a multi-stage pipeline with three optional post-processing layers: collection-aware filtering, Cohere reranking, and Gemini Flash summarization.
+
+### Pipeline Flow
+
+```
+knowledge_search(query, collections, filters...)
+  1. Build collection-aware filters (knowledge_filters.py)
+  2. For each collection:
+     a. Dispatch Weaviate query (hybrid/semantic/keyword)
+     b. If reranker_enabled: overfetch 3x, pass rerank config
+  3. Merge + sort results (rerank_score > base score)
+  4. If flash_summarize: Flash post-processing (summarize.py)
+  5. Return KnowledgeSearchResult
+```
+
+### Collection-Aware Filters (`tools/knowledge_filters.py`)
+
+`build_collection_filter()` constructs a Weaviate `Filter` from optional query parameters, but only includes conditions for properties that actually exist in the target collection. This prevents errors when filtering across heterogeneous collections (e.g., `evidence_tier` only exists in `ResearchFindings`).
+
+```python
+# Skip evidence_tier filter for collections that don't have that property
+if evidence_tier and "evidence_tier" in allowed_properties:
+    conditions.append(Filter.by_property("evidence_tier").equal(evidence_tier))
+```
+
+Multiple conditions are combined via `Filter.all_of()` (AND logic). Date strings are parsed to UTC datetimes. The function returns `None` when no conditions apply, which Weaviate interprets as "no filter".
+
+### Cohere Reranking (`tools/knowledge/helpers.py`)
+
+When `COHERE_API_KEY` is set (and `RERANKER_ENABLED` is not `false`), search results are reranked using Cohere's reranking model via Weaviate's native `Rerank` module.
+
+**Overfetch pattern**: The search fetches `limit * 3` results from Weaviate, then reranks and trims to the requested `limit`. This ensures the reranker has enough candidates to surface the most relevant results.
+
+**RERANK_PROPERTY mapping**: Each collection has a designated text property for reranking -- the field that best represents the object's semantic content:
+
+| Collection | Rerank Property |
+|------------|----------------|
+| `ResearchFindings` | `claim` |
+| `VideoAnalyses` | `summary` |
+| `ContentAnalyses` | `summary` |
+| `VideoMetadata` | `description` |
+| `SessionTranscripts` | `turn_response` |
+| `WebSearchResults` | `response` |
+| `ResearchPlans` | `topic` |
+| `CommunityReactions` | `consensus` |
+| `ConceptKnowledge` | `description` |
+| `RelationshipEdges` | `relationship_type` |
+| `CallNotes` | `summary` |
+
+Results are sorted by `(rerank_score, base_score)` descending, so reranked results always float to the top.
+
+### Flash Summarization (`tools/knowledge/summarize.py`)
+
+When `FLASH_SUMMARIZE` is not `false` (default: enabled), Gemini Flash post-processes search results to reduce token consumption when results are sent to the MCP client's context window.
+
+**Models**: `HitSummary` (per-hit) and `HitSummaryBatch` (batch response) in `models/knowledge.py`.
+
+**Pipeline**:
+1. Build a prompt with truncated hit properties (max 500 chars per property, max 20 hits)
+2. Call `GeminiClient.generate_structured()` with the Flash model and `thinking_level="minimal"`
+3. Merge summaries back into hits: replace `properties` with only `useful_properties`, add `summary` field
+
+**Best-effort**: If Flash fails (timeout, quota, parsing error), the original raw hits are returned unchanged. This ensures search always succeeds even when the Flash call fails.
+
+**Key fields on KnowledgeHit**:
+- `rerank_score: float | None` -- Cohere reranker score (null when reranking is off)
+- `summary: str | None` -- Flash-generated one-line relevance summary (null when Flash is off)
+
+**Flags on KnowledgeSearchResult**:
+- `reranked: bool` -- Whether Cohere reranking was applied
+- `flash_processed: bool` -- Whether Flash summarization was applied
+
+---
+
+## 16. Companion Packages
+
+The `packages/` directory contains two standalone MCP servers that extend the core `video-research-mcp` server with specialized capabilities. Each is an independent Python package with its own `pyproject.toml`, `src/` layout, tests, and `.venv`.
+
+### `video-agent-mcp` -- Parallel Scene Generation
+
+An MCP server that uses the Claude Agent SDK to run multiple scene generation prompts concurrently, reducing wall-clock time for the video explainer pipeline.
+
+**Architecture**: Single sub-server (`scenes_server`) mounted onto a root `FastMCP("video-agent")`.
+
+**Core module** (`sdk_runner.py`):
+- `run_agent_query()` -- Executes a single Claude Agent SDK query with timeout handling
+- `run_parallel_queries()` -- Bounded concurrent execution via `asyncio.Semaphore`
+
+**CLAUDECODE env guard**: Before spawning nested Claude instances, `run_parallel_queries()` clears the `CLAUDECODE` environment variable to prevent recursive agent loops. The original value is restored in a `finally` block.
+
+**Concurrency model**: `asyncio.Semaphore(concurrency)` bounds the number of parallel agent queries. Default concurrency is set via `config.agent_concurrency`.
+
+### `video-explainer-mcp` -- Video Explainer Pipeline
+
+An MCP server that wraps the `video_explainer` CLI for pipeline orchestration -- creating, generating, and rendering explainer videos from research content.
+
+**Architecture**: Four sub-servers mounted onto a root `FastMCP("video-explainer")`:
+
+| Sub-server | Purpose |
+|------------|---------|
+| `project_server` | Project creation, listing, status inspection |
+| `pipeline_server` | Pipeline step execution (script, narration, scenes, voiceover, storyboard) |
+| `quality_server` | Quality assessment and validation |
+| `audio_server` | Audio/voiceover operations |
+
+**CLI wrapping** (`runner.py`): All pipeline operations delegate to `run_cli()`, which uses `asyncio.create_subprocess_exec()` with an argument list (never `shell=True`) to prevent command injection. On timeout, the process receives SIGTERM, waits 5 seconds for graceful shutdown, then SIGKILL.
+
+**Project scanner** (`scanner.py`): Reads filesystem state to determine pipeline step completion without making CLI calls. Each step has a detection rule (directory existence + expected output file).
+
+**Job state machine** (`jobs.py`): In-memory `RenderJob` registry tracks background render operations through `PENDING -> RUNNING -> COMPLETED | FAILED` lifecycle states. Jobs are identified by 12-char hex UUIDs.

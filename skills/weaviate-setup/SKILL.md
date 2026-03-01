@@ -5,7 +5,7 @@ description: Interactive onboarding for the Weaviate knowledge store. Guides use
 
 # Weaviate Knowledge Store Setup
 
-You are guiding a user through setting up Weaviate as the persistent knowledge store for the video-research MCP server. All 23 tools automatically write results to Weaviate when configured. 8 knowledge tools (`knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_fetch`, `knowledge_ingest`, `knowledge_ask`, `knowledge_query`) enable semantic search and AI-powered Q&A across accumulated research.
+You are guiding a user through setting up Weaviate as the persistent knowledge store for the video-research MCP server. All 24 tools automatically write results to Weaviate when configured. 7 knowledge tools (`knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_fetch`, `knowledge_ingest`, `knowledge_ask`, `knowledge_query`) enable semantic search and AI-powered Q&A across accumulated research.
 
 ## Setup Flow
 

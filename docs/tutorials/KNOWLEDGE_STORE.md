@@ -233,7 +233,7 @@ Stores structured notes from meeting and call recordings.
 
 ### knowledge_search -- search across collections
 
-Supports three search modes: hybrid (default), semantic, and keyword.
+Supports three search modes: hybrid (default), semantic, and keyword. Optional Cohere reranking and Gemini Flash summarization enrich results when enabled.
 
 ```
 Use knowledge_search with query "transformer architecture"
@@ -247,13 +247,32 @@ Parameters:
 - `collections` (optional) -- list of collection names to search; defaults to all 11
 - `limit` (optional) -- max results per collection (default 10)
 - `alpha` (optional) -- hybrid balance: 0.0 = pure keyword, 1.0 = pure vector, 0.5 = balanced (hybrid mode only)
+- `evidence_tier` (optional) -- filter ResearchFindings by tier (e.g. `"CONFIRMED"`)
+- `source_tool` (optional) -- filter by originating tool name
+- `date_from` / `date_to` (optional) -- filter by ISO date range on `created_at`
+- `category` (optional) -- filter VideoMetadata by category
+- `video_id` (optional) -- filter by video_id field
 
 Search modes:
 - **hybrid** -- fuses BM25 keyword scores with vector similarity via `collection.query.hybrid()`
 - **semantic** -- pure vector similarity via `collection.query.near_text()`; finds semantically similar content even without keyword overlap
 - **keyword** -- pure BM25 keyword matching via `collection.query.bm25()`; precise when you know the exact terms
 
-Results are merged across collections and sorted by score descending.
+Results are merged across collections and sorted by rerank score (when available) then base score descending.
+
+**Result fields** (`KnowledgeHit`):
+- `collection` -- source collection name
+- `object_id` -- Weaviate UUID
+- `score` -- base relevance score (from search mode)
+- `rerank_score` -- Cohere reranker score (null when reranking not enabled)
+- `summary` -- Flash-generated relevance summary (null when summarization not enabled)
+- `properties` -- object property dict (trimmed to useful properties when Flash summarization is active)
+
+**Response fields** (`KnowledgeSearchResult`):
+- `query`, `total_results`, `results` -- standard envelope
+- `filters_applied` -- active filter dict (null if no filters)
+- `reranked` -- true when Cohere reranking was applied
+- `flash_processed` -- true when Flash summarization was applied
 
 ### knowledge_related -- find similar objects
 
@@ -321,11 +340,11 @@ Returns an AI-generated `answer` string plus a `sources` list with collection na
 
 **Requires**: `pip install video-research-mcp[agents]` (installs `weaviate-agents>=1.2.0`). Returns a clear error hint if the package is not installed.
 
-### knowledge_query -- [DEPRECATED] natural language object retrieval
+### knowledge_query -- DEPRECATED
 
-> **Deprecated**: Use `knowledge_search` instead, which now includes Cohere reranking and Flash summarization for better results. `knowledge_ask` (AI-powered Q&A) is unaffected.
+> **Deprecated**: Use `knowledge_search` instead. `knowledge_search` now includes Cohere reranking and Flash summarization, making `knowledge_query` redundant. `knowledge_ask` (AI-powered Q&A) is unaffected.
 
-`knowledge_query` still functions during the deprecation period but returns a `_deprecated: true` flag in all responses. Migrate to `knowledge_search` for all retrieval needs.
+`knowledge_query` still functions during the deprecation period but returns a `_deprecated: true` flag in all responses. It will be removed in a future release. Migrate to `knowledge_search` for all retrieval needs.
 
 ### How knowledge_search compares to knowledge_ask
 
@@ -340,6 +359,111 @@ Returns an AI-generated `answer` string plus a `sources` list with collection na
 | Best for | Precise, repeatable queries with score transparency | Exploratory questions, "what do I know about X?" |
 
 The QueryAgent instance (used by `knowledge_ask`) is lazily created on first use and cached by the frozenset of target collection names.
+
+## Cohere Reranking
+
+When enabled, `knowledge_search` overfetches results (3x the requested limit) and re-scores them with Cohere's reranker before returning the top results. This significantly improves relevance, especially for hybrid and keyword searches.
+
+### Enabling reranking
+
+Set `COHERE_API_KEY` in your environment. Reranking auto-enables when a Cohere key is present:
+
+```bash
+export COHERE_API_KEY="your-cohere-api-key"
+```
+
+To explicitly control:
+
+```bash
+export RERANKER_ENABLED=true   # force-enable (requires COHERE_API_KEY)
+export RERANKER_ENABLED=false  # force-disable even with key present
+```
+
+When `COHERE_API_KEY` is set and `RERANKER_ENABLED` is not `"false"`, reranking activates automatically.
+
+### How it works
+
+Each collection has a designated rerank property -- the text field that best represents the semantic content of objects in that collection:
+
+| Collection | Rerank property |
+|------------|----------------|
+| ResearchFindings | `claim` |
+| VideoAnalyses | `summary` |
+| ContentAnalyses | `summary` |
+| VideoMetadata | `description` |
+| SessionTranscripts | `turn_response` |
+| WebSearchResults | `response` |
+| ResearchPlans | `topic` |
+| CommunityReactions | `consensus` |
+| ConceptKnowledge | `description` |
+| RelationshipEdges | `relationship_type` |
+| CallNotes | `summary` |
+
+The overfetch pattern:
+1. Request `limit * 3` results from Weaviate (with Cohere `Rerank` config attached)
+2. Weaviate sends the overfetched results to Cohere for scoring
+3. Results are sorted by `rerank_score` (descending), with `score` as tiebreaker
+4. The `rerank_score` field appears on each `KnowledgeHit`; `reranked: true` on the response
+
+When reranking is off, results use the base score only and `rerank_score` is null.
+
+### Configuration reference
+
+| Env var | Default | Effect |
+|---------|---------|--------|
+| `COHERE_API_KEY` | `""` | Cohere API key; presence auto-enables reranking |
+| `RERANKER_ENABLED` | (auto) | `"true"` = force on, `"false"` = force off, empty = auto from key |
+| `RERANKER_PROVIDER` | `"cohere"` | Reranker backend (only Cohere supported currently) |
+
+Source: `config.py:ServerConfig.reranker_enabled`, `tools/knowledge/helpers.py:RERANK_PROPERTY`
+
+## Flash Summarization
+
+After search (and optional reranking), `knowledge_search` runs Gemini Flash over the results to:
+
+1. **Score relevance** -- each hit gets a 0-1 relevance score against the query
+2. **Generate summaries** -- a one-line relevance summary per hit
+3. **Trim properties** -- identifies which property names are worth keeping, reducing token consumption when results are sent to Claude's context window
+
+### Enabling Flash summarization
+
+Enabled by default. To disable:
+
+```bash
+export FLASH_SUMMARIZE=false
+```
+
+### How it works
+
+The summarizer (`tools/knowledge/summarize.py`) batches up to 20 hits and sends them to Gemini Flash (`gemini-3-flash-preview`) with `thinking_level="minimal"` for fast processing.
+
+The `HitSummaryBatch` model structures Flash's output:
+
+```python
+class HitSummary(BaseModel):
+    object_id: str       # Weaviate UUID
+    relevance: float     # 0-1 relevance score
+    summary: str         # One-line relevance summary
+    useful_properties: list[str]  # Property names worth keeping
+
+class HitSummaryBatch(BaseModel):
+    summaries: list[HitSummary]
+```
+
+After Flash responds:
+- Each hit's `summary` field is populated with the generated summary
+- Each hit's `properties` dict is trimmed to only the properties Flash identified as useful (falls back to all properties if Flash returns an empty list)
+- The response's `flash_processed: true` flag indicates summarization ran
+
+Flash summarization is **best-effort** -- on any error, the raw hits are returned unchanged.
+
+### Configuration reference
+
+| Env var | Default | Effect |
+|---------|---------|--------|
+| `FLASH_SUMMARIZE` | `"true"` | Set to `"false"` to disable |
+
+Source: `config.py:ServerConfig.flash_summarize`, `tools/knowledge/summarize.py`
 
 ## Write-Through Store Pattern
 

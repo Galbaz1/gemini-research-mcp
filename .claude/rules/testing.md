@@ -15,8 +15,10 @@ paths: "tests/**/*.py"
 - `mock_gemini_client` — patches `GeminiClient.get()`, `.generate()`, `.generate_structured()`
 - `clean_config` — resets config singleton between tests
 - `mock_weaviate_client` — patches Weaviate client + collection
+- `mock_weaviate_disabled` — ensures Weaviate is disabled (depends on `clean_config`)
 - `_unwrap_fastmcp_tools` (autouse, session) — ensures tools are callable regardless of FastMCP version
 - `_set_dummy_api_key` (autouse) — sets `GEMINI_API_KEY=test-key-not-real`
+- `_disable_tracing` (autouse) — sets `GEMINI_TRACING_ENABLED=false`
 - `_isolate_dotenv` (autouse) — prevents loading real `.env` files
 - `_isolate_upload_cache` (autouse) — temp dir for upload cache
 

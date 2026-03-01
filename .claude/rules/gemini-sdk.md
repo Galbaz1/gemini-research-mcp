@@ -7,7 +7,7 @@ paths: "src/**/*.py"
 ## Client
 
 - Singleton via `GeminiClient.get()` — never construct `genai.Client()` directly
-- All generation through `GeminiClient.generate()` or `.generate_structured()`
+- All generation through `GeminiClient.generate()`, `.generate_structured()`, or `.generate_json_validated()`
 - Async API: `client.aio.models.generate_content()`
 
 ## Types
@@ -29,8 +29,15 @@ paths: "src/**/*.py"
 - Cache prewarm via `context_cache.start_prewarm()`, session lookup via `ensure_session_cache()` (which uses `lookup_or_await()` internally)
 - Caches expire via TTL (default 1 hour) — no manual cleanup needed on shutdown
 
+## Validation
+
+- `generate_json_validated()` — dual-path validation (Pydantic TypeAdapter / jsonschema)
+- Accepts `schema: type[BaseModel] | dict` — Pydantic model or JSON Schema dict
+- `strict=True` raises on failure; `strict=False` logs warning and returns unvalidated
+- jsonschema is a lazy import — skips validation when not installed
+
 ## Models
 
 - Default: `gemini-3.1-pro-preview` (config.py)
-- Flash: `gemini-3-flash-preview`
+- Flash: `gemini-3-flash-preview` — used by knowledge/summarize.py for post-processing
 - Model strings are preview/beta — this is intentional, we track latest Gemini

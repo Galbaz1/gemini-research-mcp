@@ -15,6 +15,7 @@ Applies to source files under `src/`.
 - Do not add FastMCP 2.x compatibility code.
 - Return `dict` values; serialize Pydantic models using `model_dump()`.
 - Never let tool exceptions escape; return `make_tool_error()` instead.
+- All tools must have `@trace(name="tool_name", span_type="TOOL")` decorator — no-op when mlflow not installed.
 
 ## Parameter Rules
 
@@ -25,7 +26,7 @@ Applies to source files under `src/`.
 ## Google GenAI SDK Patterns
 
 - Use the singleton `GeminiClient.get()`; do not instantiate `genai.Client()` directly.
-- Route generation through `GeminiClient.generate()` or `.generate_structured()`.
+- Route generation through `GeminiClient.generate()`, `.generate_structured()`, or `.generate_json_validated()`.
 - Use async generation via `client.aio.models.generate_content()`.
 - Import SDK types from `google.genai import types`.
 

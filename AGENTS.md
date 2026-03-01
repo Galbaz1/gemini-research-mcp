@@ -12,7 +12,13 @@ This layout mirrors `.claude/rules/*.md` path scoping using Codex's directory-ba
 
 ## What This Is
 
-An MCP server (stdio transport, FastMCP) exposing tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini (`google-genai`) and YouTube Data API v3. Python >= 3.11.
+A monorepo with 3 MCP servers:
+
+1. **video-research-mcp** (root) — 24 tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini 3.1 Pro (`google-genai`) and YouTube Data API v3.
+2. **video-explainer-mcp** (`packages/video-explainer-mcp/`) — 15 tools for synthesizing explainer videos.
+3. **video-agent-mcp** (`packages/video-agent-mcp/`) — 2 tools for parallel scene generation via Claude Agent SDK.
+
+Python >= 3.11.
 
 ## Commands
 
@@ -56,6 +62,8 @@ Core project patterns:
 - Tools return error dicts (`make_tool_error()`), no exception escape
 - Write-through Weaviate storage when configured (non-fatal)
 - Context caching with prewarm + session reuse
+- MLflow tracing via `@trace()` decorator on all tools (no-op when mlflow not installed)
+- Knowledge search with optional Cohere reranking + Flash summarization
 
 ## Conventions
 
@@ -88,6 +96,8 @@ Key constraints in this project:
 - `httpx >=0.27`
 - `pydantic >=2.0`
 - `weaviate-client >=4.19.2`
+- `mlflow-tracing >=3.0` (optional [tracing])
+- `weaviate-agents >=1.2.0` (optional [agents])
 - `pytest >=8.0`
 - `pytest-asyncio >=1.0`
 - `ruff >=0.9`
@@ -123,6 +133,11 @@ Main variables:
 - `WEAVIATE_URL` (empty disables knowledge store)
 - `WEAVIATE_API_KEY`
 - `GEMINI_SESSION_DB` (empty means in-memory sessions)
+- `COHERE_API_KEY` (auto-enables reranker when set)
+- `RERANKER_ENABLED` (override: true/false)
+- `FLASH_SUMMARIZE` (default true)
+- `GEMINI_TRACING_ENABLED` (default false)
+- `MLFLOW_TRACKING_URI`, `MLFLOW_EXPERIMENT_NAME`
 
 ## Key Docs
 

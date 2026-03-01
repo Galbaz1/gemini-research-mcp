@@ -6,12 +6,13 @@ Do not import `AGENTS.md` (for example via `@AGENTS.md` or `@../AGENTS.md`) from
 
 ## What This Is
 
-A monorepo with two MCP servers:
+A monorepo with three MCP servers:
 
-1. **video-research-mcp** (root) — 23 tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3.
+1. **video-research-mcp** (root) — 24 tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini 3.1 Pro (`google-genai` SDK) and YouTube Data API v3.
 2. **video-explainer-mcp** (`packages/video-explainer-mcp/`) — 15 tools for synthesizing explainer videos from research content. Wraps the [video_explainer](https://github.com/prajwal-y/video_explainer) CLI.
+3. **video-agent-mcp** (`packages/video-agent-mcp/`) — 2 tools providing an autonomous research agent orchestrator. Wraps video-research-mcp tools with planning and execution loops.
 
-Both servers share `~/.config/video-research-mcp/.env` for configuration. Built with Pydantic v2, hatchling. Python >= 3.11.
+All servers share `~/.config/video-research-mcp/.env` for configuration. Built with Pydantic v2, hatchling. Python >= 3.11.
 
 ## Commands
 
@@ -54,17 +55,15 @@ Priority when multiple states can apply:
 
 `server.py` mounts 7 sub-servers onto a root `FastMCP("video-research")`:
 
-| Sub-server | Tools | File |
-|------------|-------|------|
-| video | `video_analyze`, `video_create_session`, `video_continue_session`, `video_batch_analyze` | `tools/video.py` |
-| youtube | `video_metadata`, `video_comments`, `video_playlist` | `tools/youtube.py` |
-| research | `research_deep`, `research_plan`, `research_assess_evidence` | `tools/research.py` |
-| content | `content_analyze`, `content_extract` | `tools/content.py` |
-| search | `web_search` | `tools/search.py` |
-| infra | `infra_cache`, `infra_configure` | `tools/infra.py` |
-| knowledge | `knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_ingest`, `knowledge_fetch`, `knowledge_ask`, `knowledge_query` | `tools/knowledge/` |
-
-Supporting modules: `video_cache.py` (context cache warming), `video_batch.py` (batch analysis orchestration).
+| Sub-server | Tools | Count | Files |
+|------------|-------|-------|-------|
+| video | `video_analyze`, `video_create_session`, `video_continue_session`, `video_batch_analyze` | 4 | `tools/video.py`, `tools/video_batch.py` |
+| research | `research_deep`, `research_plan`, `research_assess_evidence`, `research_document` | 4 | `tools/research.py`, `tools/research_document.py` |
+| content | `content_analyze`, `content_extract`, `content_batch_analyze` | 3 | `tools/content.py`, `tools/content_batch.py` |
+| search | `web_search` | 1 | `tools/search.py` |
+| infra | `infra_cache`, `infra_configure` | 2 | `tools/infra.py` |
+| youtube | `video_metadata`, `video_comments`, `video_playlist` | 3 | `tools/youtube.py` |
+| knowledge | `knowledge_search`, `knowledge_related`, `knowledge_stats`, `knowledge_fetch`, `knowledge_ingest`, `knowledge_ask`, `knowledge_query` | 7 | `tools/knowledge/` |
 
 **Key patterns:**
 - **Instruction-driven tools** — tools accept free-text `instruction` + optional `output_schema` instead of fixed modes
@@ -72,6 +71,8 @@ Supporting modules: `video_cache.py` (context cache warming), `video_batch.py` (
 - **Error handling** — tools never raise; return `make_tool_error()` dicts with `error`, `category`, `hint`, `retryable`
 - **Write-through storage** — every tool auto-stores results to Weaviate when configured; store calls are non-fatal
 - **Context caching** — `context_cache.py` pre-warms Gemini caches after `video_analyze`; `video_create_session` reuses them via `lookup_or_await()`
+- **MLflow tracing** — `@trace()` decorator on all tools; graceful degradation when mlflow not installed
+- **Reranker** — Cohere reranking in `knowledge_search` with overfetch pattern; auto-enables when `COHERE_API_KEY` is set
 
 **Key singletons:** `GeminiClient` (client.py), `get_config()` (config.py), `session_store` (sessions.py, optional SQLite via persistence.py), `cache` (cache.py), `WeaviateClient` (weaviate_client.py).
 
@@ -99,6 +100,18 @@ Supporting modules: `video_cache.py` (context cache warming), `video_batch.py` (
 **Key modules:** `runner.py` (subprocess executor), `scanner.py` (project inspector), `jobs.py` (render tracking), `prereqs.py` (system checks), `config.py` (singleton from env).
 
 **Env vars:** `EXPLAINER_PATH` (required), `EXPLAINER_TTS_PROVIDER` (default: mock), `ELEVENLABS_API_KEY`, `OPENAI_API_KEY`.
+
+### video-agent-mcp Architecture
+
+`packages/video-agent-mcp/` — autonomous research agent orchestrator.
+
+| Sub-server | Tools | File |
+|------------|-------|------|
+| agent | `agent_research`, `agent_status` | `tools/agent.py` |
+
+**Key patterns:**
+- **Plan-execute loop** — decomposes research goals into tool-call sequences, executes against video-research-mcp
+- **Shared config** — same `~/.config/video-research-mcp/.env` as the parent server
 
 ## Conventions
 
@@ -151,6 +164,7 @@ Pin to the **major version we actually use**. No cross-major constraints — a c
 | `weaviate-client` | `>=4.19.2` | 4.20.1 | v4 collections API: `client.collections.get()`, `weaviate.classes.*`, `AsyncQueryAgent` | v4 is a complete rewrite from v3. Constraint correctly pins v4 |
 | `pytest` | `>=8.0` | 9.0.2 | Standard API | pytest 9.x is backwards compatible. `>=8.0` is fine |
 | `pytest-asyncio` | `>=1.0` | 1.3.0 | `asyncio_mode = "auto"` (pyproject.toml) | Major rewrite in 1.0 (from 0.x). `asyncio_mode=auto` is 0.18+ but 1.x API is cleaner. Update constraint to `>=1.0` |
+| `mlflow-tracing` | `>=3.0` | — | `@trace()` decorator, `MlflowClient` | Optional `[tracing]` extra; graceful no-op when absent |
 | `ruff` | `>=0.9` | 0.15.4 | CLI linter/formatter | Pre-1.0; minor versions may change rules. Acceptable |
 
 ### Known Defensive Patterns (Legitimate)
@@ -178,9 +192,9 @@ Agent configuration: `.claude/rules/` contains project-specific conventions that
 
 ## Testing
 
-417 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
+540 tests, all unit-level with mocked Gemini. `asyncio_mode=auto`. No test hits the real API.
 
-**Key fixtures** (`conftest.py`): `mock_gemini_client` (mocks `.get()`, `.generate()`, `.generate_structured()`), `clean_config` (isolates config), `_unwrap_fastmcp_tools` (session-scoped, ensures tool callability), autouse `GEMINI_API_KEY=test-key-not-real`.
+**Key fixtures** (`conftest.py`): `mock_gemini_client` (mocks `.get()`, `.generate()`, `.generate_structured()`), `clean_config` (isolates config), `mock_weaviate_client`, `mock_weaviate_disabled`, `_unwrap_fastmcp_tools` (session-scoped, ensures tool callability), autouse `GEMINI_API_KEY=test-key-not-real`, `_disable_tracing`, `_isolate_dotenv`, `_isolate_upload_cache`.
 
 **File naming:** `test_<domain>_tools.py` for tools, `test_<module>.py` for non-tool modules.
 
@@ -191,7 +205,7 @@ Agent configuration: `.claude/rules/` contains project-specific conventions that
 Two-package architecture: npm (installer) copies commands/skills/agents to `~/.claude/`, PyPI (server) runs via `uvx`. Same package name, different registries.
 
 ```bash
-npx video-research-mcp@latest              # install plugin (copies 23 markdown files + .mcp.json)
+npx video-research-mcp@latest              # install plugin (copies markdown files + .mcp.json)
 npx video-research-mcp@latest --check      # dry-run
 npx video-research-mcp@latest --uninstall  # remove
 ```
@@ -212,12 +226,18 @@ Canonical source: `config.py:ServerConfig`. Key variables:
 | `WEAVIATE_URL` | `""` | Empty = knowledge store disabled |
 | `WEAVIATE_API_KEY` | `""` | Required for Weaviate Cloud |
 | `GEMINI_SESSION_DB` | `""` | Empty = in-memory only |
+| `RERANKER_ENABLED` | `""` | Auto-enabled when `COHERE_API_KEY` set |
+| `COHERE_API_KEY` | `""` | Enables Cohere reranker in knowledge_search |
+| `FLASH_SUMMARIZE` | `"true"` | Use Flash model for summarization |
+| `GEMINI_TRACING_ENABLED` | `""` | Enable MLflow tracing |
+| `MLFLOW_TRACKING_URI` | `""` | MLflow server URI |
+| `MLFLOW_EXPERIMENT_NAME` | `""` | MLflow experiment name |
 | `EXPLAINER_PATH` | `""` | Path to cloned video_explainer repo |
 | `EXPLAINER_TTS_PROVIDER` | `"mock"` | mock, elevenlabs, openai, gemini, edge |
 | `ELEVENLABS_API_KEY` | `""` | Required for elevenlabs TTS |
 | `OPENAI_API_KEY` | `""` | Required for openai TTS |
 
-Both servers auto-load `~/.config/video-research-mcp/.env` at startup. Process env vars always take precedence over the config file. This ensures keys are available in any workspace, even without direnv.
+All servers auto-load `~/.config/video-research-mcp/.env` at startup. Process env vars always take precedence over the config file. This ensures keys are available in any workspace, even without direnv.
 
 All other config (thinking level, temperature, cache dir/TTL, session limits, retry params, YouTube API key) has sensible defaults — see `config.py` or `docs/ARCHITECTURE.md` §10.
 

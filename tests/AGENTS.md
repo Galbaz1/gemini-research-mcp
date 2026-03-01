@@ -13,8 +13,10 @@ Applies to files under `tests/`.
 - `mock_gemini_client`: patches `GeminiClient.get()`, `.generate()`, `.generate_structured()`.
 - `clean_config`: resets config singleton between tests.
 - `mock_weaviate_client`: patches Weaviate client + collection.
+- `mock_weaviate_disabled`: ensures Weaviate is disabled (depends on `clean_config`).
 - `_unwrap_fastmcp_tools`: ensures tools remain callable.
 - `_set_dummy_api_key`: sets non-real API key for tests.
+- `_disable_tracing` (autouse): sets `GEMINI_TRACING_ENABLED=false`.
 - `_isolate_dotenv`: blocks loading real `.env`.
 - `_isolate_upload_cache`: isolates upload cache to temp dir.
 

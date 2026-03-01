@@ -58,14 +58,16 @@ class ContentComparison(BaseModel):
 Every tool MUST have:
 
 1. `ToolAnnotations` in the decorator
-2. `Annotated` params with `Field` constraints
-3. A docstring with Args/Returns
-4. Structured output via `GeminiClient`
+2. `@trace` decorator for optional MLflow tracing
+3. `Annotated` params with `Field` constraints
+4. A docstring with Args/Returns
+5. Structured output via `GeminiClient`
 
 ```python
 # src/video_research_mcp/tools/content.py
 
 from ..models.content import ContentComparison
+from ..tracing import trace
 
 @content_server.tool(
     annotations=ToolAnnotations(
@@ -75,6 +77,7 @@ from ..models.content import ContentComparison
         openWorldHint=True,
     )
 )
+@trace(name="content_compare", span_type="TOOL")
 async def content_compare(
     text_a: Annotated[str, Field(min_length=1, description="First content to compare")],
     text_b: Annotated[str, Field(min_length=1, description="Second content to compare")],
@@ -107,6 +110,24 @@ async def content_compare(
 ```
 
 ### Key conventions
+
+**`@trace` decorator** -- optional MLflow tracing for observability:
+
+```python
+from ..tracing import trace
+
+@server.tool(annotations=ToolAnnotations(...))
+@trace(name="my_tool", span_type="TOOL")
+async def my_tool(...) -> dict:
+```
+
+The `@trace` decorator goes **between** `@server.tool` and the function definition. It creates a `TOOL` root span in MLflow that parents any Gemini autolog child spans. When tracing is not configured (`mlflow-tracing` not installed or `GEMINI_TRACING_ENABLED=false`), the decorator is a no-op -- it passes through the function unchanged.
+
+Parameters:
+- `name` -- span name (typically matches the tool function name)
+- `span_type` -- always `"TOOL"` for MCP tool entrypoints
+
+Source: `src/video_research_mcp/tracing.py`
 
 **ToolAnnotations** -- declare the tool's behavior to MCP clients:
 
@@ -159,6 +180,7 @@ from pydantic import Field
 
 from ..client import GeminiClient
 from ..errors import make_tool_error
+from ..tracing import trace
 from ..types import ThinkingLevel
 
 logger = logging.getLogger(__name__)
@@ -168,6 +190,7 @@ my_domain_server = FastMCP("my-domain")
 @my_domain_server.tool(
     annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True)
 )
+@trace(name="my_tool", span_type="TOOL")
 async def my_tool(
     input_text: Annotated[str, Field(min_length=1, description="Input to process")],
     thinking_level: ThinkingLevel = "medium",
@@ -349,6 +372,7 @@ Update the tool surface table in `CLAUDE.md` to include your new tool:
 Before submitting:
 
 - [ ] Tool has `ToolAnnotations` in the decorator
+- [ ] Tool has `@trace(name="tool_name", span_type="TOOL")` decorator
 - [ ] All params use `Annotated[type, Field(...)]` with descriptions
 - [ ] Docstring has Args and Returns sections
 - [ ] Uses `generate_structured()` for default schemas

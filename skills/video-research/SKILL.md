@@ -1,11 +1,11 @@
 ---
 name: video-research
-description: Teaches Claude how to effectively use the 13 Gemini research tools. Activates when working with video analysis, deep research, content extraction, or web search via the video-research MCP server.
+description: Teaches Claude how to effectively use the 24 video-research-mcp tools. Activates when working with video analysis, deep research, content extraction, web search, or knowledge store via the video-research MCP server.
 ---
 
 # Video Research MCP — Tool Usage Guide
 
-You have access to the `video-research-mcp` MCP server, which exposes 15 tools powered by Gemini 3.1 Pro and the YouTube Data API. These tools are **instruction-driven** — you write the instruction, Gemini returns structured JSON. Two tools (`video_metadata`, `video_playlist`) use the YouTube Data API directly for fast metadata retrieval without Gemini inference.
+You have access to the `video-research-mcp` MCP server, which exposes 24 tools powered by Gemini 3.1 Pro and the YouTube Data API. These tools are **instruction-driven** — you write the instruction, Gemini returns structured JSON. Two tools (`video_metadata`, `video_playlist`) use the YouTube Data API directly for fast metadata retrieval without Gemini inference.
 
 ## Core Principle
 

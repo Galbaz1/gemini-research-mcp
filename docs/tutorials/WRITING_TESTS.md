@@ -10,7 +10,7 @@ All tests are **unit-level with mocked Gemini and Weaviate**. No test should eve
 2. **Pydantic models** -- defaults, roundtrip serialization, validation
 3. **Helper functions** -- URL parsing, content building, cache operations
 
-Currently 228 tests across 17 test files, all running in under 10 seconds.
+Currently 540 tests across 20+ test files, all running in under 10 seconds.
 
 ## Running Tests
 
@@ -45,7 +45,9 @@ This means async test functions run automatically without needing `@pytest.mark.
 
 ## Conftest Fixtures
 
-All shared fixtures live in `tests/conftest.py`. Three core fixtures power the test suite:
+All shared fixtures live in `tests/conftest.py`. Four autouse fixtures run for every test, plus several opt-in fixtures for specific scenarios.
+
+### Autouse fixtures (run automatically)
 
 ### `_set_dummy_api_key` (autouse)
 
@@ -56,7 +58,50 @@ def _set_dummy_api_key(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key-not-real")
 ```
 
-Runs automatically for every test. Sets a fake API key so the config singleton initializes without errors.
+Sets a fake API key so the config singleton initializes without errors.
+
+### `_disable_tracing` (autouse)
+
+```python
+@pytest.fixture(autouse=True)
+def _disable_tracing(monkeypatch):
+    """Disable MLflow tracing in all tests to avoid real tracking-server calls."""
+    monkeypatch.setenv("GEMINI_TRACING_ENABLED", "false")
+```
+
+Prevents tests from contacting a real MLflow tracking server. The `test_tracing.py` module patches the tracing module directly and does not rely on this fixture.
+
+### `_isolate_dotenv` (autouse)
+
+```python
+@pytest.fixture(autouse=True)
+def _isolate_dotenv(tmp_path, monkeypatch):
+    """Prevent tests from loading the user's real ~/.config/video-research-mcp/.env."""
+    monkeypatch.setattr(
+        "video_research_mcp.dotenv.DEFAULT_ENV_PATH",
+        tmp_path / "nonexistent.env",
+    )
+```
+
+Redirects dotenv loading to a nonexistent temp path so the user's real `.env` file never leaks into tests.
+
+### `_isolate_upload_cache` (autouse)
+
+```python
+@pytest.fixture(autouse=True)
+def _isolate_upload_cache(tmp_path, monkeypatch):
+    """Point upload cache to a temp directory so tests never share filesystem state."""
+    cache_dir = tmp_path / "upload_cache"
+    cache_dir.mkdir()
+    monkeypatch.setattr(
+        "video_research_mcp.tools.video_file._upload_cache_dir",
+        lambda: cache_dir,
+    )
+```
+
+Ensures the File API upload cache uses an isolated temp directory per test.
+
+### Opt-in fixtures
 
 ### `mock_gemini_client`
 
@@ -126,12 +171,12 @@ For testing knowledge tools. Patches the Weaviate singleton and provides pre-con
 ```python
 @pytest.fixture()
 def mock_weaviate_disabled(monkeypatch, clean_config):
-    """Ensure Weaviate is disabled."""
+    """Ensure Weaviate is disabled — empty WEAVIATE_URL."""
     monkeypatch.delenv("WEAVIATE_URL", raising=False)
     monkeypatch.delenv("WEAVIATE_API_KEY", raising=False)
 ```
 
-For testing graceful degradation when Weaviate is not configured.
+For testing graceful degradation when Weaviate is not configured. Depends on `clean_config` to reset the singleton so the removed env vars take effect.
 
 ## Testing Tools
 

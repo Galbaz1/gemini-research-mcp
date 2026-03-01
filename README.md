@@ -4,7 +4,15 @@ Give Claude Code a Gemini-powered research partner that can watch videos, read p
 
 ## Why
 
-Claude Code has no native way to analyze video, run multi-source research with evidence grading, or keep findings across sessions. This plugin adds those capabilities through 25 MCP tools powered by Gemini 3.1 Pro, with optional persistent storage via Weaviate.
+Claude Code can't analyze video, run multi-source research with evidence grading, or keep findings across sessions. This plugin adds those capabilities through three MCP servers powered by Gemini 3.1 Pro, with optional persistent storage via Weaviate.
+
+| Server | Tools | What it does |
+|--------|-------|-------------|
+| **video-research-mcp** | 24 | Video analysis, deep research, content extraction, web search, knowledge store |
+| **video-explainer-mcp** | 15 | Synthesize explainer videos from research content (wraps [video_explainer](https://github.com/prajwal-y/video_explainer) CLI) |
+| **video-agent-mcp** | 2 | Parallel scene generation for the explainer pipeline (Claude Agent SDK) |
+
+540 tests, all mocked. No test hits the real API.
 
 ## Install
 
@@ -13,7 +21,7 @@ npx video-research-mcp@latest
 export GEMINI_API_KEY="your-key-here"
 ```
 
-That's it. The installer copies 10 commands, 4 skills, and 4 agents to `~/.claude/` and configures the MCP servers to run via `uvx` from PyPI.
+The installer copies 13 commands, 5 skills, and 6 agents to `~/.claude/` and configures the MCP servers to run via `uvx` from PyPI.
 
 ```bash
 npx video-research-mcp@latest --check     # show install status
@@ -23,7 +31,7 @@ npx video-research-mcp@latest --local      # install for this project only
 
 **Requires**: Python >= 3.11, [uv](https://docs.astral.sh/uv/), [Node.js](https://nodejs.org/) >= 16, a [Google AI API key](https://aistudio.google.com/apikey)
 
-## What you can do
+## Quick start
 
 ### Analyze a meeting recording
 
@@ -33,7 +41,7 @@ npx video-research-mcp@latest --local      # install for this project only
 >  Screenshot every shared screen."
 ```
 
-Gemini watches the entire video, extracts content in any language. For local files, ffmpeg pulls frames at key visual moments. Large local files (>=20MB) are uploaded to Gemini's File API and context-cached automatically — multi-turn follow-ups reuse the cache instead of re-ingesting the full video. The output goes to `output/<slug>/` in your workspace with analysis, frames, and an interactive concept map.
+Gemini watches the entire video and extracts content in any language. For local files, ffmpeg pulls frames at key visual moments. Large local files (>=20MB) are uploaded to Gemini's File API and context-cached automatically -- multi-turn follow-ups reuse the cache instead of re-ingesting the full video. Output goes to `output/<slug>/` with analysis, frames, and an interactive concept map.
 
 ### Research a topic
 
@@ -67,7 +75,7 @@ Scans the directory, passes all PDFs and text files to Gemini in one call, and r
 /gr:research-doc paper1.pdf paper2.pdf "Compare methodologies and find contradictions"
 ```
 
-Runs a 4-phase pipeline — Document Mapping → Evidence Extraction → Cross-Reference → Synthesis — with every claim cited back to document and page number. Evidence tiers (CONFIRMED through SPECULATION) apply to document content, not web inference. Documents are uploaded to Gemini's File API once and reused across all phases.
+Runs a 4-phase pipeline -- Document Mapping, Evidence Extraction, Cross-Reference, Synthesis -- with every claim cited back to document and page number. Evidence tiers apply to document content, not web inference. Documents are uploaded to Gemini's File API once and reused across all phases.
 
 ### Search the web
 
@@ -87,7 +95,7 @@ Google Search via Gemini grounding with source citations.
 /gr:recall research                 # filter by category
 ```
 
-When Weaviate is configured, keyword searches use semantic matching — find "gradient descent tuning" even when you searched for "ML optimization". Without Weaviate, recall falls back to exact keyword grep.
+When Weaviate is configured, keyword searches use semantic matching -- find "gradient descent tuning" even when you searched for "ML optimization". Without Weaviate, recall falls back to exact keyword grep.
 
 ### Build up knowledge while you code
 
@@ -104,7 +112,7 @@ knowledge_ask(query="What did I learn about ef_construction?")  # AI-generated s
 
 ### Use it as an MCP server in your own application
 
-The 23 tools are standard MCP -- any MCP client can call them. Point your app at the server and you get Gemini-powered video analysis, research, and knowledge retrieval as API calls. No Claude Code required.
+The tools are standard MCP -- any MCP client can call them. Point your app at the server and you get Gemini-powered video analysis, research, and knowledge retrieval as API calls. No Claude Code required.
 
 ```json
 {
@@ -130,8 +138,11 @@ The 23 tools are standard MCP -- any MCP client can call them. Point your app at
 | `/gr:search <query>` | Web search via Gemini grounding |
 | `/gr:recall [filter]` | Browse past analyses from memory |
 | `/gr:models [preset]` | Switch Gemini model preset (best/stable/budget) |
+| `/gr:explainer <project>` | Create and manage explainer video projects |
+| `/gr:explain-video <project>` | Generate a full explainer video from project content |
+| `/gr:explain-status <project>` | Check render progress and pipeline state |
 | `/gr:traces [filter]` | Query, debug, and evaluate MLflow traces from Gemini tool calls |
-| `/gr:doctor [quick|full]` | Diagnose MCP wiring, API keys, Weaviate, and MLflow connectivity |
+| `/gr:doctor [quick\|full]` | Diagnose MCP wiring, API keys, Weaviate, and MLflow connectivity |
 
 ### How a command runs
 
@@ -172,51 +183,12 @@ The same files are also saved to Claude's project memory for `/gr:recall`.
 /gr:traces feedback tr-abc123 4  # log human feedback (score 1-5)
 ```
 
-When MLflow tracing is enabled (`MLFLOW_TRACKING_URI` is set), every Gemini API call is captured automatically. The `/gr:traces` command queries these via the MLflow MCP server — no Python code needed.
+When MLflow tracing is enabled (`MLFLOW_TRACKING_URI` is set), every Gemini API call is captured automatically. The `/gr:traces` command queries these via the MLflow MCP server -- no Python code needed.
 
-## Knowledge store
-
-When `WEAVIATE_URL` is set, every tool automatically stores its results in Weaviate. Without it, nothing changes -- the plugin works the same, you just don't get persistent search.
-
-Eleven collections are created on first connection:
-
-| Collection | Filled by |
-|------------|-----------|
-| `ResearchFindings` | `research_deep`, `research_assess_evidence`, `research_document` |
-| `VideoAnalyses` | `video_analyze`, `video_batch_analyze` |
-| `ContentAnalyses` | `content_analyze`, `content_batch_analyze` |
-| `VideoMetadata` | `video_metadata` |
-| `SessionTranscripts` | `video_continue_session` |
-| `WebSearchResults` | `web_search` |
-| `ResearchPlans` | `research_plan` |
-| `CommunityReactions` | comment analysis (via `/gr:video` agent) |
-| `ConceptKnowledge` | concept extraction from analyses |
-| `RelationshipEdges` | relationship mapping between concepts |
-| `CallNotes` | meeting/call analysis notes |
-
-Knowledge tools are also accessible through `/gr:recall`, which combines semantic search with filesystem browsing in one interface.
-
-Seven knowledge tools let you query this data: hybrid search (with optional Cohere reranking), semantic similarity, fetch by UUID, manual ingest, collection stats. `knowledge_ask` uses Weaviate's QueryAgent for AI-generated answers with source citations (requires the optional `weaviate-agents` package). `knowledge_query` is deprecated — use `knowledge_search` instead:
-
-```bash
-uv pip install 'video-research-mcp[agents]'
-```
-
-To set up Weaviate, run the interactive onboarding:
-
-```
-/skill weaviate-setup
-```
-
-Or set the environment variables directly:
-
-```bash
-export WEAVIATE_URL="https://your-cluster.weaviate.network"
-export WEAVIATE_API_KEY="your-key"
-```
+## Tool overview
 
 <details>
-<summary><strong>All 25 tools</strong></summary>
+<summary><strong>video-research-mcp (24 tools)</strong></summary>
 
 ### Video (4)
 
@@ -269,15 +241,129 @@ export WEAVIATE_API_KEY="your-key"
 
 | Tool | Description |
 |------|-------------|
-| `knowledge_search` | Hybrid, semantic, or keyword search across collections |
+| `knowledge_search` | Hybrid, semantic, or keyword search across collections (with optional Cohere reranking) |
 | `knowledge_related` | Find semantically similar objects by UUID |
 | `knowledge_stats` | Object counts per collection, with optional group-by |
 | `knowledge_fetch` | Retrieve a single object by UUID |
 | `knowledge_ingest` | Insert data into a collection (validated against schema) |
 | `knowledge_ask` | AI-generated answer with source citations (needs `weaviate-agents`) |
-| `knowledge_query` | **[Deprecated]** Natural language object retrieval — use `knowledge_search` instead |
+| `knowledge_query` | **[Deprecated]** Natural language object retrieval -- use `knowledge_search` instead |
 
 </details>
+
+<details>
+<summary><strong>video-explainer-mcp (15 tools)</strong></summary>
+
+### Project (4)
+
+| Tool | Description |
+|------|-------------|
+| `explainer_create` | Create a new explainer video project |
+| `explainer_inject` | Inject research content into a project |
+| `explainer_status` | Check project state and step completion |
+| `explainer_list` | List all explainer projects |
+
+### Pipeline (6)
+
+| Tool | Description |
+|------|-------------|
+| `explainer_generate` | Generate all steps in the explainer pipeline |
+| `explainer_step` | Run a single pipeline step |
+| `explainer_render` | Render the final video (blocking) |
+| `explainer_render_start` | Start a background render, returns job ID |
+| `explainer_render_poll` | Check progress of a background render |
+| `explainer_short` | Generate a short-form video clip |
+
+### Quality (3)
+
+| Tool | Description |
+|------|-------------|
+| `explainer_refine` | Refine generated content with feedback |
+| `explainer_feedback` | Submit quality feedback on a step |
+| `explainer_factcheck` | Fact-check generated narration against sources |
+
+### Audio (2)
+
+| Tool | Description |
+|------|-------------|
+| `explainer_sound` | Add sound effects to scenes |
+| `explainer_music` | Add background music |
+
+</details>
+
+<details>
+<summary><strong>video-agent-mcp (2 tools)</strong></summary>
+
+| Tool | Description |
+|------|-------------|
+| `agent_generate_scenes` | Generate all scenes in parallel using Claude Agent SDK |
+| `agent_generate_single_scene` | Generate a single scene (used as a subtask by the parallel tool) |
+
+</details>
+
+## Knowledge store
+
+When `WEAVIATE_URL` is set, every tool automatically stores its results in Weaviate. Without it, nothing changes -- the plugin works the same, you just don't get persistent search.
+
+Eleven collections are created on first connection:
+
+| Collection | Filled by |
+|------------|-----------|
+| `ResearchFindings` | `research_deep`, `research_assess_evidence`, `research_document` |
+| `VideoAnalyses` | `video_analyze`, `video_batch_analyze` |
+| `ContentAnalyses` | `content_analyze`, `content_batch_analyze` |
+| `VideoMetadata` | `video_metadata` |
+| `SessionTranscripts` | `video_continue_session` |
+| `WebSearchResults` | `web_search` |
+| `ResearchPlans` | `research_plan` |
+| `CommunityReactions` | comment analysis (via `/gr:video` agent) |
+| `ConceptKnowledge` | concept extraction from analyses |
+| `RelationshipEdges` | relationship mapping between concepts |
+| `CallNotes` | meeting/call analysis notes |
+
+Knowledge tools are also accessible through `/gr:recall`, which combines semantic search with filesystem browsing in one interface.
+
+Seven knowledge tools let you query this data: hybrid search (with optional Cohere reranking), semantic similarity, fetch by UUID, manual ingest, collection stats. `knowledge_ask` uses Weaviate's QueryAgent for AI-generated answers with source citations (requires the optional `weaviate-agents` package). `knowledge_query` is deprecated -- use `knowledge_search` instead.
+
+```bash
+uv pip install 'video-research-mcp[agents]'
+```
+
+To set up Weaviate, run the interactive onboarding:
+
+```
+/skill weaviate-setup
+```
+
+Or set the environment variables directly:
+
+```bash
+export WEAVIATE_URL="https://your-cluster.weaviate.network"
+export WEAVIATE_API_KEY="your-key"
+```
+
+## Configuration
+
+| Variable | Default | What it does |
+|----------|---------|-------------|
+| `GEMINI_API_KEY` | **(required)** | Google AI API key |
+| `GEMINI_MODEL` | `gemini-3.1-pro-preview` | Primary model |
+| `GEMINI_FLASH_MODEL` | `gemini-3-flash-preview` | Fast model for search and summaries |
+| `GEMINI_THINKING_LEVEL` | `high` | Thinking depth (minimal / low / medium / high) |
+| `GEMINI_TEMPERATURE` | `1.0` | Sampling temperature |
+| `GEMINI_CACHE_DIR` | `~/.cache/video-research-mcp/` | Cache directory |
+| `GEMINI_CACHE_TTL_DAYS` | `30` | Cache expiry |
+| `GEMINI_MAX_SESSIONS` | `50` | Max concurrent video sessions |
+| `GEMINI_SESSION_TIMEOUT_HOURS` | `2` | Session TTL |
+| `GEMINI_SESSION_MAX_TURNS` | `24` | Max turns per session |
+| `GEMINI_SESSION_DB` | `""` | SQLite path for session persistence (empty = in-memory) |
+| `YOUTUBE_API_KEY` | `""` | YouTube Data API key (falls back to `GEMINI_API_KEY`) |
+| `WEAVIATE_URL` | `""` | Weaviate URL (empty = knowledge store disabled) |
+| `WEAVIATE_API_KEY` | `""` | Required for Weaviate Cloud |
+| `MLFLOW_TRACKING_URI` | `""` | MLflow server URL (empty = tracing disabled) |
+| `MLFLOW_EXPERIMENT_NAME` | `video-research-mcp` | MLflow experiment name |
+| `EXPLAINER_PATH` | `""` | Path to cloned video_explainer repo |
+| `EXPLAINER_TTS_PROVIDER` | `"mock"` | TTS provider: mock, elevenlabs, openai, gemini, edge |
 
 ## Other install methods
 
@@ -322,52 +408,13 @@ uv venv && source .venv/bin/activate && uv pip install -e ".[dev]"
 node bin/install.js --global
 ```
 
-## Configuration
-
-| Variable | Default | What it does |
-|----------|---------|-------------|
-| `GEMINI_API_KEY` | **(required)** | Google AI API key |
-| `GEMINI_MODEL` | `gemini-3.1-pro-preview` | Primary model |
-| `GEMINI_FLASH_MODEL` | `gemini-3-flash-preview` | Fast model for search |
-| `GEMINI_THINKING_LEVEL` | `high` | Thinking depth (minimal / low / medium / high) |
-| `GEMINI_TEMPERATURE` | `1.0` | Sampling temperature |
-| `GEMINI_CACHE_DIR` | `~/.cache/video-research-mcp/` | Cache directory |
-| `GEMINI_CACHE_TTL_DAYS` | `30` | Cache expiry |
-| `GEMINI_MAX_SESSIONS` | `50` | Max concurrent video sessions |
-| `GEMINI_SESSION_TIMEOUT_HOURS` | `2` | Session TTL |
-| `GEMINI_SESSION_MAX_TURNS` | `24` | Max turns per session |
-| `GEMINI_SESSION_DB` | `""` | SQLite path for session persistence (empty = in-memory) |
-| `YOUTUBE_API_KEY` | `""` | YouTube Data API key (falls back to `GEMINI_API_KEY`) |
-| `WEAVIATE_URL` | `""` | Weaviate URL (empty = knowledge store disabled) |
-| `WEAVIATE_API_KEY` | `""` | Required for Weaviate Cloud |
-| `MLFLOW_TRACKING_URI` | `""` | MLflow server URL (empty = tracing disabled) |
-| `MLFLOW_EXPERIMENT_NAME` | `video-research-mcp` | MLflow experiment name |
-
 ## Development
 
 ```bash
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
-uv run pytest tests/ -v        # 520 tests, all mocked
+uv run pytest tests/ -v        # 540 tests, all mocked
 uv run ruff check src/ tests/  # lint
-```
-
-## Agent Teams
-
-This project uses Claude Code agent teams powered by **Claude Opus 4.6** for parallel development workflows. Every subagent team defaults to Opus 4.6 unless the user explicitly specifies otherwise.
-
-| Workflow | Agents | What they do |
-|----------|--------|-------------|
-| Dependency audit | 3 parallel | Constraint analysis, compatibility scanning, API surface verification |
-| Code review | 3 parallel | Security, architecture, test coverage |
-| Feature development | 2-4 parallel | Implementation with file ownership boundaries |
-
-Agent teams are spawned via Claude Code's `Agent` tool with `model: "opus"`. The team lead coordinates task decomposition, file ownership, and result synthesis. Teammates communicate through the built-in messaging system and share a task list for coordination.
-
-To change the default model for a specific task:
-```python
-# In Agent tool call
-"model": "sonnet"  # override for lightweight tasks
 ```
 
 ## Troubleshooting
