@@ -19,6 +19,10 @@ Focus: Iteration 7 - prompt injection and tool misuse resistance
   - Direct checkout of `codex/review-mainline` was blocked because that branch is already attached to another worktree; branch creation proceeded from the `codex/review-mainline` ref.
 - After creating `codex/review/i07` from `codex/review-mainline`:
   - `{"mode": "commits", "reason": "Branch is ahead of base with no local unstaged/uncommitted files.", "branch": "codex/review/i07", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 12, "pr_context": false, "pr_url": null}`
+- Before commit on `codex/review/i07`:
+  - `{"mode": "uncommitted", "reason": "Working tree has local changes.", "branch": "codex/review/i07", "base_branch": "main", "uncommitted_files": 11, "ahead_commits": 12, "pr_context": false, "pr_url": null}`
+- After commit on `codex/review/i07`:
+  - `{"mode": "commits", "reason": "Branch is ahead of base with no local unstaged/uncommitted files.", "branch": "codex/review/i07", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 13, "pr_context": false, "pr_url": null}`
 
 ## Required Reading Checklist
 - `AGENTS.md`, `src/AGENTS.md`, `tests/AGENTS.md`
