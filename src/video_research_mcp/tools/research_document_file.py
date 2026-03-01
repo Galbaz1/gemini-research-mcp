@@ -7,7 +7,8 @@ import logging
 import tempfile
 from pathlib import Path
 
-import httpx
+from ..config import get_config
+from ..url_policy import download_checked
 
 from .video_file import _file_content_hash, _upload_large_file
 
@@ -51,16 +52,9 @@ async def _prepare_document(path: Path) -> tuple[str, str]:
 
 
 async def _download_document(url: str, tmp_dir: Path) -> Path:
-    """Download a URL to a temp file, return the local path."""
-    async with httpx.AsyncClient(follow_redirects=True, timeout=60) as http:
-        resp = await http.get(url)
-        resp.raise_for_status()
-
-    url_path = url.rsplit("/", 1)[-1].split("?")[0]
-    filename = url_path if "." in url_path else "document.pdf"
-    local = tmp_dir / filename
-    local.write_bytes(resp.content)
-    return local
+    """Download a URL to a temp file with SSRF protection."""
+    cfg = get_config()
+    return await download_checked(url, tmp_dir, max_bytes=cfg.doc_max_download_bytes)
 
 
 async def _prepare_all_documents(
