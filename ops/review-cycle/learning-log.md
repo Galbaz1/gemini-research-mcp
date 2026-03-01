@@ -45,3 +45,14 @@
 ## Iteration 5 seed hypotheses
 - Audit cache/data-integrity invariants around context cache registry persistence and partial-write behavior.
 - Review document/source ingestion paths for duplicate identity handling and stale-reference integrity drift.
+
+## Iteration 5 (Cache and Data Integrity) - 2026-03-01T07:03:30Z
+- Observation: `cache.save()` wrote directly to final JSON path, and `context_cache._load_registry()` accepted non-validated nested shapes from disk.
+- Inference: Cache persistence and reload integrity contracts were asymmetrical; failed writes or malformed persisted data could degrade cache consistency and diagnostics reliability.
+- Strategy: Apply staged atomic writes with unique temp files and enforce strict loader shape validation before mutating in-memory registry.
+- Validation: Added atomic replace in `cache.py`, unique tmp registry persistence and schema-like filtering in `context_cache.py`, plus focused regression tests; targeted lint/tests passed.
+- Confidence change: 0.57 -> 0.85 for cache/data-integrity objective coverage.
+
+## Iteration 6 seed hypotheses
+- Surface partial-source skips explicitly in research-document outputs to improve fault-isolation transparency.
+- Audit tool exception boundaries for silent-degradation patterns where best-effort behavior hides missing evidence.
