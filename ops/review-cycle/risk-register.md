@@ -27,3 +27,17 @@
 - Evidence: Decorated tool direct calls fail as `FunctionTool` in subset test runs (`tests/test_content_tools.py`, `tests/test_content_batch_tools.py`).
 - Exploit reasoning: Test harness contract drift can hide regressions and delay detection of real validation failures.
 - Status: Open (schedule deep fix during iteration 9 regression blind-spot pass).
+
+## R-005
+- Severity: Medium
+- Area: External API idempotency / quota integrity
+- Evidence: Prior upload flow in `src/video_research_mcp/tools/video_file.py` had no same-hash lock around cache-check + upload critical section.
+- Exploit reasoning: Concurrent retries could duplicate external uploads for the same content and amplify quota burn.
+- Status: Mitigated in iteration 3 with per-content-hash upload lock and regression test.
+
+## R-006
+- Severity: Low
+- Area: Partial-failure transparency / evidence integrity
+- Evidence: `src/video_research_mcp/tools/research_document_file.py:109` and `:131` log and skip per-source failures without surfacing skipped sources in tool response.
+- Exploit reasoning: Consumers may assume full-document coverage when synthesis actually used a subset, reducing trust in evidence completeness.
+- Status: Open (patch-ready mitigation queued for iteration 6 fault-isolation pass).

@@ -23,3 +23,14 @@
 ## Iteration 3 seed hypotheses
 - Validate external API failure categorization consistency (`make_tool_error`) under retries/timeouts.
 - Add idempotency checks for partial-success batch/download flows.
+
+## Iteration 3 (External API Failure Modes and Idempotency) - 2026-03-01T06:20:00Z
+- Observation: Timeout/transport exceptions from async clients could bypass deterministic category mapping, and concurrent uploads with the same content hash could race before cache writes.
+- Inference: Failure mode contracts depended on brittle string matching and non-atomic cache workflows, which weakens retry semantics and quota efficiency under concurrency.
+- Strategy: Add typed network/timeout error categorization and introduce per-content-hash upload lock coordination in the File API upload path.
+- Validation: Added regression tests for `make_tool_error()` timeout/network mappings and concurrent same-hash upload coalescing; focused lint/tests passed.
+- Confidence change: 0.62 -> 0.82 for iteration-3 objective coverage.
+
+## Iteration 4 seed hypotheses
+- Review auth/capability guards for runtime-mutating tools (`infra_cache`, `infra_configure`).
+- Audit secret propagation paths in logs and tool error payloads.

@@ -47,10 +47,22 @@ class ToolError(BaseModel):
 
 def categorize_error(error: Exception) -> tuple[ErrorCategory, str]:
     """Map an exception to an ErrorCategory + human-readable hint."""
+    import httpx
+
     from .url_policy import UrlPolicyError
 
     if isinstance(error, UrlPolicyError):
         return (ErrorCategory.URL_POLICY_BLOCKED, str(error))
+    if isinstance(error, TimeoutError | httpx.TimeoutException):
+        return (
+            ErrorCategory.NETWORK_ERROR,
+            "Request timed out — try again or check connectivity",
+        )
+    if isinstance(error, httpx.NetworkError):
+        return (
+            ErrorCategory.NETWORK_ERROR,
+            "Network error while contacting upstream service — check connectivity and DNS",
+        )
 
     s = str(error).lower()
 
