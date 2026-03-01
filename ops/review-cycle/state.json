@@ -1,9 +1,9 @@
 {
-  "current_iteration": 8,
+  "current_iteration": 9,
   "max_iterations": 10,
-  "last_completed_iteration": 7,
-  "last_run_at": "2026-03-01T10:05:54Z",
-  "active_branch": "codex/review/i07",
+  "last_completed_iteration": 8,
+  "last_run_at": "2026-03-01T13:00:00Z",
+  "active_branch": "codex/review/i08",
   "mainline_branch": "codex/review-mainline",
-  "status": "iteration_7_complete_pending_pr"
+  "status": "iteration_8_complete_pending_pr"
 }

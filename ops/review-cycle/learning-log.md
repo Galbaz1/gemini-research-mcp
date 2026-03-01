@@ -78,3 +78,14 @@
 ## Iteration 8 seed hypotheses
 - Evaluate concurrency and resource exhaustion in async multi-source analysis paths.
 - Add bounded workload safeguards for high-volume URL/document batches.
+
+## Iteration 8 (Concurrency and Resource Exhaustion) - 2026-03-01T13:00:00Z
+- Observation: `research_document` accepted unbounded source lists and used unbounded `asyncio.gather` fan-out in URL download, upload, and per-document phase calls; temp download dirs were not cleaned up.
+- Inference: Explicit prompt-safety controls from iteration 7 did not include explicit workload/resource contracts, leaving an availability attack surface in high-volume flows.
+- Strategy: Add config-backed source-count limit, apply bounded concurrency helper across preparation and phase execution, and enforce temp-directory cleanup in a `finally` path.
+- Validation: Implemented policy and concurrency changes plus regression tests for source-limit rejection and tmp-dir cleanup; targeted lint/tests passed.
+- Confidence change: 0.49 -> 0.84 for concurrency/resource-exhaustion controls in document research pipeline.
+
+## Iteration 9 seed hypotheses
+- Audit test/regression blind spots for stress and concurrency scenarios not represented by current unit tests.
+- Add adversarial partial-failure tests validating bounded concurrency behavior under mixed exception/success outcomes.
