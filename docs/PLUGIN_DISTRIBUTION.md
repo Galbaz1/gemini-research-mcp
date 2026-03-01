@@ -17,15 +17,15 @@ The npm package contains zero Python code. The PyPI package contains zero JavaSc
 
 ### What it does
 
-`bin/install.js` copies 21 markdown files into `~/.claude/` (global) or `.claude/` (local), then writes MCP server config to `.mcp.json`. That's it — no runtime, no daemon.
+`bin/install.js` copies 28 markdown files into `~/.claude/` (global) or `.claude/` (local), then writes MCP server config to `.mcp.json`. That's it — no runtime, no daemon.
 
 ```
 npx video-research-mcp@latest
         │
-        ├── Copies 9 commands  → ~/.claude/commands/gr/
-        ├── Copies 7 skill files → ~/.claude/skills/
-        ├── Copies 4 agents    → ~/.claude/agents/
-        ├── Writes .mcp.json   → MCP server registration (3 servers)
+        ├── Copies 14 commands  → ~/.claude/commands/gr/ and commands/ve/
+        ├── Copies 8 skill files → ~/.claude/skills/
+        ├── Copies 6 agents    → ~/.claude/agents/
+        ├── Writes .mcp.json   → MCP server registration (5 servers)
         └── Writes manifest    → for upgrades/uninstall
 ```
 
@@ -46,31 +46,41 @@ Every file distributed by the plugin must be listed in `bin/lib/copy.js`:
 
 ```js
 const FILE_MAP = {
-  // Commands → /gr:* slash commands
-  'commands/video.md':      'commands/gr/video.md',
-  'commands/video-chat.md': 'commands/gr/video-chat.md',
-  'commands/research.md':   'commands/gr/research.md',
-  'commands/analyze.md':    'commands/gr/analyze.md',
-  'commands/search.md':     'commands/gr/search.md',
-  'commands/recall.md':     'commands/gr/recall.md',
-  'commands/models.md':     'commands/gr/models.md',
-  'commands/doctor.md':     'commands/gr/doctor.md',
-  'commands/traces.md':     'commands/gr/traces.md',
+  // Commands → /gr:* slash commands (11)
+  'commands/video.md':        'commands/gr/video.md',
+  'commands/video-chat.md':   'commands/gr/video-chat.md',
+  'commands/research.md':     'commands/gr/research.md',
+  'commands/analyze.md':      'commands/gr/analyze.md',
+  'commands/search.md':       'commands/gr/search.md',
+  'commands/recall.md':       'commands/gr/recall.md',
+  'commands/models.md':       'commands/gr/models.md',
+  'commands/doctor.md':       'commands/gr/doctor.md',
+  'commands/traces.md':       'commands/gr/traces.md',
+  'commands/research-doc.md': 'commands/gr/research-doc.md',
+  'commands/ingest.md':       'commands/gr/ingest.md',
 
-  // Skills → context injection
+  // Commands → /ve:* slash commands (3)
+  'commands/explainer.md':      'commands/ve/explainer.md',
+  'commands/explain-video.md':  'commands/ve/explain-video.md',
+  'commands/explain-status.md': 'commands/ve/explain-status.md',
+
+  // Skills → context injection (8 files across 5 skills)
   'skills/video-research/SKILL.md':                              'skills/video-research/SKILL.md',
   'skills/gemini-visualize/SKILL.md':                             'skills/gemini-visualize/SKILL.md',
   'skills/gemini-visualize/templates/video-concept-map.md':       'skills/gemini-visualize/templates/video-concept-map.md',
   'skills/gemini-visualize/templates/research-evidence-net.md':   'skills/gemini-visualize/templates/research-evidence-net.md',
   'skills/gemini-visualize/templates/content-knowledge-graph.md': 'skills/gemini-visualize/templates/content-knowledge-graph.md',
+  'skills/video-explainer/SKILL.md':                             'skills/video-explainer/SKILL.md',
   'skills/weaviate-setup/SKILL.md':                               'skills/weaviate-setup/SKILL.md',
   'skills/mlflow-traces/SKILL.md':                                'skills/mlflow-traces/SKILL.md',
 
-  // Agents → sub-agents
-  'agents/researcher.md':      'agents/researcher.md',
-  'agents/video-analyst.md':   'agents/video-analyst.md',
-  'agents/visualizer.md':      'agents/visualizer.md',
-  'agents/comment-analyst.md': 'agents/comment-analyst.md',
+  // Agents → sub-agents (6)
+  'agents/researcher.md':       'agents/researcher.md',
+  'agents/video-analyst.md':    'agents/video-analyst.md',
+  'agents/visualizer.md':       'agents/visualizer.md',
+  'agents/comment-analyst.md':  'agents/comment-analyst.md',
+  'agents/video-producer.md':   'agents/video-producer.md',
+  'agents/content-to-video.md': 'agents/content-to-video.md',
 };
 ```
 
@@ -87,7 +97,7 @@ The installer writes `~/.claude/gr-file-manifest.json` containing SHA-256 hashes
 
 ### MCP config merge
 
-`bin/lib/config.js` writes three MCP server entries to `.mcp.json`:
+`bin/lib/config.js` writes five MCP server entries to `.mcp.json`:
 
 ```json
 {
@@ -98,7 +108,7 @@ The installer writes `~/.claude/gr-file-manifest.json` containing SHA-256 hashes
     },
     "playwright": {
       "command": "npx",
-      "args": ["@playwright/mcp@latest", "--headless", "--caps=vision,pdf"]
+      "args": ["@playwright/mcp@0.0.68", "--headless", "--caps=vision,pdf"]
     },
     "mlflow-mcp": {
       "command": "uvx",
@@ -117,7 +127,7 @@ Config location: `~/.claude/.mcp.json` (global) or `./.mcp.json` (local, project
 
 The Python package (defined in `pyproject.toml`) is the actual MCP server. Users never install it manually — `uvx` handles it when Claude Code reads `.mcp.json`.
 
-The server exposes 23 tools across 7 sub-servers. See the Architecture section in the root `CLAUDE.md`.
+The server exposes 24 tools across 7 sub-servers. See the Architecture section in the root `CLAUDE.md`.
 
 ---
 
@@ -211,7 +221,7 @@ These run as background or foreground processes with their own tool restrictions
 
 ## Current Plugin Inventory
 
-### Commands (9)
+### Commands (14)
 
 | File | Slash Command | Tools | Model |
 |------|---------------|-------|-------|
@@ -224,17 +234,23 @@ These run as background or foreground processes with their own tool restrictions
 | `commands/models.md` | `/gr:models` | infra_configure | haiku |
 | `commands/traces.md` | `/gr:traces` | mlflow-mcp search_traces, get_trace, set_trace_tag, log_feedback, evaluate_traces | sonnet |
 | `commands/doctor.md` | `/gr:doctor` (`quick` compact, `full` detailed) | infra_configure, video_metadata, knowledge_stats, mlflow-mcp search_traces, Read/Glob/Bash | haiku |
+| `commands/research-doc.md` | `/gr:research-doc` | research_document, content_batch_analyze, Write/Glob/Read/Bash | sonnet |
+| `commands/ingest.md` | `/gr:ingest` | knowledge_ingest, knowledge_stats, knowledge_search, Read | sonnet |
+| `commands/explainer.md` | `/ve:explainer` | All 15 explainer tools, Read/Write/Glob | sonnet |
+| `commands/explain-video.md` | `/ve:explain-video` | video_analyze, research_deep, content_analyze, web_search + explainer tools | sonnet |
+| `commands/explain-status.md` | `/ve:explain-status` | explainer_status, explainer_list | haiku |
 
-### Skills (4)
+### Skills (5)
 
 | Skill | Purpose |
 |-------|---------|
-| `video-research` | Tool signatures, workflows, caching for 23 tools |
+| `video-research` | Tool signatures, workflows, caching for 24 tools |
 | `gemini-visualize` | HTML visualization generation + 3 templates |
+| `video-explainer` | Tool signatures and workflows for 15 explainer tools |
 | `weaviate-setup` | Interactive onboarding wizard for Weaviate connection |
 | `mlflow-traces` | MLflow trace debugging, field paths, `extract_fields` discipline |
 
-### Agents (4)
+### Agents (6)
 
 | Agent | Model | Purpose |
 |-------|-------|---------|
@@ -242,6 +258,8 @@ These run as background or foreground processes with their own tool restrictions
 | `video-analyst` | sonnet | Video analysis and Q&A sessions |
 | `visualizer` | sonnet | Background HTML visualization + screenshot |
 | `comment-analyst` | haiku | Background YouTube comment analysis |
+| `video-producer` | sonnet | Full pipeline orchestrator for explainer videos |
+| `content-to-video` | sonnet | Bridge agent — research analysis to explainer video |
 
 ---
 
@@ -253,7 +271,7 @@ USER: npx video-research-mcp@latest
          ▼
     bin/install.js (Node.js)
          │
-         ├── Copy 21 markdown files to ~/.claude/
+         ├── Copy 28 markdown files to ~/.claude/
          ├── Write .mcp.json (register MCP servers)
          └── Write manifest (for future upgrades)
 

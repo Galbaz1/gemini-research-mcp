@@ -23,7 +23,7 @@ const MCP_SERVERS = {
   },
   playwright: {
     command: 'npx',
-    args: ['@playwright/mcp@latest', '--headless', '--caps=vision,pdf'],
+    args: ['@playwright/mcp@0.0.68', '--headless', '--caps=vision,pdf'],
   },
   'mlflow-mcp': {
     command: 'uvx',

@@ -118,6 +118,7 @@ class ServerConfig(BaseModel):
     tracing_enabled: bool = Field(default=False)
     mlflow_tracking_uri: str = Field(default="")
     mlflow_experiment_name: str = Field(default="video-research-mcp")
+    doc_max_download_bytes: int = Field(default=50 * 1024 * 1024)
 
     @field_validator("default_thinking_level")
     @classmethod
@@ -191,6 +192,7 @@ class ServerConfig(BaseModel):
             ),
             mlflow_tracking_uri=os.getenv("MLFLOW_TRACKING_URI", ""),
             mlflow_experiment_name=os.getenv("MLFLOW_EXPERIMENT_NAME", "video-research-mcp"),
+            doc_max_download_bytes=int(os.getenv("DOC_MAX_DOWNLOAD_BYTES", str(50 * 1024 * 1024))),
         )
 
 

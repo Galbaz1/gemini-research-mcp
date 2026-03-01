@@ -23,9 +23,9 @@ Based on input type:
 
 **YouTube URL**: Call `video_analyze(url, instruction="Extract key concepts, structure, and talking points for creating an educational explainer video")`
 
-**Webpage URL**: Call `content_analyze(source=url, instruction="Extract main topics, key facts, and narrative structure")`
+**Webpage URL**: Call `content_analyze(url=url, instruction="Extract main topics, key facts, and narrative structure")`
 
-**Topic text**: Call `research_deep(topic, scope="moderate", instruction="Research this topic for an educational explainer video. Focus on: key concepts, common misconceptions, real-world examples, and logical narrative flow")`
+**Topic text**: Call `research_deep(topic="<topic text — include research context for an educational explainer video. Focus on: key concepts, common misconceptions, real-world examples, and logical narrative flow>", scope="moderate")`
 
 ## Phase 2: Content Preparation
 

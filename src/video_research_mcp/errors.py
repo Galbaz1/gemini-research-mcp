@@ -28,6 +28,7 @@ class ErrorCategory(str, Enum):
     WEAVIATE_QUERY = "WEAVIATE_QUERY"
     WEAVIATE_IMPORT = "WEAVIATE_IMPORT"
     DEPENDENCY_MISSING = "DEPENDENCY_MISSING"
+    URL_POLICY_BLOCKED = "URL_POLICY_BLOCKED"
     QUALITY_GATE_FAILED = "QUALITY_GATE_FAILED"
     ARTIFACT_GENERATION_FAILED = "ARTIFACT_GENERATION_FAILED"
     SCHEMA_VALIDATION_FAILED = "SCHEMA_VALIDATION_FAILED"
@@ -46,6 +47,11 @@ class ToolError(BaseModel):
 
 def categorize_error(error: Exception) -> tuple[ErrorCategory, str]:
     """Map an exception to an ErrorCategory + human-readable hint."""
+    from .url_policy import UrlPolicyError
+
+    if isinstance(error, UrlPolicyError):
+        return (ErrorCategory.URL_POLICY_BLOCKED, str(error))
+
     s = str(error).lower()
 
     if "403" in s and "permission" in s:
