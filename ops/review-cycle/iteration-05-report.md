@@ -102,3 +102,9 @@ Focus: Iteration 5 - cache and data integrity
 1. Evaluate whether partial source failures in research-document ingestion should surface explicit skipped-source metadata to strengthen fault isolation transparency.
 2. Review tool-level exception boundaries to ensure localized failures cannot silently mask degraded outputs.
 3. Expand deterministic error categorization for local persistence failures where recovery guidance can be made explicit.
+
+## Scope Detection Evidence (Commit Transition)
+- Before commit on `codex/review/i05`:
+  - `{"mode": "uncommitted", "reason": "Working tree has local changes.", "branch": "codex/review/i05", "base_branch": "main", "uncommitted_files": 10, "ahead_commits": 7, "pr_context": false, "pr_url": null}`
+- After commit on `codex/review/i05`:
+  - `{"mode": "commits", "reason": "Branch is ahead of base with no local unstaged/uncommitted files.", "branch": "codex/review/i05", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 8, "pr_context": false, "pr_url": null}`
