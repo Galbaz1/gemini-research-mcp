@@ -44,6 +44,8 @@ def serialize(value: object) -> object:
     """Make Weaviate property values JSON-serializable."""
     if hasattr(value, "isoformat"):
         return value.isoformat()
+    if isinstance(value, dict):
+        return {k: serialize(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [serialize(v) for v in value]
     return value

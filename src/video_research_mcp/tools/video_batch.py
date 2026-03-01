@@ -74,7 +74,7 @@ async def video_batch_analyze(
             total_files=0,
             successful=0,
             failed=0,
-        ).model_dump()
+        ).model_dump(mode="json")
 
     semaphore = asyncio.Semaphore(3)
 
@@ -104,4 +104,4 @@ async def video_batch_analyze(
         successful=successful,
         failed=len(items) - successful,
         items=list(items),
-    ).model_dump()
+    ).model_dump(mode="json")

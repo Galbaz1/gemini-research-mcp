@@ -40,7 +40,7 @@ async def knowledge_search(
         SearchType,
         Field(description="Search mode: hybrid (BM25+vector), semantic (vector only), keyword (BM25 only)"),
     ] = "hybrid",
-    limit: Annotated[int, Field(ge=1, le=100, description="Max results per collection")] = 10,
+    limit: Annotated[int, Field(ge=1, le=100, description="Maximum total results to return")] = 10,
     alpha: Annotated[float, Field(ge=0.0, le=1.0, description="Hybrid balance: 0=BM25, 1=vector")] = 0.5,
     evidence_tier: Annotated[str | None, Field(description="Filter by evidence tier (e.g. CONFIRMED)")] = None,
     source_tool: Annotated[str | None, Field(description="Filter by originating tool name")] = None,
@@ -59,7 +59,7 @@ async def knowledge_search(
         query: Text to search for.
         collections: Which collections to search (default: all).
         search_type: Search algorithm — hybrid, semantic (near_text), or keyword (BM25).
-        limit: Maximum results per collection.
+        limit: Maximum total results to return.
         alpha: Hybrid balance (only used when search_type="hybrid").
         evidence_tier: Filter ResearchFindings by evidence tier.
         source_tool: Filter any collection by originating tool.
@@ -72,7 +72,7 @@ async def knowledge_search(
         Dict matching KnowledgeSearchResult schema.
     """
     if not get_config().weaviate_enabled:
-        return KnowledgeSearchResult(query=query).model_dump()
+        return KnowledgeSearchResult(query=query).model_dump(mode="json")
 
     # MCP JSON-RPC transport may serialize list params as JSON strings
     if isinstance(collections, str):
@@ -134,6 +134,7 @@ async def knowledge_search(
             return hits, any_reranked
 
         hits, reranked = await asyncio.to_thread(_search)
+        hits = hits[:limit]
 
         # Flash post-processing (async, best-effort)
         flash_processed = False
@@ -149,7 +150,7 @@ async def knowledge_search(
             filters_applied=filters_applied,
             reranked=reranked,
             flash_processed=flash_processed,
-        ).model_dump()
+        ).model_dump(mode="json")
 
     except Exception as exc:
         return make_tool_error(exc)

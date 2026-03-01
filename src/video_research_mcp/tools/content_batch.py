@@ -214,7 +214,7 @@ async def content_batch_analyze(
         return BatchContentResult(
             directory=str(directory or ""),
             total_files=0, successful=0, failed=0, mode=mode,
-        ).model_dump()
+        ).model_dump(mode="json")
 
     try:
         if mode == "compare":
@@ -244,6 +244,6 @@ async def content_batch_analyze(
                     local_filepath=item.file_path,
                 )
 
-        return result.model_dump()
+        return result.model_dump(mode="json")
     except Exception as exc:
         return make_tool_error(exc)

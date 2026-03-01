@@ -114,7 +114,7 @@ async def run_strict_pipeline(
             thinking_level=thinking_level,
             system_instruction=metadata_context,
         )
-        analysis = analysis_model.model_dump()
+        analysis = analysis_model.model_dump(mode="json")
     except Exception as exc:
         return make_tool_error(exc)
 
@@ -141,8 +141,8 @@ async def run_strict_pipeline(
             concept_prompt, schema=ConceptMap, thinking_level="medium"
         )
         strategy_model, concept_model = await asyncio.gather(strategy_task, concept_task)
-        strategy = strategy_model.model_dump()
-        concept_map = concept_model.model_dump()
+        strategy = strategy_model.model_dump(mode="json")
+        concept_map = concept_model.model_dump(mode="json")
     except Exception as exc:
         return make_tool_error(exc)
 
@@ -178,7 +178,7 @@ async def run_strict_pipeline(
                 "category": ErrorCategory.QUALITY_GATE_FAILED.value,
                 "hint": "Review quality report for specific failures.",
                 "retryable": True,
-                "quality_report": quality_report.model_dump(),
+                "quality_report": quality_report.model_dump(mode="json"),
                 "analysis": analysis,
             }
 
@@ -203,7 +203,7 @@ async def run_strict_pipeline(
         "strategy": strategy,
         "concept_map": concept_map,
         "artifacts": final_paths,
-        "quality_report": quality_report.model_dump(),
+        "quality_report": quality_report.model_dump(mode="json"),
         "source": source_label,
         "content_id": content_id,
     }

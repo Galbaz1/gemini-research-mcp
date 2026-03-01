@@ -190,7 +190,7 @@ async def _analyze_parts(
         schema=ContentResult,
         thinking_level=thinking_level,
     )
-    return result.model_dump()
+    return result.model_dump(mode="json")
 
 
 async def _reshape_to_schema(
@@ -212,7 +212,7 @@ async def _reshape_to_schema(
         schema=ContentResult,
         thinking_level="low",
     )
-    return result.model_dump()
+    return result.model_dump(mode="json")
 
 
 @content_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))

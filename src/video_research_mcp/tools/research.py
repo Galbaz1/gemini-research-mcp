@@ -94,7 +94,7 @@ async def research_deep(
             findings=findings,
             open_questions=synthesis.open_questions,
             methodology_critique=synthesis.methodology_critique,
-        ).model_dump()
+        ).model_dump(mode="json")
         from ..weaviate_store import store_research_finding
         await store_research_finding(report)
         return report
@@ -133,7 +133,7 @@ async def research_plan(
             system_instruction=DEEP_RESEARCH_SYSTEM,
             thinking_level="high",
         )
-        result = plan.model_dump()
+        result = plan.model_dump(mode="json")
         from ..weaviate_store import store_research_plan
         await store_research_plan(result)
         return result
@@ -149,9 +149,9 @@ async def research_plan(
             fallback = ResearchPlan(
                 topic=topic,
                 scope=scope,
-                phases=[Phase(name="Full Plan", description=raw[:500], tasks=[])],
+                phases=[Phase(name="Full Plan", description=raw[:2000], tasks=[])],
                 task_decomposition=[raw],
-            ).model_dump()
+            ).model_dump(mode="json")
             from ..weaviate_store import store_research_plan
             await store_research_plan(fallback)
             return fallback
@@ -187,7 +187,7 @@ async def research_assess_evidence(
             system_instruction=DEEP_RESEARCH_SYSTEM,
             thinking_level="high",
         )
-        result = assessment.model_dump()
+        result = assessment.model_dump(mode="json")
         from ..weaviate_store import store_evidence_assessment
         await store_evidence_assessment(result)
         return result
