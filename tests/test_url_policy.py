@@ -56,6 +56,7 @@ class _FakeResponse:
 
     def __init__(self, chunks: list[bytes], *, peer_ip: str | None = None):
         self._chunks = chunks
+        self.url: str = ""  # Set by _FakeClient.stream or test
         self.extensions: dict = {}
         if peer_ip:
             self.extensions["network_stream"] = _FakeNetworkStream(peer_ip)
@@ -87,6 +88,8 @@ class _FakeClient:
         self._resp = resp
 
     def stream(self, method, url):
+        if not self._resp.url:
+            self._resp.url = url
         return _FakeStreamCtx(self._resp)
 
     async def __aenter__(self):
@@ -226,8 +229,8 @@ class TestDownloadChecked:
                     "https://example.com/huge.pdf", tmp_path, max_bytes=500
                 )
 
-    async def test_no_redirects(self, tmp_path: Path):
-        """Client is created with follow_redirects=False."""
+    async def test_follows_redirects_with_limit(self, tmp_path: Path):
+        """Client is created with follow_redirects=True and max_redirects=5."""
         resp = _FakeResponse([b"content"])
         client = _FakeClient(resp)
         mock_cls = MagicMock(return_value=client)
@@ -239,7 +242,33 @@ class TestDownloadChecked:
             await download_checked(
                 "https://example.com/doc.pdf", tmp_path, max_bytes=10_000
             )
-            mock_cls.assert_called_once_with(follow_redirects=False, timeout=60)
+            mock_cls.assert_called_once_with(follow_redirects=True, max_redirects=5, timeout=60)
+
+    async def test_redirect_validates_final_url(self, tmp_path: Path):
+        """GIVEN a URL that redirects to a different host,
+        WHEN download_checked runs,
+        THEN it calls validate_url on the final redirected URL.
+        """
+        resp = _FakeResponse([b"content"])
+        resp.url = "https://cdn.example.com/doc.pdf"
+        client = _FakeClient(resp)
+
+        validate_calls = []
+        original_validate = AsyncMock(side_effect=lambda url: validate_calls.append(url))
+
+        with (
+            patch("video_research_mcp.url_policy.validate_url", original_validate),
+            patch("video_research_mcp.url_policy.httpx.AsyncClient", return_value=client),
+        ):
+            await download_checked(
+                "https://example.com/doc.pdf", tmp_path, max_bytes=10_000
+            )
+
+        # Pre-flight validation + redirect validation
+        assert validate_calls == [
+            "https://example.com/doc.pdf",
+            "https://cdn.example.com/doc.pdf",
+        ]
 
     async def test_writes_file(self, tmp_path: Path):
         """Happy path: file is written to tmp_dir."""

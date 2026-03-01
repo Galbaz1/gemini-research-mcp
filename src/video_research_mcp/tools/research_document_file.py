@@ -108,7 +108,7 @@ async def _prepare_all_documents(
         results = await asyncio.gather(*download_tasks, return_exceptions=True)
         for url, result in zip(urls, results):
             if isinstance(result, Exception):
-                logger.warning("Failed to download %s: %s", url, result)
+                logger.warning("Failed to download %s (%s): %s", url, type(result).__name__, result)
             else:
                 downloaded.append((result, url))
 

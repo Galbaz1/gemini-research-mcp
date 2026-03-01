@@ -140,9 +140,13 @@ async def download_checked(url: str, tmp_dir: Path, *, max_bytes: int) -> Path:
     filename = url_path if "." in url_path else "document.pdf"
     local = tmp_dir / filename
 
-    async with httpx.AsyncClient(follow_redirects=False, timeout=60) as client:
+    async with httpx.AsyncClient(follow_redirects=True, max_redirects=5, timeout=60) as client:
         async with client.stream("GET", url) as resp:
             _verify_peer_ip(resp)
+            # Validate final URL after redirects (blocks scheme downgrade / private hosts)
+            final_url = str(resp.url)
+            if final_url != url:
+                await validate_url(final_url)
             resp.raise_for_status()
             accumulated = 0
             with local.open("wb") as f:
