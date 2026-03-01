@@ -28,7 +28,7 @@ from ..prompts.research_document import (
     DOCUMENT_RESEARCH_SYSTEM,
     DOCUMENT_SYNTHESIS,
 )
-from ..types import Scope, ThinkingLevel
+from ..types import Scope, ThinkingLevel, coerce_json_param
 from ..weaviate_store import store_research_finding
 from .research import research_server
 from .research_document_file import _prepare_all_documents
@@ -66,13 +66,20 @@ async def research_document(
     Returns:
         Dict with document_sources, executive_summary, findings, cross_references.
     """
+    file_paths = coerce_json_param(file_paths, list)
+    urls = coerce_json_param(urls, list)
+
     if not file_paths and not urls:
         return make_tool_error(ValueError("Provide at least one of: file_paths or urls"))
 
     try:
         prepared = await _prepare_all_documents(file_paths, urls)
         if not prepared:
-            return make_tool_error(ValueError("No documents could be prepared"))
+            total = len(file_paths or []) + len(urls or [])
+            return make_tool_error(ValueError(
+                f"No documents could be prepared from {total} source(s). "
+                "Check that file paths exist and URLs are publicly accessible."
+            ))
 
         sources = [
             DocumentSource(

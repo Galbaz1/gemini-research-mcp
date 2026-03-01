@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Annotated
 
 from mcp.types import ToolAnnotations
@@ -13,7 +12,7 @@ from weaviate.classes.query import MetadataQuery
 from ...config import get_config
 from ...errors import make_tool_error
 from ...models.knowledge import KnowledgeHit, KnowledgeSearchResult
-from ...types import KnowledgeCollection
+from ...types import KnowledgeCollection, coerce_json_param
 from ...weaviate_client import WeaviateClient
 from ..knowledge_filters import build_collection_filter
 from . import knowledge_server
@@ -74,14 +73,7 @@ async def knowledge_search(
     if not get_config().weaviate_enabled:
         return KnowledgeSearchResult(query=query).model_dump(mode="json")
 
-    # MCP JSON-RPC transport may serialize list params as JSON strings
-    if isinstance(collections, str):
-        try:
-            parsed = json.loads(collections)
-            if isinstance(parsed, list):
-                collections = parsed
-        except (json.JSONDecodeError, TypeError):
-            pass
+    collections = coerce_json_param(collections, list)
 
     try:
         cfg = get_config()

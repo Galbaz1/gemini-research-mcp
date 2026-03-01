@@ -11,7 +11,7 @@ from pydantic import Field
 
 from ..errors import make_tool_error
 from ..models.video_batch import BatchVideoItem, BatchVideoResult
-from ..types import ThinkingLevel, VideoDirectoryPath
+from ..types import ThinkingLevel, VideoDirectoryPath, coerce_json_param
 from .video import video_server
 from .video_core import analyze_video
 from .video_file import SUPPORTED_VIDEO_EXTENSIONS, _video_file_content
@@ -59,6 +59,8 @@ async def video_batch_analyze(
     Returns:
         Dict with directory, counts, and per-file results.
     """
+    output_schema = coerce_json_param(output_schema, dict)
+
     dir_path = Path(directory).expanduser().resolve()
     if not dir_path.is_dir():
         return make_tool_error(ValueError(f"Not a directory: {directory}"))

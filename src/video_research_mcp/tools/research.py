@@ -28,7 +28,7 @@ from ..prompts.research import (
     SCOPE_DEFINITION,
     SYNTHESIS,
 )
-from ..types import Scope, ThinkingLevel, TopicParam
+from ..types import Scope, ThinkingLevel, TopicParam, coerce_json_param
 
 logger = logging.getLogger(__name__)
 research_server = FastMCP("research")
@@ -176,6 +176,8 @@ async def research_assess_evidence(
     Returns:
         Dict with claim, tier, confidence, and reasoning.
     """
+    sources = coerce_json_param(sources, list)
+
     try:
         sources_text = "\n".join(f"- {s}" for s in sources)
         prompt = EVIDENCE_ASSESSMENT.format(

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Annotated
 
 from mcp.types import ToolAnnotations
@@ -12,7 +11,7 @@ from pydantic import Field
 from ...config import get_config
 from ...errors import make_tool_error
 from ...models.knowledge import KnowledgeIngestResult
-from ...types import KnowledgeCollection
+from ...types import KnowledgeCollection, coerce_json_param
 from ...weaviate_client import WeaviateClient
 from . import knowledge_server
 from .helpers import ALLOWED_PROPERTIES, weaviate_not_configured
@@ -47,14 +46,7 @@ async def knowledge_ingest(
     if not get_config().weaviate_enabled:
         return weaviate_not_configured()
 
-    # MCP JSON-RPC transport may serialize dict params as JSON strings
-    if isinstance(properties, str):
-        try:
-            parsed = json.loads(properties)
-            if isinstance(parsed, dict):
-                properties = parsed
-        except (json.JSONDecodeError, TypeError):
-            pass
+    properties = coerce_json_param(properties, dict)
 
     # Validate properties against schema
     allowed = ALLOWED_PROPERTIES.get(collection, set())

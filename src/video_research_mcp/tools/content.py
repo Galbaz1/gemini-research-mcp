@@ -17,7 +17,7 @@ from ..tracing import trace
 from ..errors import make_tool_error
 from ..models.content import ContentResult
 from ..prompts.content import STRUCTURED_EXTRACT
-from ..types import ThinkingLevel
+from ..types import ThinkingLevel, coerce_json_param
 
 logger = logging.getLogger(__name__)
 content_server = FastMCP("content")
@@ -89,6 +89,8 @@ async def content_analyze(
     Returns:
         Dict matching ContentResult schema (default) or the custom output_schema.
     """
+    output_schema = coerce_json_param(output_schema, dict)
+
     try:
         sources = sum(x is not None for x in (file_path, url, text))
         if sources == 0:
@@ -232,6 +234,8 @@ async def content_extract(
     Returns:
         Dict matching the provided schema, or error dict on parse failure.
     """
+    schema = coerce_json_param(schema, dict)
+
     try:
         prompt = STRUCTURED_EXTRACT.format(
             content=content,

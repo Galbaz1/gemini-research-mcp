@@ -24,7 +24,7 @@ from ..errors import make_tool_error
 from ..models.video import SessionInfo, SessionResponse
 from ..prompts.video import METADATA_OPTIMIZER, METADATA_PREAMBLE
 from ..sessions import session_store
-from ..types import ThinkingLevel, VideoFilePath, YouTubeUrl
+from ..types import ThinkingLevel, VideoFilePath, YouTubeUrl, coerce_json_param
 from ..youtube import YouTubeClient
 from .video_cache import ensure_session_cache, prewarm_cache, prepare_cached_request
 from .video_core import analyze_video
@@ -155,6 +155,8 @@ async def video_analyze(
         Dict matching VideoResult schema (default), custom output_schema,
         or strict contract output with analysis, strategy, concept_map, artifacts.
     """
+    output_schema = coerce_json_param(output_schema, dict)
+
     if strict_contract and output_schema is not None:
         return {
             "error": "strict_contract and output_schema are mutually exclusive. "

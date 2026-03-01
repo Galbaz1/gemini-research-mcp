@@ -1,10 +1,35 @@
-"""Shared type aliases for tool parameters."""
+"""Shared type aliases and helpers for tool parameters."""
 
 from __future__ import annotations
 
+import json
 from typing import Annotated, Literal
 
 from pydantic import Field
+
+
+def coerce_json_param(value: str | dict | list | None, expected_type: type) -> dict | list | None:
+    """Parse MCP JSON-RPC string params back to dict/list.
+
+    MCP JSON-RPC transport may serialize dict/list params as JSON strings.
+    Pydantic v2 rejects these — this helper coerces them back.
+
+    Args:
+        value: The parameter value (possibly a JSON string).
+        expected_type: Expected Python type (``dict`` or ``list``).
+
+    Returns:
+        Parsed value if coercion succeeded, original value otherwise.
+    """
+    if not isinstance(value, str):
+        return value
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, expected_type):
+            return parsed
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return value
 
 # ── Literal enums ────────────────────────────────────────────────────────────
 
