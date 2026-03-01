@@ -127,7 +127,7 @@ Config location: `~/.claude/.mcp.json` (global) or `./.mcp.json` (local, project
 
 The Python package (defined in `pyproject.toml`) is the actual MCP server. Users never install it manually — `uvx` handles it when Claude Code reads `.mcp.json`.
 
-The server exposes 25 tools across 7 sub-servers. See the Architecture section in the root `CLAUDE.md`.
+The server exposes 24 tools across 7 sub-servers. See the Architecture section in the root `CLAUDE.md`.
 
 ---
 
@@ -244,7 +244,7 @@ These run as background or foreground processes with their own tool restrictions
 
 | Skill | Purpose |
 |-------|---------|
-| `video-research` | Tool signatures, workflows, caching for 25 tools |
+| `video-research` | Tool signatures, workflows, caching for 24 tools |
 | `gemini-visualize` | HTML visualization generation + 3 templates |
 | `video-explainer` | Tool signatures and workflows for 15 explainer tools |
 | `weaviate-setup` | Interactive onboarding wizard for Weaviate connection |

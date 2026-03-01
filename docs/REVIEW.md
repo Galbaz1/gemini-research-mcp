@@ -22,16 +22,16 @@ The actual tool count is **24** (4+3+4+3+1+2+7). New tools since the original re
 
 | Document | Claim | Correct? |
 |----------|-------|----------|
-| CLAUDE.md | "25 tools" | **Close** -- actual is 24 (counts `knowledge_ask` separately) |
+| CLAUDE.md | "24 tools" | CORRECT |
 | DATAFLOW.md | "24 tools" | CORRECT (updated 2026-03-01) |
-| ARCHITECTURE.md | Being updated by arch-writer | Pending verification |
-| DIAGRAMS.md | Being updated by diagrams-writer | Pending verification |
-| GETTING_STARTED.md | Being updated by tutorial-writer | Pending verification |
-| ADDING_A_TOOL.md overview tree | Per-server counts | Pending verification |
+| ARCHITECTURE.md | "24 tools" | CORRECT |
+| DIAGRAMS.md | Root package shows "24 tools" | CORRECT |
+| GETTING_STARTED.md | "All 24 tools" | CORRECT |
+| ADDING_A_TOOL.md overview tree | Per-server counts (4+3+4+3+1+2+7) | CORRECT |
 | KNOWLEDGE_STORE.md | No total count claim | N/A |
 | WRITING_TESTS.md | Being updated by tutorial-writer | Pending verification |
 
-**Action required**: Verify all docs converge on 24 tools after the current documentation update cycle.
+**Status**: Docs now converge on 24 tools.
 
 ---
 
@@ -106,7 +106,7 @@ All source file references point to actual files.
 ### Diagram 1: Server Mounting Hierarchy
 
 - Lists 7 sub-servers: MATCHES architecture guide section 2
-- Should list 24 tools under correct sub-servers (4+3+4+3+1+2+7): verify after DIAGRAMS.md update
+- Lists 24 tools under correct sub-servers (4+3+4+3+1+2+7): VERIFIED
 - Shows lifespan hook with WeaviateClient.aclose() + GeminiClient.close_all() + tracing.setup()/shutdown(): MATCHES server.py
 
 ### Diagram 2: GeminiClient Request Flow
@@ -185,7 +185,7 @@ Checking whether the audit's critical findings are addressed in the other docs:
 
 ### Must Fix (being addressed in current doc update cycle)
 
-1. **All docs**: Converge on 24 tools (4+3+4+3+1+2+7)
+1. **[Resolved]** All docs converge on 24 tools (4+3+4+3+1+2+7)
 2. **All docs**: Document new modules: `tracing.py`, `tools/knowledge/summarize.py`, `tools/knowledge_filters.py`
 3. **All docs**: Document new config fields: `reranker_enabled`, `reranker_provider`, `flash_summarize`, `tracing_enabled`, `mlflow_tracking_uri`, `mlflow_experiment_name`
 

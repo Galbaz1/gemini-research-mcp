@@ -418,7 +418,7 @@ graph TD
     REPO["gemini-research-mcp<br/>(monorepo)"]:::root
 
     subgraph "Root: video-research-mcp"
-        ROOT_PKG["video-research-mcp<br/>25 tools | 7 sub-servers<br/>PyPI + npm (plugin installer)"]:::pkg
+        ROOT_PKG["video-research-mcp<br/>24 tools | 7 sub-servers<br/>PyPI + npm (plugin installer)"]:::pkg
         ROOT_DEPS["google-genai >=1.57<br/>fastmcp >=3.0.2<br/>weaviate-client >=4.19.2<br/>pydantic >=2.0"]:::dep
         ROOT_PKG --- ROOT_DEPS
     end
