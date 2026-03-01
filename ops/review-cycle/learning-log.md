@@ -67,3 +67,14 @@
 ## Iteration 7 seed hypotheses
 - Evaluate prompt-injection and instruction-smuggling resistance across tools that combine untrusted content with system prompts.
 - Add negative tests that prove malicious document/content strings cannot override tool safety constraints or policy gates.
+
+## Iteration 7 (Prompt Injection and Tool Misuse Resistance) - 2026-03-01T10:04:39Z
+- Observation: `content_analyze` URL-context primary/fallback paths and reshape calls did not enforce explicit shared anti-injection system instructions.
+- Inference: Safety assumptions were implicit in task prompts, allowing guardrail drift across multi-step model-call chains.
+- Strategy: Introduce a shared `CONTENT_ANALYSIS_SYSTEM` policy and pass it through all content-analysis model invocations, including fallback reshape paths.
+- Validation: Added system-instruction propagation assertions in `tests/test_content_tools.py`; targeted lint/tests passed.
+- Confidence change: 0.50 -> 0.82 for prompt-injection/tool-misuse resistance in iteration-7 scope.
+
+## Iteration 8 seed hypotheses
+- Evaluate concurrency and resource exhaustion in async multi-source analysis paths.
+- Add bounded workload safeguards for high-volume URL/document batches.

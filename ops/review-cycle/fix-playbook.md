@@ -94,3 +94,17 @@
 - Regression coverage:
   - `tests/test_research_document_tools.py::TestResearchDocument::test_surfaces_preparation_issues`
   - `tests/test_research_document_file.py::TestPrepareAllDocumentsWithIssues::test_collects_download_failures_and_keeps_successes`
+
+## FP-010: Enforce anti-injection system guardrails on untrusted-content analysis paths
+- Context: Content-analysis tools process attacker-controlled URL/file/text inputs and include multi-step fallback reshaping.
+- Rule: Apply one shared system-level anti-injection policy to every model call in the chain (primary + fallback + reshape + extraction).
+- Why: Prevents policy drift where fallback flows silently lose guardrails and become easier to steer by in-content instructions.
+- Applied in iteration 7:
+  - `src/video_research_mcp/prompts/content.py`
+  - `src/video_research_mcp/tools/content.py`
+  - `src/video_research_mcp/prompts/research.py`
+  - `src/video_research_mcp/prompts/research_document.py`
+- Regression coverage:
+  - `tests/test_content_tools.py::TestContentAnalyze::test_url_uses_url_context`
+  - `tests/test_content_tools.py::TestContentAnalyze::test_url_fallback_on_structured_failure`
+  - `tests/test_content_tools.py::TestContentExtract::test_extract_returns_parsed_json`

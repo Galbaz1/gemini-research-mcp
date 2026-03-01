@@ -17,7 +17,7 @@ from ..tracing import trace
 from ..errors import make_tool_error
 from ..models.content import ContentResult
 from ..local_path_policy import enforce_local_access_root, resolve_path
-from ..prompts.content import STRUCTURED_EXTRACT
+from ..prompts.content import CONTENT_ANALYSIS_SYSTEM, STRUCTURED_EXTRACT
 from ..types import ThinkingLevel, coerce_json_param
 from ..url_policy import UrlPolicyError, validate_url
 
@@ -153,6 +153,7 @@ async def _analyze_url(
         raw = await GeminiClient.generate(
             prompt_text,
             thinking_level=thinking_level,
+            system_instruction=CONTENT_ANALYSIS_SYSTEM,
             tools=[types.Tool(url_context=types.UrlContext())],
             response_schema=schema,
         )
@@ -162,6 +163,7 @@ async def _analyze_url(
         unstructured = await GeminiClient.generate(
             prompt_text,
             thinking_level=thinking_level,
+            system_instruction=CONTENT_ANALYSIS_SYSTEM,
             tools=[types.Tool(url_context=types.UrlContext())],
         )
         return await _reshape_to_schema(instruction, unstructured, output_schema)
@@ -186,6 +188,7 @@ async def _analyze_parts(
         raw = await GeminiClient.generate(
             contents,
             thinking_level=thinking_level,
+            system_instruction=CONTENT_ANALYSIS_SYSTEM,
             response_schema=output_schema,
         )
         return json.loads(raw)
@@ -194,6 +197,7 @@ async def _analyze_parts(
         contents,
         schema=ContentResult,
         thinking_level=thinking_level,
+        system_instruction=CONTENT_ANALYSIS_SYSTEM,
     )
     return result.model_dump(mode="json")
 
@@ -208,6 +212,7 @@ async def _reshape_to_schema(
         raw = await GeminiClient.generate(
             f"{instruction}\n\nContent:\n{unstructured}",
             thinking_level="low",
+            system_instruction=CONTENT_ANALYSIS_SYSTEM,
             response_schema=output_schema,
         )
         return json.loads(raw)
@@ -216,6 +221,7 @@ async def _reshape_to_schema(
         f"{instruction}\n\nContent:\n{unstructured}",
         schema=ContentResult,
         thinking_level="low",
+        system_instruction=CONTENT_ANALYSIS_SYSTEM,
     )
     return result.model_dump(mode="json")
 
@@ -247,6 +253,7 @@ async def content_extract(
         resp = await GeminiClient.generate(
             prompt,
             thinking_level="low",
+            system_instruction=CONTENT_ANALYSIS_SYSTEM,
             response_schema=schema,
         )
         return json.loads(resp)
