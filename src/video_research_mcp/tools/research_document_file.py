@@ -35,8 +35,8 @@ def _doc_mime_type(path: Path) -> str:
     return mime
 
 
-_ARXIV_ABS_RE = re.compile(r"https?://arxiv\.org/abs/([\d.]+)(v\d+)?$")
-_ARXIV_PDF_RE = re.compile(r"https?://arxiv\.org/pdf/([\d.]+)(v\d+)?$")
+_ARXIV_ABS_RE = re.compile(r"https?://arxiv\.org/abs/([\d.]+)(v\d+)?/?(?:\?.*)?$")
+_ARXIV_PDF_RE = re.compile(r"https?://arxiv\.org/pdf/([\d.]+)(v\d+)?/?(?:\?.*)?$")
 
 
 def _normalize_document_url(url: str) -> str:
@@ -87,10 +87,12 @@ async def _download_document(url: str, tmp_dir: Path) -> Path:
         resp.raise_for_status()
 
     url_path = url.rsplit("/", 1)[-1].split("?")[0]
-    # If URL path segment has no recognized extension, default to .pdf
-    if not any(url_path.endswith(ext) for ext in SUPPORTED_DOC_EXTENSIONS):
+    suffix = Path(url_path).suffix.lower()
+    if not suffix:
+        # No extension at all (e.g. normalized arXiv ID) — assume PDF
         filename = "document.pdf"
     else:
+        # Keep original name — _doc_mime_type will reject unsupported extensions
         filename = url_path
     local = tmp_dir / filename
     local.write_bytes(resp.content)
