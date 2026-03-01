@@ -188,7 +188,7 @@ When MLflow tracing is enabled (`MLFLOW_TRACKING_URI` is set), every Gemini API 
 ## Tool overview
 
 <details>
-<summary><strong>video-research-mcp (24 tools)</strong></summary>
+<summary><strong>video-research-mcp (25 tools)</strong></summary>
 
 ### Video (4)
 

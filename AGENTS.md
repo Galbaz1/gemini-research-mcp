@@ -14,7 +14,7 @@ This layout mirrors `.claude/rules/*.md` path scoping using Codex's directory-ba
 
 A monorepo with 3 MCP servers:
 
-1. **video-research-mcp** (root) — 24 tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini 3.1 Pro (`google-genai`) and YouTube Data API v3.
+1. **video-research-mcp** (root) — 25 tools for video analysis, deep research, content extraction, web search, and context caching. Powered by Gemini 3.1 Pro (`google-genai`) and YouTube Data API v3.
 2. **video-explainer-mcp** (`packages/video-explainer-mcp/`) — 15 tools for synthesizing explainer videos.
 3. **video-agent-mcp** (`packages/video-agent-mcp/`) — 2 tools for parallel scene generation via Claude Agent SDK.
 
@@ -151,4 +151,3 @@ Main variables:
 - `docs/PLUGIN_DISTRIBUTION.md`
 - `docs/PUBLISHING.md`
 - `docs/RELEASE_CHECKLIST.md`
-
