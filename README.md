@@ -7,6 +7,13 @@ Claude Code can't process video. Gemini 3.1 Pro can. This plugin bridges the two
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
+<div align="center">
+  <a href="https://youtu.be/MQn7dMalTq4">
+    <img src="https://img.youtube.com/vi/MQn7dMalTq4/maxresdefault.jpg" alt="video-research-mcp demo" width="600">
+  </a>
+  <p><em>Watch the full demo on YouTube</em></p>
+</div>
+
 ## What's in the box
 
 Three MCP servers, installable together or separately:
