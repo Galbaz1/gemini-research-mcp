@@ -84,3 +84,9 @@ Focus: Iteration 2 - validation and schema contracts
 1. External API failure-mode coverage should explicitly test idempotent retries and partial-failure behavior for batch/document pipelines.
 2. Upload/download workflows need resilience contracts for timeout, stale cache, and concurrent retries with deterministic error typing.
 3. Add failure-mode matrix tests that assert `make_tool_error()` category consistency for transport/API exceptions.
+
+## Scope Detection Evidence (Commit Transition)
+- Before commit on `codex/review/i02`:
+  - `{"mode": "uncommitted", "reason": "Working tree has local changes.", "branch": "codex/review/i02", "base_branch": "main", "uncommitted_files": 16, "ahead_commits": 2, "pr_context": false, "pr_url": null}`
+- After commit on `codex/review/i02`:
+  - `{"mode": "commits", "reason": "Branch is ahead of base with no local unstaged/uncommitted files.", "branch": "codex/review/i02", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 3, "pr_context": false, "pr_url": null}`
