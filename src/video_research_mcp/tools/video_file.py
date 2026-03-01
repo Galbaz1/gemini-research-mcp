@@ -29,6 +29,8 @@ SUPPORTED_VIDEO_EXTENSIONS: dict[str, str] = {
 }
 
 LARGE_FILE_THRESHOLD = 20 * 1024 * 1024  # 20 MB
+_UPLOAD_LOCKS: dict[str, asyncio.Lock] = {}
+_UPLOAD_LOCKS_GUARD = asyncio.Lock()
 
 
 def _video_mime_type(path: Path) -> str:
@@ -133,7 +135,19 @@ async def _upload_large_file(path: Path, mime_type: str, content_hash: str = "")
     """
     client = GeminiClient.get()
 
-    if content_hash:
+    if not content_hash:
+        uploaded = await client.aio.files.upload(
+            file=path,
+            config=types.UploadFileConfig(mime_type=mime_type),
+        )
+        logger.info("Uploaded %s → %s (state=%s)", path.name, uploaded.uri, uploaded.state)
+        await _wait_for_active(client, uploaded.name)
+        return uploaded.uri
+
+    async with _UPLOAD_LOCKS_GUARD:
+        lock = _UPLOAD_LOCKS.setdefault(content_hash, asyncio.Lock())
+
+    async with lock:
         cached = _load_upload_cache(content_hash)
         if cached:
             try:
@@ -143,17 +157,14 @@ async def _upload_large_file(path: Path, mime_type: str, content_hash: str = "")
             except (RuntimeError, TimeoutError, KeyError):
                 logger.debug("Stale upload cache for %s, re-uploading", path.name)
 
-    uploaded = await client.aio.files.upload(
-        file=path,
-        config=types.UploadFileConfig(mime_type=mime_type),
-    )
-    logger.info("Uploaded %s → %s (state=%s)", path.name, uploaded.uri, uploaded.state)
-    await _wait_for_active(client, uploaded.name)
-
-    if content_hash:
+        uploaded = await client.aio.files.upload(
+            file=path,
+            config=types.UploadFileConfig(mime_type=mime_type),
+        )
+        logger.info("Uploaded %s → %s (state=%s)", path.name, uploaded.uri, uploaded.state)
+        await _wait_for_active(client, uploaded.name)
         _save_upload_cache(content_hash, uploaded.uri, uploaded.name)
-
-    return uploaded.uri
+        return uploaded.uri
 
 
 async def _video_file_content(file_path: str, prompt: str) -> tuple[types.Content, str, str]:

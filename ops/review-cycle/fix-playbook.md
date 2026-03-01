@@ -29,3 +29,21 @@
   - `tests/test_video_file.py`
   - `tests/test_content_tools.py`
   - `tests/test_content_batch_tools.py`
+
+## FP-004: Coalesce concurrent file uploads by content hash
+- Context: File API uploads with retrying or parallel tool calls on identical local files.
+- Rule: Guard same-hash upload path with a shared async lock and re-check cache within the critical section before uploading.
+- Why: Prevents duplicate upstream uploads, preserves quota, and improves idempotency under concurrent retries.
+- Applied in iteration 3:
+  - `src/video_research_mcp/tools/video_file.py`
+- Regression coverage:
+  - `tests/test_video_file.py::TestUploadCache::test_concurrent_same_hash_uploads_once`
+
+## FP-005: Type-based network error categorization
+- Context: Structured tool error output for timeout and transport failures.
+- Rule: Classify typed timeout/network exceptions (`TimeoutError`, `httpx.TimeoutException`, `httpx.NetworkError`) as `NETWORK_ERROR`.
+- Why: Ensures deterministic retry semantics and cleaner operational triage.
+- Applied in iteration 3:
+  - `src/video_research_mcp/errors.py`
+- Regression coverage:
+  - `tests/test_errors.py`

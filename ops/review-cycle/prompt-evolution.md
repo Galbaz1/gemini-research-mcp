@@ -27,3 +27,10 @@ Run an hourly security-focused review loop with branch discipline, reflective le
 3. When local file or directory inputs are accepted by tools, the system shall validate resolved paths against a shared policy boundary when configured.
 4. If validation enforcement rejects an input, the tool shall return structured `make_tool_error()` output rather than raising uncaught exceptions.
 5. The run shall persist findings, confidence deltas, and next hypotheses to review-cycle memory artifacts before completion.
+
+## Iteration 3 Mission Rewritten as EARS Requirements
+1. When iteration state indicates `current_iteration=3`, the run shall prioritize external API failure modes and idempotency.
+2. If iteration 2 lessons identify timeout/retry categorization gaps, the run shall implement at least one typed error-classification remediation.
+3. When concurrent requests upload identical file content, the system shall prevent duplicate upstream uploads by coordinating cache checks within a critical section.
+4. If timeout or transport exceptions occur, the tool error pipeline shall emit deterministic `NETWORK_ERROR` categorization with retryable semantics.
+5. The run shall record severity-ranked findings, implemented fixes, confidence deltas, and next hypotheses in review-cycle artifacts before completion.
