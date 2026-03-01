@@ -13,6 +13,7 @@ from google.genai import types
 
 from ..client import GeminiClient
 from ..config import get_config
+from ..local_path_policy import enforce_local_access_root, resolve_path
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ def _file_content_hash(path: Path) -> str:
 
 def _validate_video_path(file_path: str) -> tuple[Path, str]:
     """Validate path exists and has supported extension. Returns (path, mime)."""
-    p = Path(file_path).expanduser().resolve()
+    p = enforce_local_access_root(resolve_path(file_path))
     if not p.exists():
         raise FileNotFoundError(f"Video file not found: {file_path}")
     if not p.is_file():
