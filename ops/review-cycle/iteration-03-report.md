@@ -95,4 +95,4 @@ Focus: Iteration 3 - external API failure modes and idempotency
 - Before commit on `codex/review/i03`:
   - `{"mode": "uncommitted", "reason": "Working tree has local changes.", "branch": "codex/review/i03", "base_branch": "main", "uncommitted_files": 4, "ahead_commits": 3, "pr_context": false, "pr_url": null}`
 - After commit on `codex/review/i03`:
-  - `PENDING_POST_COMMIT_SCOPE`
+  - `{"mode": "commits", "reason": "Branch is ahead of base with no local unstaged/uncommitted files.", "branch": "codex/review/i03", "base_branch": "main", "uncommitted_files": 0, "ahead_commits": 4, "pr_context": false, "pr_url": null}`
