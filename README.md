@@ -16,7 +16,7 @@ Claude Code can't process video. Gemini 3.1 Pro can. This plugin bridges the two
 
 ## What's in the box
 
-41 tools across three MCP servers:
+A **Claude Code plugin** -- not just MCP servers, but a full integration: 41 tools, 14 slash commands, 5 skills, and 6 sub-agents that work together out of the box. The MCP servers provide the tools, the commands give you quick workflows (`/gr:video`, `/gr:research`), the skills teach Claude how to use everything correctly, and the agents handle background tasks like parallel research and visualization.
 
 | Server | Tools | Purpose |
 |--------|-------|---------|
