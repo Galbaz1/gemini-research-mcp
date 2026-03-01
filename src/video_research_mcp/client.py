@@ -204,15 +204,27 @@ class GeminiClient:
             logger.warning("generate_json_validated: non-JSON response, returning raw")
             return {"raw": raw}
 
+        # Pydantic path: validate and return coerced output
+        if isinstance(schema, type) and issubclass(schema, BaseModel):
+            try:
+                validated = TypeAdapter(schema).validate_python(parsed)
+                return validated.model_dump() if hasattr(validated, "model_dump") else parsed
+            except Exception as exc:
+                if strict:
+                    raise ValueError(f"Schema validation failed: {exc}") from exc
+                logger.warning("generate_json_validated: validation failed: %s", exc)
+                return parsed
+
+        # Dict (JSON Schema) path: validate in-place, return parsed
         try:
-            if isinstance(schema, type) and issubclass(schema, BaseModel):
-                TypeAdapter(schema).validate_python(parsed)
-            else:
-                try:
-                    import jsonschema
-                    jsonschema.validate(parsed, schema)
-                except ImportError:
-                    logger.debug("jsonschema not installed, skipping dict schema validation")
+            import jsonschema
+            jsonschema.validate(parsed, schema)
+        except ImportError:
+            if strict:
+                raise ValueError(
+                    "jsonschema package required for strict dict schema validation"
+                )
+            logger.debug("jsonschema not installed, skipping dict schema validation")
         except Exception as exc:
             if strict:
                 raise ValueError(f"Schema validation failed: {exc}") from exc

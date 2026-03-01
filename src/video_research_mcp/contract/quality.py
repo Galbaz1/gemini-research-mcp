@@ -130,7 +130,7 @@ def _check_links_valid(artifact_dir: Path) -> QualityCheck:
                 continue
             target = (md_file.parent / link_path).resolve()
             artifact_root = artifact_dir.resolve()
-            if not str(target).startswith(str(artifact_root)):
+            if not target.is_relative_to(artifact_root):
                 issues.append(f"{md_file.name}: link escapes artifact dir '{link}'")
             elif not target.exists():
                 issues.append(f"{md_file.name}: broken link '{link}'")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -14,6 +15,12 @@ from video_research_mcp.client import GeminiClient
 class SampleModel(BaseModel):
     name: str = Field(min_length=1)
     count: int = Field(ge=0)
+
+
+class CoercionModel(BaseModel):
+    """Model where Pydantic coerces types (str→int)."""
+    value: int
+    label: str = "default"
 
 
 class TestGenerateJsonValidated:
@@ -102,3 +109,29 @@ class TestGenerateJsonValidated:
                 "test prompt", schema=SampleModel, strict=False
             )
         assert "raw" in result
+
+    @pytest.mark.asyncio
+    async def test_pydantic_returns_coerced_output(self):
+        """Validated output reflects Pydantic coercion (str→int, defaults)."""
+        with patch.object(
+            GeminiClient, "generate", new_callable=AsyncMock,
+            return_value=json.dumps({"value": "42"}),
+        ):
+            result = await GeminiClient.generate_json_validated(
+                "test prompt", schema=CoercionModel
+            )
+        assert result["value"] == 42  # coerced from str "42"
+        assert result["label"] == "default"  # filled by Pydantic default
+
+    @pytest.mark.asyncio
+    async def test_dict_schema_strict_without_jsonschema(self):
+        """Strict mode + dict schema raises when jsonschema is not installed."""
+        schema = {"type": "object", "properties": {"x": {"type": "integer"}}}
+        with patch.object(
+            GeminiClient, "generate", new_callable=AsyncMock,
+            return_value=json.dumps({"x": 1}),
+        ), patch.dict(sys.modules, {"jsonschema": None}):
+            with pytest.raises(ValueError, match="jsonschema package required"):
+                await GeminiClient.generate_json_validated(
+                    "test prompt", schema=schema, strict=True
+                )

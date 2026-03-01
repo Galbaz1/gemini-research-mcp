@@ -36,6 +36,7 @@ from .video_url import (
     _video_content_with_metadata,
 )
 from .youtube_download import download_youtube_video
+from ..contract.pipeline import run_strict_pipeline
 
 logger = logging.getLogger(__name__)
 video_server = FastMCP("video")
@@ -125,12 +126,21 @@ async def video_analyze(
     )] = None,
     thinking_level: ThinkingLevel = "high",
     use_cache: Annotated[bool, Field(description="Use cached results")] = True,
+    strict_contract: Annotated[bool, Field(
+        description="Enable strict contract pipeline with quality gates, "
+        "artifact rendering, and semantic validation. Produces richer output "
+        "with strategy report, concept map, and HTML/Markdown artifacts."
+    )] = False,
 ) -> dict:
     """Analyze a video (YouTube URL or local file) with any instruction.
 
     Provide exactly one of url or file_path. Uses Gemini's structured output
     for reliable JSON responses. Pass a custom output_schema to control the
     response shape, or use the default VideoResult schema.
+
+    When strict_contract=True, runs the full contract pipeline: analysis with
+    strict Pydantic models, parallel strategy/concept-map generation, artifact
+    rendering, and quality gates. Returns richer output but takes longer.
 
     Args:
         url: YouTube video URL.
@@ -139,9 +149,11 @@ async def video_analyze(
         output_schema: Optional JSON Schema dict for custom output shape.
         thinking_level: Gemini thinking depth.
         use_cache: Whether to use cached results.
+        strict_contract: Run strict contract pipeline with quality gates.
 
     Returns:
-        Dict matching VideoResult schema (default) or the custom output_schema.
+        Dict matching VideoResult schema (default), custom output_schema,
+        or strict contract output with analysis, strategy, concept_map, artifacts.
     """
     try:
         sources = sum(x is not None for x in (url, file_path))
@@ -175,6 +187,19 @@ async def video_analyze(
             contents, content_id, file_uri = await _video_file_content(file_path, instruction)
             source_label = file_path
             local_filepath = str(Path(file_path).expanduser().resolve())
+
+        if strict_contract:
+            result = await run_strict_pipeline(
+                contents,
+                instruction=instruction,
+                content_id=content_id,
+                source_label=source_label,
+                thinking_level=thinking_level,
+                metadata_context=metadata_context,
+            )
+            result["local_filepath"] = local_filepath
+            result["screenshot_dir"] = screenshot_dir
+            return result
 
         result = await analyze_video(
             contents,

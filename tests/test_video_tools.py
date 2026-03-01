@@ -169,6 +169,34 @@ class TestVideoAnalyze:
         assert "error" in result
         assert result["category"] == "FILE_NOT_FOUND"
 
+    @pytest.mark.asyncio
+    async def test_video_analyze_strict_contract_routes_to_pipeline(self, mock_gemini_client):
+        """strict_contract=True delegates to run_strict_pipeline."""
+        pipeline_result = {
+            "analysis": {"title": "Strict Result"},
+            "strategy": {},
+            "concept_map": {},
+            "artifacts": {},
+            "quality_report": {"status": "pass"},
+            "source": "https://www.youtube.com/watch?v=abc123",
+            "content_id": "abc123",
+        }
+        with patch(
+            "video_research_mcp.tools.video.run_strict_pipeline",
+            new_callable=AsyncMock,
+            return_value=pipeline_result,
+        ) as mock_pipeline:
+            result = await video_analyze(
+                url="https://www.youtube.com/watch?v=abc123",
+                strict_contract=True,
+            )
+
+        mock_pipeline.assert_called_once()
+        assert result["analysis"]["title"] == "Strict Result"
+        assert result["local_filepath"] == ""
+        # Normal analyze_video should NOT have been called
+        mock_gemini_client["generate_structured"].assert_not_called()
+
 
 class TestVideoCreateSession:
     @pytest.mark.asyncio
