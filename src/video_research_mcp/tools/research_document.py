@@ -5,13 +5,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Annotated
+from typing import Annotated, Awaitable, TypeVar
 
 from google.genai import types
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from ..client import GeminiClient
+from ..config import get_config
 from ..errors import make_tool_error
 from ..tracing import trace
 from ..models.research_document import (
@@ -35,6 +36,18 @@ from .research import research_server
 from .research_document_file import _prepare_all_documents_with_issues
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
+
+
+async def _gather_bounded(coros: list[Awaitable[T]], limit: int) -> list[T]:
+    """Run awaitables with bounded concurrency while preserving order."""
+    semaphore = asyncio.Semaphore(limit)
+
+    async def _run(coro: Awaitable[T]) -> T:
+        async with semaphore:
+            return await coro
+
+    return list(await asyncio.gather(*[_run(coro) for coro in coros]))
 
 
 @research_server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
@@ -72,6 +85,16 @@ async def research_document(
 
     if not file_paths and not urls:
         return make_tool_error(ValueError("Provide at least one of: file_paths or urls"))
+    cfg = get_config()
+    total_sources = len(file_paths or []) + len(urls or [])
+    if total_sources > cfg.research_document_max_sources:
+        return make_tool_error(
+            ValueError(
+                "Too many document sources requested: "
+                f"{total_sources} > configured limit {cfg.research_document_max_sources}. "
+                "Split into smaller batches or raise RESEARCH_DOCUMENT_MAX_SOURCES."
+            )
+        )
 
     try:
         prepared, prep_issue_dicts = await _prepare_all_documents_with_issues(file_paths, urls)
@@ -144,7 +167,7 @@ async def _phase_document_map(
         return result
 
     tasks = [_map_one(p, s) for p, s in zip(file_parts, sources)]
-    return list(await asyncio.gather(*tasks))
+    return await _gather_bounded(tasks, get_config().research_document_phase_concurrency)
 
 
 async def _phase_evidence_extraction(
@@ -175,7 +198,7 @@ async def _phase_evidence_extraction(
         _extract_one(p, s, m)
         for p, s, m in zip(file_parts, sources, doc_maps)
     ]
-    return list(await asyncio.gather(*tasks))
+    return await _gather_bounded(tasks, get_config().research_document_phase_concurrency)
 
 
 async def _phase_cross_reference(

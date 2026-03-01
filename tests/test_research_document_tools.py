@@ -157,6 +157,16 @@ class TestResearchDocument:
         result = await research_document(instruction="test")
         assert "error" in result
 
+    async def test_rejects_too_many_sources(self, clean_config, monkeypatch, mock_gemini_client):
+        """GIVEN more sources than policy limit WHEN calling THEN return bounded-workload error."""
+        monkeypatch.setenv("RESEARCH_DOCUMENT_MAX_SOURCES", "1")
+        result = await research_document(
+            instruction="test",
+            file_paths=["/path/to/doc1.pdf", "/path/to/doc2.pdf"],
+        )
+        assert "error" in result
+        assert "Too many document sources requested" in result["error"]
+
     async def test_preparation_failure(self, mock_gemini_client):
         """GIVEN file prep fails WHEN calling THEN error returned."""
         with patch(

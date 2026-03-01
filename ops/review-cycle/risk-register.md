@@ -72,3 +72,11 @@
 - Exploit reasoning: Untrusted content merged into model prompts may induce policy bypass attempts without explicit adversarial coverage tests.
 - Status: Mitigated in iteration 7 via explicit system-level anti-injection rules and regression assertions on guardrail propagation.
 - Residual risk: Guardrails are prompt-based; dedicated adversarial corpus testing across all tools is still pending.
+
+## R-011
+- Severity: High
+- Area: Concurrency and resource exhaustion
+- Evidence: Prior to iteration 8, `research_document` accepted unbounded source lists and used unbounded `asyncio.gather` fan-out in preparation and phase execution; temporary download directories were not explicitly cleaned.
+- Exploit reasoning: Large attacker-controlled source sets can drive bursty parallel downloads/uploads/model calls and persistent temp-directory growth, degrading service availability and host stability.
+- Status: Mitigated in iteration 8 via `RESEARCH_DOCUMENT_MAX_SOURCES`, bounded phase concurrency controls, and guaranteed tmp-dir cleanup.
+- Residual risk: Workload limits are currently concentrated in `research_document`; equivalent envelope checks should be reviewed for other future multi-source tools.

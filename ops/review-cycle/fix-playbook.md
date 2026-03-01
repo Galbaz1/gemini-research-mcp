@@ -108,3 +108,15 @@
   - `tests/test_content_tools.py::TestContentAnalyze::test_url_uses_url_context`
   - `tests/test_content_tools.py::TestContentAnalyze::test_url_fallback_on_structured_failure`
   - `tests/test_content_tools.py::TestContentExtract::test_extract_returns_parsed_json`
+
+## FP-011: Enforce workload envelopes for multi-source document research
+- Context: `research_document` downloads/uploads/processes user-supplied source lists across multiple async phases.
+- Rule: Enforce max source count at ingress, bound fan-out concurrency for each phase, and clean temp resources in finally blocks.
+- Why: Prevents resource exhaustion and event-loop/API pressure under large or adversarial source lists.
+- Applied in iteration 8:
+  - `src/video_research_mcp/config.py`
+  - `src/video_research_mcp/tools/research_document.py`
+  - `src/video_research_mcp/tools/research_document_file.py`
+- Regression coverage:
+  - `tests/test_research_document_tools.py::TestResearchDocument::test_rejects_too_many_sources`
+  - `tests/test_research_document_file.py::TestPrepareAllDocumentsWithIssues::test_cleans_tmp_dir_after_url_preparation`

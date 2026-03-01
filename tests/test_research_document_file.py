@@ -129,3 +129,35 @@ class TestPrepareAllDocumentsWithIssues:
                     "error": "fetch failed",
                 }
             ]
+
+    async def test_cleans_tmp_dir_after_url_preparation(self, tmp_path):
+        """Temporary URL download directory is removed after preparation."""
+        ok_path = tmp_path / "ok.pdf"
+        tmp_dir = tmp_path / "research_doc_tmp"
+        tmp_dir.mkdir()
+
+        with (
+            patch(
+                "video_research_mcp.tools.research_document_file.tempfile.mkdtemp",
+                return_value=str(tmp_dir),
+            ),
+            patch(
+                "video_research_mcp.tools.research_document_file._download_document",
+                new_callable=AsyncMock,
+                return_value=ok_path,
+            ),
+            patch(
+                "video_research_mcp.tools.research_document_file._prepare_document",
+                new_callable=AsyncMock,
+                return_value=("gs://ok", "hash-ok"),
+            ),
+            patch(
+                "video_research_mcp.tools.research_document_file.shutil.rmtree"
+            ) as mock_rmtree,
+        ):
+            await _prepare_all_documents_with_issues(
+                file_paths=None,
+                urls=["https://example.com/ok.pdf"],
+            )
+
+            mock_rmtree.assert_called_once_with(tmp_dir, True)

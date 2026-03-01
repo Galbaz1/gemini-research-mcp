@@ -65,3 +65,11 @@ Run an hourly security-focused review loop with branch discipline, reflective le
 4. If URL-context structured generation falls back to unstructured fetch plus reshape, the fallback and reshape calls shall preserve the same anti-injection system instruction.
 5. When research/document system prompts process source material, they shall explicitly ignore in-content attempts to override role, policy, or tool behavior.
 6. The run shall persist severity-ranked findings, exploit reasoning, implemented fixes, confidence deltas, and next-iteration hypotheses in review-cycle artifacts before completion.
+
+## Iteration 8 Mission Rewritten as EARS Requirements
+1. When iteration state indicates `current_iteration=8`, the run shall prioritize concurrency and resource-exhaustion risks in multi-source workflows.
+2. If iteration 7 lessons require explicit cross-path contracts, iteration 8 shall apply one shared workload-envelope policy across document preparation and analysis phases.
+3. When `research_document` receives source inputs, the system shall reject requests that exceed `RESEARCH_DOCUMENT_MAX_SOURCES`.
+4. When URL downloads, document uploads, and per-document phase calls execute, the system shall enforce bounded parallelism via `RESEARCH_DOCUMENT_PHASE_CONCURRENCY`.
+5. If temporary download directories are created for URL sources, the system shall remove them after completion or failure.
+6. The run shall persist severity-ranked findings, exploit reasoning, implemented fixes, confidence deltas, and next-iteration hypotheses before completion.
