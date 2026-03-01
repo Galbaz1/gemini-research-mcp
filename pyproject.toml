@@ -1,10 +1,11 @@
 [project]
 name = "video-research-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "Unified Gemini research partner — video analysis, deep research, content extraction via MCP"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Fausto" }]
+readme = "README.md"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: MIT License",
