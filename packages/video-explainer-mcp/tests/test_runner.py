@@ -35,18 +35,18 @@ class TestSubprocessResult:
 class TestRunCli:
     """Tests for run_cli function."""
 
-    async def test_success(self, mock_subprocess, monkeypatch):
+    async def test_success(self, mock_subprocess, mock_explainer_venv, monkeypatch):
         """Successful CLI execution returns SubprocessResult."""
-        monkeypatch.setenv("EXPLAINER_PATH", "/fake/path")
+        monkeypatch.setenv("EXPLAINER_PATH", str(mock_explainer_venv))
         proc = mock_subprocess(returncode=0, stdout=b"OK\n", stderr=b"")
         with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)):
             result = await run_cli("create", "test-project")
         assert result.stdout == "OK\n"
         assert result.returncode == 0
 
-    async def test_failure_raises(self, mock_subprocess, monkeypatch):
+    async def test_failure_raises(self, mock_subprocess, mock_explainer_venv, monkeypatch):
         """Non-zero exit raises SubprocessError."""
-        monkeypatch.setenv("EXPLAINER_PATH", "/fake/path")
+        monkeypatch.setenv("EXPLAINER_PATH", str(mock_explainer_venv))
         proc = mock_subprocess(returncode=1, stderr=b"Project not found: x")
         with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)):
             with pytest.raises(SubprocessError) as exc_info:
@@ -54,9 +54,9 @@ class TestRunCli:
         assert exc_info.value.returncode == 1
         assert "Project not found" in exc_info.value.stderr
 
-    async def test_timeout(self, monkeypatch):
+    async def test_timeout(self, mock_explainer_venv, monkeypatch):
         """Timeout sends SIGTERM then SIGKILL."""
-        monkeypatch.setenv("EXPLAINER_PATH", "/fake/path")
+        monkeypatch.setenv("EXPLAINER_PATH", str(mock_explainer_venv))
         proc = AsyncMock()
         proc.returncode = -15
         proc.communicate = AsyncMock(side_effect=asyncio.TimeoutError())
@@ -79,25 +79,44 @@ class TestRunCli:
             with pytest.raises(asyncio.TimeoutError):
                 await run_cli("render", "slow-project", timeout=1)
 
-    async def test_custom_cwd(self, mock_subprocess, monkeypatch):
+    async def test_custom_cwd(self, mock_subprocess, mock_explainer_venv, monkeypatch):
         """Custom cwd is passed to subprocess."""
-        monkeypatch.setenv("EXPLAINER_PATH", "/fake/path")
+        monkeypatch.setenv("EXPLAINER_PATH", str(mock_explainer_venv))
         proc = mock_subprocess(returncode=0, stdout=b"OK")
         with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)) as mock_exec:
             await run_cli("status", cwd="/custom/dir")
             call_kwargs = mock_exec.call_args
             assert call_kwargs.kwargs.get("cwd") == "/custom/dir"
 
-    async def test_builds_correct_command(self, mock_subprocess, monkeypatch):
-        """Command is built from config.explainer_python + args."""
-        monkeypatch.setenv("EXPLAINER_PATH", "/fake/path")
-        monkeypatch.setenv("EXPLAINER_PYTHON", "python3.12")
+    async def test_builds_correct_command(self, mock_subprocess, mock_explainer_venv, monkeypatch):
+        """Command uses console script + --projects-dir (not python -m)."""
+        monkeypatch.setenv("EXPLAINER_PATH", str(mock_explainer_venv))
         proc = mock_subprocess(returncode=0, stdout=b"OK")
         with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)) as mock_exec:
             await run_cli("generate", "my-project", "--mock")
             args = mock_exec.call_args.args
-            assert args[0] == "python3.12"
-            assert args[1] == "-m"
-            assert args[2] == "video_explainer"
+            # First arg is the console script path
+            assert args[0].endswith("video-explainer")
+            assert ".venv/bin/video-explainer" in args[0]
+            # --projects-dir is injected
+            assert "--projects-dir" in args
+            # No python -m invocation
+            assert "-m" not in args
+            assert "video_explainer" not in args
+            # User args are passed through
             assert "generate" in args
             assert "my-project" in args
+
+    async def test_env_strips_claudecode(self, mock_subprocess, mock_explainer_venv, monkeypatch):
+        """CLAUDECODE and CLAUDE_CODE_* env vars are stripped from subprocess."""
+        monkeypatch.setenv("EXPLAINER_PATH", str(mock_explainer_venv))
+        monkeypatch.setenv("CLAUDECODE", "1")
+        monkeypatch.setenv("CLAUDE_CODE_SESSION", "abc")
+        monkeypatch.setenv("HOME", "/home/user")
+        proc = mock_subprocess(returncode=0, stdout=b"OK")
+        with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)) as mock_exec:
+            await run_cli("status", "test")
+            env = mock_exec.call_args.kwargs.get("env", {})
+            assert "CLAUDECODE" not in env
+            assert "CLAUDE_CODE_SESSION" not in env
+            assert "HOME" in env

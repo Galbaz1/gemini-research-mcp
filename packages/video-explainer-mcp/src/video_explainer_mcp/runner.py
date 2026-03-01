@@ -4,15 +4,32 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
-from .config import get_config
+from .config import ServerConfig, get_config
 from .errors import SubprocessError
 
 logger = logging.getLogger(__name__)
 
 SIGTERM_GRACE_SECONDS = 5
+
+
+def _resolve_cli(cfg: ServerConfig) -> str:
+    """Resolve the upstream video-explainer console script path."""
+    if not cfg.explainer_path:
+        raise FileNotFoundError(
+            "EXPLAINER_PATH not set — configure in ~/.config/video-research-mcp/.env"
+        )
+    script = Path(cfg.explainer_path) / ".venv" / "bin" / "video-explainer"
+    if not script.is_file():
+        raise FileNotFoundError(
+            f"Console script not found: {script}\n"
+            f"Run: cd {cfg.explainer_path} && uv pip install -e ."
+        )
+    return str(script)
 
 
 @dataclass(frozen=True)
@@ -56,15 +73,22 @@ async def run_cli(
     if cwd is None:
         cwd = cfg.explainer_path or None
 
-    cmd = [cfg.explainer_python, "-m", "video_explainer", *args]
+    script = _resolve_cli(cfg)
+    cmd = [script, "--projects-dir", str(cfg.resolved_projects_path), *args]
     logger.info("Running: %s (timeout=%ds)", " ".join(cmd), timeout)
     start = time.monotonic()
 
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k != "CLAUDECODE" and not k.startswith("CLAUDE_CODE_")
+    }
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         cwd=cwd,
+        env=env,
     )
 
     try:

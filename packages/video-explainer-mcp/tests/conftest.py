@@ -73,7 +73,7 @@ def mock_project_dir(tmp_path):
                 if step == "script":
                     (step_dir / "script.json").write_text("{}")
                 elif step == "narration":
-                    (step_dir / "narration.json").write_text("{}")
+                    (step_dir / "narrations.json").write_text("{}")
                 elif step == "scenes":
                     (step_dir / "scenes.json").write_text("{}")
                 elif step == "voiceover":
@@ -86,6 +86,17 @@ def mock_project_dir(tmp_path):
         return project
 
     return _factory
+
+
+@pytest.fixture()
+def mock_explainer_venv(tmp_path):
+    """Create a fake .venv/bin/video-explainer for runner tests."""
+    venv_bin = tmp_path / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    script = venv_bin / "video-explainer"
+    script.write_text("#!/bin/sh\n")
+    script.chmod(0o755)
+    return tmp_path
 
 
 @pytest.fixture()

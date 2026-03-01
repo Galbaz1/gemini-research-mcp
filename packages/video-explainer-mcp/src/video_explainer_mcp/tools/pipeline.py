@@ -26,15 +26,25 @@ pipeline_server = FastMCP("pipeline")
 _background_tasks: set[asyncio.Task] = set()
 
 
-def _tts_args() -> list[str]:
-    """Build TTS-related CLI arguments from config."""
+def _tts_args(subcommand: str) -> list[str]:
+    """Build TTS CLI arguments matching the upstream subcommand's argparse.
+
+    Args:
+        subcommand: The CLI subcommand (generate, voiceover, script, etc.).
+
+    Returns:
+        List of CLI arguments for TTS configuration.
+    """
     cfg = get_config()
-    args: list[str] = []
-    if cfg.tts_provider != "mock":
-        args.extend(["--tts-provider", cfg.tts_provider])
-    else:
-        args.append("--mock")
-    return args
+    if cfg.tts_provider == "mock":
+        if subcommand in ("generate", "voiceover"):
+            return ["--mock"]
+        return []
+    if subcommand == "generate":
+        return ["--voice-provider", cfg.tts_provider]
+    if subcommand == "voiceover":
+        return ["--provider", cfg.tts_provider]
+    return []
 
 
 @pipeline_server.tool(annotations=ToolAnnotations(readOnlyHint=False, openWorldHint=False))
@@ -63,7 +73,7 @@ async def explainer_generate(
             args.extend(["--to", to_step])
         if force:
             args.append("--force")
-        args.extend(_tts_args())
+        args.extend(_tts_args("generate"))
 
         result = await run_cli(*args)
         return {
@@ -92,7 +102,7 @@ async def explainer_step(
     """
     try:
         args = [step, project_id]
-        args.extend(_tts_args())
+        args.extend(_tts_args(step))
 
         result = await run_cli(*args)
         return StepResult(
@@ -263,7 +273,7 @@ async def explainer_short(
     """
     try:
         args = ["short", "generate", project_id]
-        args.extend(_tts_args())
+        args.extend(_tts_args("short"))
         result = await run_cli(*args)
         return {
             "project_id": project_id,

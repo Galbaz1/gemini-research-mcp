@@ -74,6 +74,26 @@ def check_prereqs() -> PrereqReport:
         message="" if explainer_ok else "Set EXPLAINER_PATH in ~/.config/video-research-mcp/.env",
     ))
 
+    # Console script (video-explainer CLI installed in upstream venv)
+    script = Path(cfg.explainer_path) / ".venv" / "bin" / "video-explainer" if cfg.explainer_path else Path("")
+    script_ok = explainer_ok and script.is_file()
+    checks.append(PrereqStatus(
+        name="console_script",
+        available=script_ok,
+        path=str(script) if script_ok else "",
+        message="" if script_ok else f"Run: cd {cfg.explainer_path} && uv pip install -e .",
+    ))
+
+    # Remotion npm dependencies
+    remotion_dir = Path(cfg.explainer_path) / "remotion" / "node_modules" / "@remotion" if cfg.explainer_path else Path("")
+    remotion_ok = explainer_ok and remotion_dir.is_dir()
+    checks.append(PrereqStatus(
+        name="remotion",
+        available=remotion_ok,
+        path=str(remotion_dir) if remotion_ok else "",
+        message="" if remotion_ok else f"Run: cd {cfg.explainer_path}/remotion && npm install",
+    ))
+
     return PrereqReport(
         all_ok=all(c.available for c in checks),
         checks=checks,

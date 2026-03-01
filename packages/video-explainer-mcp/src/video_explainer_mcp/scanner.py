@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 STEP_DETECTION: dict[str, tuple[str, str]] = {
     "input": ("input", ""),
     "script": ("script", "script.json"),
-    "narration": ("narration", "narration.json"),
+    "narration": ("narration", "narrations.json"),
     "scenes": ("scenes", "scenes.json"),
     "voiceover": ("voiceover", ""),
     "storyboard": ("storyboard", ""),

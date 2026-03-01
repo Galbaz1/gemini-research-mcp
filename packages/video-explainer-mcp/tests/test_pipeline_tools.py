@@ -90,14 +90,35 @@ class TestExplainerStep:
         assert result["success"] is True
 
     async def test_tts_provider_args(self, monkeypatch):
-        """Passes TTS provider from config."""
+        """Passes --provider for voiceover step."""
         monkeypatch.setenv("EXPLAINER_PATH", "/fake")
         monkeypatch.setenv("EXPLAINER_TTS_PROVIDER", "elevenlabs")
         with patch("video_explainer_mcp.tools.pipeline.run_cli", return_value=_mock_cli_result()) as mock_cli:
             await explainer_step(project_id="test", step="voiceover")
         call_args = mock_cli.call_args.args
-        assert "--tts-provider" in call_args
+        assert "--provider" in call_args
         assert "elevenlabs" in call_args
+
+    async def test_tts_args_generate(self, monkeypatch):
+        """Passes --voice-provider for generate subcommand."""
+        monkeypatch.setenv("EXPLAINER_PATH", "/fake")
+        monkeypatch.setenv("EXPLAINER_TTS_PROVIDER", "elevenlabs")
+        with patch("video_explainer_mcp.tools.pipeline.run_cli", return_value=_mock_cli_result()) as mock_cli:
+            await explainer_generate(project_id="test")
+        call_args = mock_cli.call_args.args
+        assert "--voice-provider" in call_args
+        assert "elevenlabs" in call_args
+
+    async def test_tts_args_script_no_tts(self, monkeypatch):
+        """Script step does not receive TTS args."""
+        monkeypatch.setenv("EXPLAINER_PATH", "/fake")
+        monkeypatch.setenv("EXPLAINER_TTS_PROVIDER", "elevenlabs")
+        with patch("video_explainer_mcp.tools.pipeline.run_cli", return_value=_mock_cli_result()) as mock_cli:
+            await explainer_step(project_id="test", step="script")
+        call_args = mock_cli.call_args.args
+        assert "--provider" not in call_args
+        assert "--voice-provider" not in call_args
+        assert "--mock" not in call_args
 
 
 class TestExplainerRender:
