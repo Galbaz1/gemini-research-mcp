@@ -11,3 +11,15 @@
 ## Iteration 2 seed hypotheses
 - Add an explicit per-tool trust policy matrix (local file, remote URL, external API) and test each edge.
 - Evaluate whether `infra_*` mutating tools need an opt-in guard for non-local transports.
+
+## Iteration 2 (Validation and Schema Contracts) - 2026-03-01T04:05:41Z
+- Observation: Local filesystem inputs across multiple tools had no centralized boundary contract, while URL inputs already had shared policy controls.
+- Inference: Validation strategy was asymmetric across trust boundaries, which increases policy drift risk and weakens schema-level ingress guarantees.
+- Strategy: Introduce one shared local-path policy primitive and apply it at every local path ingress point.
+- Validation: Added `LOCAL_FILE_ACCESS_ROOT` config, wired `enforce_local_access_root()` into all path-taking tool ingress points, and added focused regression tests.
+- Confidence change: 0.42 -> 0.79 for local filesystem trust-boundary enforcement.
+- Delivery confidence: 0.74 -> 0.82 after lint + targeted policy test pass.
+
+## Iteration 3 seed hypotheses
+- Validate external API failure categorization consistency (`make_tool_error`) under retries/timeouts.
+- Add idempotency checks for partial-success batch/download flows.

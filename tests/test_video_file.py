@@ -90,6 +90,16 @@ class TestValidateVideoPath:
         with pytest.raises(ValueError, match="Unsupported video extension"):
             _validate_video_path(str(f))
 
+    def test_rejects_path_outside_local_access_root(self, tmp_path, monkeypatch, clean_config):
+        root = tmp_path / "allowed"
+        root.mkdir()
+        outside = tmp_path / "outside.mp4"
+        outside.write_bytes(b"\x00" * 10)
+        monkeypatch.setenv("LOCAL_FILE_ACCESS_ROOT", str(root))
+
+        with pytest.raises(PermissionError, match="outside LOCAL_FILE_ACCESS_ROOT"):
+            _validate_video_path(str(outside))
+
 
 class TestVideoFileContent:
     @pytest.mark.asyncio

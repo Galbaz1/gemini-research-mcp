@@ -20,3 +20,10 @@ Run an hourly security-focused review loop with branch discipline, reflective le
 ## Quality delta
 - Before: Broad multi-step instruction set with implicit control flow.
 - After: Testable run-time requirements with explicit triggers and stop conditions.
+
+## Iteration 2 Mission Rewritten as EARS Requirements
+1. When iteration state indicates `current_iteration=2`, the run shall prioritize validation and schema contract analysis.
+2. If iteration 1 logged unresolved trust-boundary lessons, the run shall implement at least one remediation directly derived from those lessons.
+3. When local file or directory inputs are accepted by tools, the system shall validate resolved paths against a shared policy boundary when configured.
+4. If validation enforcement rejects an input, the tool shall return structured `make_tool_error()` output rather than raising uncaught exceptions.
+5. The run shall persist findings, confidence deltas, and next hypotheses to review-cycle memory artifacts before completion.

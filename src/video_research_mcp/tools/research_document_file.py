@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 from ..config import get_config
+from ..local_path_policy import enforce_local_access_root, resolve_path
 from ..url_policy import download_checked
 
 from .video_file import _file_content_hash, _upload_large_file
@@ -116,7 +117,7 @@ async def _prepare_all_documents(
     all_paths: list[tuple[Path, str]] = []
     if file_paths:
         for fp in file_paths:
-            p = Path(fp).expanduser().resolve()
+            p = enforce_local_access_root(resolve_path(fp))
             all_paths.append((p, fp))
     all_paths.extend(downloaded)
 
