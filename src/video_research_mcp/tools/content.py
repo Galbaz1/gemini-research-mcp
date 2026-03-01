@@ -18,6 +18,7 @@ from ..errors import make_tool_error
 from ..models.content import ContentResult
 from ..prompts.content import STRUCTURED_EXTRACT
 from ..types import ThinkingLevel, coerce_json_param
+from ..url_policy import UrlPolicyError, validate_url
 
 logger = logging.getLogger(__name__)
 content_server = FastMCP("content")
@@ -102,12 +103,13 @@ async def content_analyze(
             raise ValueError(f"Provide exactly one of: file_path, url, or text — got {provided}")
 
         if url:
+            await validate_url(url)
             use_url_context = True
             prompt_text = f"{instruction}\n\nAnalyze this exact URL:\n{url}"
         else:
             use_url_context = False
             parts, desc = _build_content_parts(file_path=file_path, text=text)
-    except (FileNotFoundError, ValueError) as exc:
+    except (FileNotFoundError, UrlPolicyError, ValueError) as exc:
         return make_tool_error(exc)
 
     try:

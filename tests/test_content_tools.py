@@ -69,6 +69,16 @@ class TestContentAnalyze:
         assert call_kwargs["tools"][0].url_context is not None
 
     @pytest.mark.asyncio
+    async def test_url_rejects_non_https_before_model_call(self, mock_gemini_client):
+        """Non-HTTPS URLs are rejected by URL policy before any Gemini call."""
+        result = await content_analyze(url="http://example.com")
+
+        assert "error" in result
+        assert "Only HTTPS URLs are allowed" in result["error"]
+        mock_gemini_client["generate"].assert_not_called()
+        mock_gemini_client["generate_structured"].assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_no_input_returns_error(self):
         """No content source returns tool error."""
         result = await content_analyze()
