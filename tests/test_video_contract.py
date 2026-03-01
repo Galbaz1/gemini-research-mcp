@@ -200,3 +200,27 @@ class TestRunStrictPipeline:
 
         assert "error" in result
         assert result["category"] == "QUALITY_GATE_FAILED"
+
+    @pytest.mark.asyncio
+    async def test_pipeline_passes_metadata_as_system_instruction(
+        self, mock_gemini_client, tmp_path, monkeypatch
+    ):
+        """metadata_context is forwarded as system_instruction to Stage 1."""
+        monkeypatch.setenv("VIDEO_OUTPUT_DIR", str(tmp_path / "output"))
+
+        analysis = _make_analysis()
+        strategy = _make_strategy()
+        concept_map = _make_concept_map()
+        mock_gemini_client["generate_structured"].side_effect = [analysis, strategy, concept_map]
+
+        await run_strict_pipeline(
+            "test contents",
+            instruction="analyze",
+            content_id="abc123",
+            source_label="test-source",
+            metadata_context="YouTube: Test Video by TestChannel",
+        )
+
+        # First generate_structured call is Stage 1 (analysis)
+        first_call = mock_gemini_client["generate_structured"].call_args_list[0]
+        assert first_call.kwargs["system_instruction"] == "YouTube: Test Video by TestChannel"

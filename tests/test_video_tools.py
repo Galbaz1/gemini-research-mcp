@@ -197,6 +197,47 @@ class TestVideoAnalyze:
         # Normal analyze_video should NOT have been called
         mock_gemini_client["generate_structured"].assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_video_analyze_strict_with_output_schema_rejected(self):
+        """strict_contract + output_schema returns API_INVALID_ARGUMENT."""
+        result = await video_analyze(
+            url="https://www.youtube.com/watch?v=abc123",
+            strict_contract=True,
+            output_schema={"type": "object"},
+        )
+        assert "error" in result
+        assert result["category"] == "API_INVALID_ARGUMENT"
+        assert "mutually exclusive" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_video_analyze_strict_passes_metadata_context(self, mock_gemini_client):
+        """strict_contract=True forwards metadata_context to pipeline."""
+        pipeline_result = {
+            "analysis": {"title": "With Metadata"},
+            "strategy": {},
+            "concept_map": {},
+            "artifacts": {},
+            "quality_report": {"status": "pass"},
+            "source": "https://www.youtube.com/watch?v=abc123",
+            "content_id": "abc123",
+        }
+        with patch(
+            "video_research_mcp.tools.video.run_strict_pipeline",
+            new_callable=AsyncMock,
+            return_value=pipeline_result,
+        ) as mock_pipeline, patch(
+            "video_research_mcp.tools.video._youtube_metadata_pipeline",
+            new_callable=AsyncMock,
+            return_value=("YouTube context: Test Video by Channel", None),
+        ):
+            await video_analyze(
+                url="https://www.youtube.com/watch?v=abc123",
+                strict_contract=True,
+            )
+
+        call_kwargs = mock_pipeline.call_args.kwargs
+        assert call_kwargs["metadata_context"] == "YouTube context: Test Video by Channel"
+
 
 class TestVideoCreateSession:
     @pytest.mark.asyncio

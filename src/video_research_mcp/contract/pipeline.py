@@ -106,10 +106,13 @@ async def run_strict_pipeline(
     """
     start_time = time.monotonic()
 
-    # Stage 1: Main analysis
+    # Stage 1: Main analysis (with metadata context when available)
     try:
         analysis_model = await GeminiClient.generate_structured(
-            contents, schema=StrictVideoResult, thinking_level=thinking_level
+            contents,
+            schema=StrictVideoResult,
+            thinking_level=thinking_level,
+            system_instruction=metadata_context,
         )
         analysis = analysis_model.model_dump()
     except Exception as exc:

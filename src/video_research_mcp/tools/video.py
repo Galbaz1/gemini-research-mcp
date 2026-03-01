@@ -155,6 +155,16 @@ async def video_analyze(
         Dict matching VideoResult schema (default), custom output_schema,
         or strict contract output with analysis, strategy, concept_map, artifacts.
     """
+    if strict_contract and output_schema is not None:
+        return {
+            "error": "strict_contract and output_schema are mutually exclusive. "
+            "Strict mode uses its own schema (StrictVideoResult); "
+            "omit output_schema or set strict_contract=False.",
+            "category": "API_INVALID_ARGUMENT",
+            "hint": "Remove output_schema when using strict_contract=True.",
+            "retryable": False,
+        }
+
     try:
         sources = sum(x is not None for x in (url, file_path))
         if sources == 0:
